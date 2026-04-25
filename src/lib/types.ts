@@ -1,0 +1,76 @@
+// Hand-written types matching supabase/migrations/0001_schema.sql.
+// TODO: replace with `supabase gen types typescript` output once project is linked.
+
+export type UserRow = {
+  id: string
+  nickname: string | null
+  company: string | null
+  contact_handle: string | null
+  show_contact: boolean
+  recovery_token: string
+  is_vip: boolean
+  vip_name: string | null
+  vip_title: string | null
+  created_at: string
+  last_seen_at: string
+}
+
+export type PollOption = { id: number; label: string }
+
+export type PostRow = {
+  id: number
+  user_id: string
+  type: 'text' | 'poll'
+  body: string
+  tags: string[]
+  show_contact: boolean
+  poll_options: PollOption[] | null
+  poll_multi: boolean | null
+  poll_deadline: string | null
+  poll_hide_results: boolean | null
+  created_at: string
+}
+
+export type ReplyRow = {
+  id: number
+  post_id: number
+  user_id: string
+  body: string
+  created_at: string
+}
+
+export type LikeRow = {
+  user_id: string
+  post_id: number
+  created_at: string
+}
+
+export type PollVoteRow = {
+  user_id: string
+  post_id: number
+  option_id: number
+  created_at: string
+}
+
+export type VipTokenRow = {
+  token: string
+  vip_name: string
+  vip_title: string | null
+  user_id: string | null
+  created_at: string
+  used_at: string | null
+}
+
+export type MatchRow = {
+  id: number
+  user_id: string
+  matched_post_id: number
+  score: number | null
+  reason: string | null
+  computed_at: string
+}
+
+export type PublicUserDisplay = Pick<
+  UserRow,
+  'id' | 'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
+>
