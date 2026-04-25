@@ -134,12 +134,17 @@ npm run dev          # → ./scripts/dev.sh injects secrets, starts on :3000
 Then point Claude at this file: it contains all the architectural decisions and current state.
 
 ### Task queue (in priority order)
-1. AI matching service (task #12) — Supabase Edge Function + pg_cron + DeepSeek call → `matches` table; isolated failure
-2. `/matches` tab (task #13) — read `matches` table; graceful empty state
-3. Supabase Realtime wiring (task #8) — live INSERTs on posts/replies/likes; replace `/screen` 10s polling and add pull-to-refresh on `/feed`
-4. CF Workers deploy via `@opennextjs/cloudflare` (task #9) — env vars, custom domain `meet.zhaidewei.com`
+0. **基础夯实** — 当前功能补文档 + 关键模块（identity / server actions）加测试
+1. AI 撮合实现（方案 F''）— 见 `docs/matching-design.md` §6 checklist
+   - schema migration（posts.match_intent, replies.is_ai/visibility/mentioned_user_id, drop matches）
+   - PostComposer 暗字段 UI + PostCard AI reply 渲染 + /me 提示 section + 删 /matches tab
+   - Supabase Edge Function + pg_cron + DeepSeek
+2. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
+3. Supabase Realtime 接线 — live INSERTs on posts/replies/likes；替换 `/screen` 10s polling + `/feed` pull-to-refresh
+4. CF Workers 部署 via `@opennextjs/cloudflare` — env vars + 自定义域名 `meet.zhaidewei.com`
 
 ### Recently shipped
+- 2026-04-25: AI 撮合方案设计定稿（方案 F''）— `docs/matching-design.md` + `docs/progress.md`
 - 2026-04-25: `/screen` projection — slot state machine (poll takeover × N + timeline) + QR + online count; `qrcode` dep added
 - 2026-04-25: VIP login (`/vip-login` username+password) + polls (create/vote/hide-results), strict 1-VIP-1-user across devices
 - 2026-04-25: `/me` tab + recovery route handler + UI dark-mode contrast fix
