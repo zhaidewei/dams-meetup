@@ -7,6 +7,41 @@
 
 ---
 
+## 2026-04-25 · F'' 撮合 slice 1（schema + 前端管道）
+
+按 `matching-design.md` §6 checklist 推进 F''。本 slice 不接 LLM — 只把 schema 和 UI 管道铺好，AI reply 槽位渲染但暂时为空。
+
+**slice 1 范围（已完成）**
+- `supabase/migrations/0004_match_intent.sql`
+  - `posts.match_intent text` — 私下暗字段
+  - `replies.is_ai/visibility/mentioned_user_id` + check constraint（人类作者 OR AI）
+  - DROP TABLE matches
+  - 收紧 anon RLS：只读 `visibility='public'` replies
+  - 索引：mentioned_user_id partial、(post_id, is_ai)
+- `PostComposer` 折叠区域"委托 AI 寻找匹配（私下，仅你可见）" + 200 字 textarea
+- `createPostAction` 接收 match_intent 写入 posts
+- `fetchFeed` 选 match_intent + replies 全字段；**在 viewer 层过滤 author_only**（核心隐私 enforcement）
+- `ReplySection` 新增 `AiReplyRow`（🤖 + 淡蓝 + 推荐对象姓名）
+- `fetchMentionsOfMe` 新查询；`/me` 新 section "有人想找你"
+  - 只暴露关联帖子摘要 + 时间，不暴露 reply.body 或对方 match_intent
+- `fetchRepliesToMe` 现过滤 is_ai=false（AI 回复走撮合通知，不混入"收到的回复"）
+- 删 `/matches` 路由 + Header tab + `MatchRow` 类型
+
+**质量 gate**
+- typecheck ✅ · lint ✅ · 9/9 tests ✅
+- 注：smoke test 跑的是 0004 应用前的 schema，没暴露 column 不存在问题
+
+**下一步切片**
+- **slice 2**：人工 SQL insert 几条 mock AI reply 验 UI 渲染 + /me 通知
+- **slice 3**：Supabase Edge Function + DeepSeek + pg_cron + prompt engineering
+
+**重要 handover 信息**
+- live Supabase DB **尚未应用 0004**。在应用前跑 `npm run dev` 会让 `/feed` 和 `/me` 的查询出 column 错误
+- 应用顺序：直接跑 `0004_match_intent.sql` 全文（含 DROP matches；当前 matches 表为空）
+- 应用后无需重启 dev server（运行时查询）
+
+---
+
 ## 2026-04-25 · 基础夯实（文档 + 测试）
 
 撮合开工前的基础工作。范围严格控制（最小集），不堆 ROI 低的产物。

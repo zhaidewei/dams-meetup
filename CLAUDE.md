@@ -134,15 +134,18 @@ npm run dev          # → ./scripts/dev.sh injects secrets, starts on :3000
 Then point Claude at this file: it contains all the architectural decisions and current state.
 
 ### Task queue (in priority order)
-1. AI 撮合实现（方案 F''）— 见 `docs/matching-design.md` §6 checklist
-   - schema migration（posts.match_intent, replies.is_ai/visibility/mentioned_user_id, drop matches）
-   - PostComposer 暗字段 UI + PostCard AI reply 渲染 + /me 提示 section + 删 /matches tab
-   - Supabase Edge Function + pg_cron + DeepSeek
+0. **应用 migration 0004 到 Supabase** — 手工跑 `supabase/migrations/0004_match_intent.sql`（不应用 `/feed` 和 `/me` 会报 column 错）
+1. AI 撮合实现（方案 F''）剩余切片
+   - ✅ slice 1: schema + 前端管道（DONE）
+   - slice 2: 手工 SQL mock AI reply 验 UI（30min）
+   - slice 3: Supabase Edge Function + DeepSeek + pg_cron
 2. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
 3. Supabase Realtime 接线 — live INSERTs on posts/replies/likes；替换 `/screen` 10s polling + `/feed` pull-to-refresh
+   - 注：接 Realtime 时必须 redact `posts.match_intent`，否则 anon 客户端会通过 broadcast 收到（0004 已留 TODO 注释）
 4. CF Workers 部署 via `@opennextjs/cloudflare` — env vars + 自定义域名 `meet.zhaidewei.com`
 
 ### Recently shipped
+- 2026-04-25: F'' 撮合 slice 1 — schema migration 0004 + PostComposer 暗字段 + ReplySection AiReplyRow + /me "有人想找你" + 删 /matches。**migration 待人工应用**。
 - 2026-04-25: 基础夯实 — `docs/{architecture,schema,dev-setup}.md` + vitest（9/9 pass，含 Supabase smoke）
 - 2026-04-25: AI 撮合方案设计定稿（方案 F''）— `docs/matching-design.md` + `docs/progress.md`
 - 2026-04-25: `/screen` projection — slot state machine (poll takeover × N + timeline) + QR + online count; `qrcode` dep added
