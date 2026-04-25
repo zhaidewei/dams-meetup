@@ -89,10 +89,11 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 - Route gate (`src/proxy.ts`) — `/`, `/recover`, `/vip-login` are public
 - Feed: composer (`PostComposer`), post card (`PostCard`), like (`LikeButton` with optimistic update), reply section (`ReplySection`)
 - VIP polls — `PollComposer` (only shown to VIPs in `PostComposer`), `PollCard` rendered inline in timeline; deadline hard-coded to `EVENT_END_ISO`; supports single/multi, hide-results-until-voted, change-vote
-- Server actions: `createPostAction`, `toggleLikeAction`, `createReplyAction`, `updateProfileAction`, `vipLoginAction`, `createPollAction`, `voteAction`
+- Server actions: `createPostAction`, `toggleLikeAction`, `createReplyAction`, `updateProfileAction`, `vipLoginAction`, `createPollAction`, `voteAction`, `fetchScreenData`
 - Feed data fetching `fetchFeed` (author + replies + like counts + poll vote counts joined; supports `authorId` filter)
 - `/me` tab — profile edit form, recovery URL with copy button, replies-to-me list, my-posts list (reuses `PostCard`)
-- Stub pages: `/matches`, `/screen` (placeholders)
+- `/screen` projection — 4-clock state machine: 1s ui tick / 8s timeline focus rotate / 30s slot (poll-vs-timeline) / 10s server polling. ActivePolls × 30s + timeline 30s, looped. Timeline focuses one post big + 2×2 grid below. PollSlot full-screen with bar charts + QR. Online-count from `users.last_seen_at` (5-min window, only `/feed` visits update it). Max-width 1400px to keep focal content centered on wide displays.
+- Stub pages: `/matches` (placeholder)
 - Header with tab nav
 - UI: removed scaffold's `prefers-color-scheme: dark` override + forced `color-scheme: light` (was causing white-on-white form fields under macOS dark mode)
 
@@ -103,12 +104,14 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 - Password gate → `/feed` works
 - Recovery link works cross-browser (uid + token URL, valid 7 days post-event)
 - VIP login + poll create + vote end-to-end (single VIP user, one device)
+- `/screen` renders timeline + poll layouts; QR shows; online count visible
 
 ### NOT yet verified
 - Profile edit save round-trip in `/me`
 - Posting / liking / replying end-to-end (rendered, but not user-confirmed)
 - Cross-user replies-to-me display (no second user has posted yet)
 - VIP cross-device user reuse (only one device tested)
+- `/screen` poll auto-rotation with 2+ active polls (only 1 poll tested)
 
 ### Known quirks (don't relitigate)
 - User's `~/package.json` + `~/package-lock.json` + `~/node_modules` moved to `~/.home-pkg-backup/` because Turbopack v16 workspace detection conflicts even with `turbopack.root` set explicitly. Restore (`mv ~/.home-pkg-backup/* ~/`) only after dev confirmed stable, and re-clear `.next` if errors return.
@@ -131,13 +134,13 @@ npm run dev          # → ./scripts/dev.sh injects secrets, starts on :3000
 Then point Claude at this file: it contains all the architectural decisions and current state.
 
 ### Task queue (in priority order)
-1. `/screen` projection mode (task #7) — auto-scroll feed + poll takeover
-2. AI matching service (task #12) — Supabase Edge Function + pg_cron + DeepSeek call → `matches` table; isolated failure
-3. `/matches` tab (task #13) — read `matches` table; graceful empty state
-4. Supabase Realtime wiring (task #8) — live INSERTs on posts/replies/likes
-5. CF Workers deploy via `@opennextjs/cloudflare` (task #9) — env vars, custom domain `meet.zhaidewei.com`
+1. AI matching service (task #12) — Supabase Edge Function + pg_cron + DeepSeek call → `matches` table; isolated failure
+2. `/matches` tab (task #13) — read `matches` table; graceful empty state
+3. Supabase Realtime wiring (task #8) — live INSERTs on posts/replies/likes; replace `/screen` 10s polling and add pull-to-refresh on `/feed`
+4. CF Workers deploy via `@opennextjs/cloudflare` (task #9) — env vars, custom domain `meet.zhaidewei.com`
 
 ### Recently shipped
+- 2026-04-25: `/screen` projection — slot state machine (poll takeover × N + timeline) + QR + online count; `qrcode` dep added
 - 2026-04-25: VIP login (`/vip-login` username+password) + polls (create/vote/hide-results), strict 1-VIP-1-user across devices
 - 2026-04-25: `/me` tab + recovery route handler + UI dark-mode contrast fix
 

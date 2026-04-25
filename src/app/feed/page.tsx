@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/identity'
+import { getCurrentUser, touchLastSeen } from '@/lib/identity'
 import { Header } from '@/components/Header'
 import { PostComposer } from '@/components/PostComposer'
 import { PostCard } from '@/components/PostCard'
@@ -10,6 +10,10 @@ export const dynamic = 'force-dynamic'
 export default async function FeedPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/')
+
+  // Mark this user as recently active (used by /screen online count).
+  // Fire-and-forget; don't await on the render path.
+  void touchLastSeen(user.id)
 
   const posts = await fetchFeed(user.id)
 

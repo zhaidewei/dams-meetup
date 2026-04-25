@@ -52,6 +52,16 @@ export async function getCurrentUser(): Promise<UserRow | null> {
   return (data as UserRow | null) ?? null
 }
 
+// Updates last_seen_at for the current user. Fire-and-forget — failures are
+// non-fatal (used for the /screen "online count" stat). Server-only.
+export async function touchLastSeen(uid: string): Promise<void> {
+  const sb = getServerSupabase()
+  await sb
+    .from('users')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', uid)
+}
+
 // Ensures a user row exists for this browser. Creates one if needed and
 // sets the UID cookie. Must be called from a Server Action or Route Handler
 // (cookies().set() is not allowed in plain Server Components).
