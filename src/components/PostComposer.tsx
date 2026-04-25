@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from 'react'
 import { createPostAction, type PostFormState } from '@/lib/actions/posts'
 import { POST_MAX_CHARS } from '@/lib/constants'
+import { PollComposer } from './PollComposer'
 
 const initial: PostFormState = { error: null }
 
@@ -11,6 +12,7 @@ type Props = {
   defaultCompany: string | null
   defaultContactHandle: string | null
   defaultShowContact: boolean
+  isVip: boolean
 }
 
 export function PostComposer({
@@ -18,11 +20,17 @@ export function PostComposer({
   defaultCompany,
   defaultContactHandle,
   defaultShowContact,
+  isVip,
 }: Props) {
   const [state, formAction] = useActionState(createPostAction, initial)
   const [, startTransition] = useTransition()
   const [body, setBody] = useState('')
   const [identityOpen, setIdentityOpen] = useState(false)
+  const [mode, setMode] = useState<'text' | 'poll'>('text')
+
+  if (mode === 'poll') {
+    return <PollComposer onCancel={() => setMode('text')} />
+  }
 
   const remaining = POST_MAX_CHARS - body.length
 
@@ -46,6 +54,18 @@ export function PostComposer({
       onSubmit={onSubmit}
       className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
+      {isVip && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setMode('poll')}
+            className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+          >
+            发起投票（嘉宾）
+          </button>
+        </div>
+      )}
+
       <textarea
         name="body"
         value={body}
@@ -53,7 +73,7 @@ export function PostComposer({
         maxLength={POST_MAX_CHARS}
         placeholder="说点什么…  (#标签 用空格分隔)"
         rows={3}
-        className="w-full resize-none rounded-md border-0 p-0 text-base placeholder:text-zinc-400 focus:outline-none focus:ring-0"
+        className="w-full resize-none rounded-md border-0 p-0 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
       />
 
       <input

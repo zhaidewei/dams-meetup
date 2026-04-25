@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { COOKIE_PW } from './lib/identity'
 
 // Public paths that bypass the password gate
-const PUBLIC_EXACT = new Set<string>(['/', '/recover'])
+const PUBLIC_EXACT = new Set<string>(['/', '/recover', '/vip-login'])
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl

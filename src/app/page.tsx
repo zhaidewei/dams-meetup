@@ -73,6 +73,13 @@ export default async function HomePage({
         <p className="text-center text-xs text-zinc-400">
           密码请看现场幻灯片，或问主办方
         </p>
+
+        <p className="text-center text-xs text-zinc-500">
+          嘉宾请走
+          <a href="/vip-login" className="ml-1 underline">
+            嘉宾登录
+          </a>
+        </p>
       </div>
     </main>
   )

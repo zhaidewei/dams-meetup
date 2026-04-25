@@ -23,6 +23,7 @@ export default async function FeedPage() {
             defaultCompany={user.company}
             defaultContactHandle={user.contact_handle}
             defaultShowContact={user.show_contact}
+            isVip={user.is_vip}
           />
 
           {posts.length === 0 ? (

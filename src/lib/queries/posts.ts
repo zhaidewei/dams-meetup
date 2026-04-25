@@ -25,6 +25,10 @@ export type FeedPost = PostRow & {
   reply_count: number
   like_count: number
   liked_by_me: boolean
+  // Poll-only fields (undefined for type='text')
+  poll_total_votes?: number
+  poll_option_counts?: Record<number, number>
+  poll_my_vote_options?: number[]
 }
 
 export async function fetchFeed(
@@ -51,9 +55,10 @@ export async function fetchFeed(
 
   if (opts.authorId) postsQuery = postsQuery.eq('user_id', opts.authorId)
 
-  const [postsRes, likesRes] = await Promise.all([
+  const [postsRes, likesRes, votesRes] = await Promise.all([
     postsQuery,
     sb.from('likes').select('post_id, user_id'),
+    sb.from('poll_votes').select('post_id, user_id, option_id'),
   ])
 
   if (postsRes.error) {
@@ -63,6 +68,9 @@ export async function fetchFeed(
   if (likesRes.error) {
     console.error('fetchFeed likes error:', likesRes.error)
   }
+  if (votesRes.error) {
+    console.error('fetchFeed poll_votes error:', votesRes.error)
+  }
 
   const likeCounts = new Map<number, number>()
   const viewerLikes = new Set<number>()
@@ -70,6 +78,24 @@ export async function fetchFeed(
     const pid = l.post_id as number
     likeCounts.set(pid, (likeCounts.get(pid) ?? 0) + 1)
     if (l.user_id === viewerId) viewerLikes.add(pid)
+  }
+
+  // post_id → { option_id → count, total, myOptions[] }
+  const pollAgg = new Map<
+    number,
+    { counts: Record<number, number>; total: number; mine: number[] }
+  >()
+  for (const v of votesRes.data ?? []) {
+    const pid = v.post_id as number
+    const oid = v.option_id as number
+    let agg = pollAgg.get(pid)
+    if (!agg) {
+      agg = { counts: {}, total: 0, mine: [] }
+      pollAgg.set(pid, agg)
+    }
+    agg.counts[oid] = (agg.counts[oid] ?? 0) + 1
+    agg.total += 1
+    if (v.user_id === viewerId) agg.mine.push(oid)
   }
 
   return (postsRes.data ?? []).map((row) => {
@@ -88,7 +114,7 @@ export async function fetchFeed(
         author: unnestRelation(r.author) as ReplyAuthorMini,
       }))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    return {
+    const post: FeedPost = {
       ...row,
       author,
       replies,
@@ -96,6 +122,13 @@ export async function fetchFeed(
       like_count: likeCounts.get(row.id as number) ?? 0,
       liked_by_me: viewerLikes.has(row.id as number),
     } as FeedPost
+    if (row.type === 'poll') {
+      const agg = pollAgg.get(row.id as number)
+      post.poll_total_votes = agg?.total ?? 0
+      post.poll_option_counts = agg?.counts ?? {}
+      post.poll_my_vote_options = agg?.mine ?? []
+    }
+    return post
   })
 }
 
