@@ -7,6 +7,7 @@ export const POST_MAX_CHARS = 300
 export const REPLY_MAX_CHARS = 300
 export const POLL_MAX_OPTIONS = 6
 export const POLL_MIN_OPTIONS = 2
+export const MATCH_INTENT_MAX_CHARS = 200
 
 export const RECOVERY_WINDOW_DAYS = 7
 

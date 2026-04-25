@@ -28,15 +28,21 @@ export type PostRow = {
   poll_multi: boolean | null
   poll_deadline: string | null
   poll_hide_results: boolean | null
+  match_intent: string | null
   created_at: string
 }
+
+export type ReplyVisibility = 'public' | 'author_only'
 
 export type ReplyRow = {
   id: number
   post_id: number
-  user_id: string
+  user_id: string | null
   body: string
   created_at: string
+  is_ai: boolean
+  visibility: ReplyVisibility
+  mentioned_user_id: string | null
 }
 
 export type LikeRow = {
@@ -59,15 +65,6 @@ export type VipTokenRow = {
   user_id: string | null
   created_at: string
   used_at: string | null
-}
-
-export type MatchRow = {
-  id: number
-  user_id: string
-  matched_post_id: number
-  score: number | null
-  reason: string | null
-  computed_at: string
 }
 
 export type PublicUserDisplay = Pick<

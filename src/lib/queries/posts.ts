@@ -12,11 +12,21 @@ type ReplyAuthorMini = Pick<
   'nickname' | 'company' | 'is_vip' | 'vip_name' | 'vip_title'
 >
 
+export type MentionedUserMini = Pick<
+  PublicUserDisplay,
+  'id' | 'nickname' | 'is_vip' | 'vip_name'
+>
+
+// Public reply: written by a human, visible to everyone.
+// AI reply: is_ai=true, visibility='author_only', author is null,
+//           mentioned_user is the recommendation target.
 export type FeedReply = {
   id: number
   body: string
   created_at: string
-  author: ReplyAuthorMini
+  is_ai: boolean
+  author: ReplyAuthorMini | null
+  mentioned_user: MentionedUserMini | null
 }
 
 export type FeedPost = PostRow & {
@@ -43,11 +53,12 @@ export async function fetchFeed(
     .select(
       `id, user_id, type, body, tags, show_contact,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
-       created_at,
+       match_intent, created_at,
        author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
        replies (
-         id, body, created_at,
-         author:users!user_id ( nickname, company, is_vip, vip_name, vip_title )
+         id, body, created_at, is_ai, visibility, mentioned_user_id,
+         author:users!user_id ( nickname, company, is_vip, vip_name, vip_title ),
+         mentioned_user:users!mentioned_user_id ( id, nickname, is_vip, vip_name )
        )`,
     )
     .order('created_at', { ascending: false })
@@ -104,14 +115,25 @@ export async function fetchFeed(
       id: number
       body: string
       created_at: string
-      author: ReplyAuthorMini | ReplyAuthorMini[]
+      is_ai: boolean
+      visibility: 'public' | 'author_only'
+      mentioned_user_id: string | null
+      author: ReplyAuthorMini | ReplyAuthorMini[] | null
+      mentioned_user: MentionedUserMini | MentionedUserMini[] | null
     }>
+    const isPostAuthor = (row.user_id as string) === viewerId
     const replies: FeedReply[] = repliesRaw
+      // F'' visibility filter: author_only replies are exposed only to post author.
+      .filter((r) => r.visibility === 'public' || isPostAuthor)
       .map((r) => ({
         id: r.id,
         body: r.body,
         created_at: r.created_at,
-        author: unnestRelation(r.author) as ReplyAuthorMini,
+        is_ai: r.is_ai,
+        author: r.author ? (unnestRelation(r.author) as ReplyAuthorMini) : null,
+        mentioned_user: r.mentioned_user
+          ? (unnestRelation(r.mentioned_user) as MentionedUserMini)
+          : null,
       }))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
     const post: FeedPost = {

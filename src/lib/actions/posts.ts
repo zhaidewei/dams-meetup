@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/identity'
 import { getServerSupabase } from '@/lib/supabase/server'
-import { POST_MAX_CHARS } from '@/lib/constants'
+import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 
 export type PostFormState = { error: string | null; ok?: boolean }
 
@@ -24,6 +24,11 @@ export async function createPostAction(
   const contactHandle = nullableStr(formData.get('contact_handle'))
   const showContact = formData.get('show_contact') === 'on'
   const tags = parseTags(String(formData.get('tags') ?? ''))
+  const matchIntentRaw = String(formData.get('match_intent') ?? '').trim()
+  if (matchIntentRaw.length > MATCH_INTENT_MAX_CHARS) {
+    return { error: `撮合需求不能超过 ${MATCH_INTENT_MAX_CHARS} 字` }
+  }
+  const matchIntent = matchIntentRaw.length > 0 ? matchIntentRaw : null
 
   const sb = getServerSupabase()
 
@@ -40,6 +45,7 @@ export async function createPostAction(
     body,
     tags,
     show_contact: showContact,
+    match_intent: matchIntent,
   })
 
   if (error) return { error: error.message }

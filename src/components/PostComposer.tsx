@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from 'react'
 import { createPostAction, type PostFormState } from '@/lib/actions/posts'
-import { POST_MAX_CHARS } from '@/lib/constants'
+import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import { PollComposer } from './PollComposer'
 
 const initial: PostFormState = { error: null }
@@ -26,6 +26,8 @@ export function PostComposer({
   const [, startTransition] = useTransition()
   const [body, setBody] = useState('')
   const [identityOpen, setIdentityOpen] = useState(false)
+  const [matchOpen, setMatchOpen] = useState(false)
+  const [matchIntent, setMatchIntent] = useState('')
   const [mode, setMode] = useState<'text' | 'poll'>('text')
 
   if (mode === 'poll') {
@@ -43,8 +45,12 @@ export function PostComposer({
     if (!state.error) {
       // Optimistic clear; server will revalidate the feed
       setBody('')
+      setMatchIntent('')
+      setMatchOpen(false)
     }
   }
+
+  const matchRemaining = MATCH_INTENT_MAX_CHARS - matchIntent.length
 
   const displayName = defaultNickname || '匿名'
   const displayCompany = defaultCompany ? ` · ${defaultCompany}` : ''
@@ -117,6 +123,38 @@ export function PostComposer({
           />
         </div>
       )}
+
+      <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/60 p-3">
+        <button
+          type="button"
+          onClick={() => setMatchOpen((v) => !v)}
+          className="flex w-full items-center justify-between text-xs"
+        >
+          <span className="flex items-center gap-1.5 text-sky-900">
+            <span aria-hidden>🤖</span>
+            <span className="font-medium">委托 AI 寻找匹配（私下，仅你可见）</span>
+          </span>
+          <span className="text-sky-700">{matchOpen ? '收起' : '展开'}</span>
+        </button>
+        {matchOpen && (
+          <div className="space-y-1.5">
+            <textarea
+              name="match_intent"
+              value={matchIntent}
+              onChange={(e) => setMatchIntent(e.target.value)}
+              maxLength={MATCH_INTENT_MAX_CHARS}
+              placeholder="比如：想找 Booking 的同学聊内推 / 想找会 dbt 的人 / 想找做 PM 的同行聊聊"
+              rows={3}
+              className="w-full resize-none rounded-md border border-sky-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-sky-400 focus:outline-none"
+            />
+            <div className="flex items-center justify-between text-[11px] text-sky-700">
+              <span>这条不进时间线。AI 会按你的描述帮你找人，结果以回帖形式仅你可见。</span>
+              <span className={matchRemaining < 0 ? 'text-red-600' : ''}>{matchRemaining}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
 
       <div className="flex items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-xs text-zinc-600">

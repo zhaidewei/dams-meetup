@@ -6,7 +6,7 @@ import { PostCard } from '@/components/PostCard'
 import { ProfileForm } from '@/components/ProfileForm'
 import { RecoveryLink } from '@/components/RecoveryLink'
 import { fetchFeed } from '@/lib/queries/posts'
-import { fetchRepliesToMe, type ReplyToMe } from '@/lib/queries/me'
+import { fetchRepliesToMe, fetchMentionsOfMe, type ReplyToMe, type MentionOfMe } from '@/lib/queries/me'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +14,10 @@ export default async function MePage() {
   const user = await getCurrentUser()
   if (!user) redirect('/')
 
-  const [myPosts, repliesToMe] = await Promise.all([
+  const [myPosts, repliesToMe, mentionsOfMe] = await Promise.all([
     fetchFeed(user.id, { authorId: user.id, limit: 50 }),
     fetchRepliesToMe(user.id),
+    fetchMentionsOfMe(user.id),
   ])
 
   return (
@@ -35,6 +36,18 @@ export default async function MePage() {
           />
 
           <RecoveryLink uid={user.id} token={user.recovery_token} />
+
+          <Section title={`有人想找你 (${mentionsOfMe.length})`}>
+            {mentionsOfMe.length === 0 ? (
+              <Empty text="还没有人通过 AI 撮合点到你" />
+            ) : (
+              <div className="space-y-2">
+                {mentionsOfMe.map((m) => (
+                  <MentionRow key={m.reply_id} mention={m} />
+                ))}
+              </div>
+            )}
+          </Section>
 
           <Section title={`收到的回复 (${repliesToMe.length})`}>
             {repliesToMe.length === 0 ? (
@@ -79,6 +92,24 @@ function Empty({ text }: { text: string }) {
     <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-8 text-center text-sm text-zinc-500">
       {text}
     </div>
+  )
+}
+
+function MentionRow({ mention }: { mention: MentionOfMe }) {
+  return (
+    <Link
+      href={`/feed#post-${mention.post_id}`}
+      className="block rounded-xl border border-sky-200 bg-sky-50 p-3 shadow-sm hover:border-sky-300"
+    >
+      <div className="mb-1 flex items-baseline gap-2 text-xs">
+        <span aria-hidden>🤖</span>
+        <span className="font-medium text-sky-900">有人对这条帖子感兴趣，可能想找你</span>
+        <span className="ml-auto text-sky-700">{formatTime(mention.reply_created_at)}</span>
+      </div>
+      <p className="truncate rounded-md bg-white/60 px-2 py-1 text-xs text-zinc-700">
+        {mention.post_body}
+      </p>
+    </Link>
   )
 }
 
