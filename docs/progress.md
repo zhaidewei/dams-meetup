@@ -7,6 +7,31 @@
 
 ---
 
+## 2026-04-25 · 基础夯实（文档 + 测试）
+
+撮合开工前的基础工作。范围严格控制（最小集），不堆 ROI 低的产物。
+
+**Docs（3 篇）**
+- `architecture.md` — 身份系统 sequence diagram（密码门 / 恢复链接 / VIP 登录三路径）+ 模块职责索引
+- `schema.md` — 表关系 ERD + 字段 / RLS / Realtime publication 人类可读版
+- `dev-setup.md` — secret CLI + Keychain 流程 + Turbopack workspace 坑等
+
+**Tests（vitest）**
+- 装 vitest 4.1，配 `tsconfig path alias` + `server-only` stub
+- `src/lib/constants.test.ts` — `cookieExpiresAt` 7 天偏移 + DB 约束镜像（POST_MAX_CHARS=300 等）
+- `tests/supabase-smoke.test.ts` — service-role key 连通性，env 缺失自动 `it.skipIf` 跳过
+- `scripts/test.sh` 复用 dev.sh 的 Keychain 注入模式
+- 9/9 通过（7 unit + 2 smoke 真连 Supabase）
+
+**故意不做**
+- E2E (playwright) — 单场活动 ROI 低
+- 每个 server action 集成测试 — 需要测试 DB
+- 组件测试 — UI 还在变
+
+下一步：F'' 撮合实现，按 `matching-design.md` §6 checklist。
+
+---
+
 ## 2026-04-25 · AI 撮合方案定稿（F''）
 
 **背景**：CLAUDE.md task queue #1，要给 5/9 活动加"撮合"功能。schema 0001 里已有 `matches (user_id, matched_post_id, score, reason)` 但行为未定义。
