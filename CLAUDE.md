@@ -84,21 +84,27 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 - Scaffolded with Next.js 16.2.4 / Tailwind v4 / TS / App Router (Turbopack default)
 - Supabase schema written + **applied to live DB**: `supabase/migrations/{0001_schema,0002_realtime}.sql`
 - Identity helpers (`src/lib/identity.ts`): UUID cookie, password cookie, recovery URL handler, `ensureUser`, `getCurrentUser`
-- Password gate `/` with form action + recovery `?u=&t=` flow
-- Route gate (`src/proxy.ts`)
+- Password gate `/` with form action; recovery `?u=&t=` flow via **route handler `/recover`** (Server Components can't write cookies)
+- Route gate (`src/proxy.ts`) — `/`, `/recover` are public
 - Feed: composer (`PostComposer`), post card (`PostCard`), like (`LikeButton` with optimistic update), reply section (`ReplySection`)
-- Server actions: `createPostAction`, `toggleLikeAction`, `createReplyAction`
-- Feed data fetching `fetchFeed` (author + replies + like counts joined)
-- Stub pages: `/me`, `/matches`, `/screen` (placeholders)
+- Server actions: `createPostAction`, `toggleLikeAction`, `createReplyAction`, `updateProfileAction`
+- Feed data fetching `fetchFeed` (author + replies + like counts joined; supports `authorId` filter)
+- `/me` tab — profile edit form, recovery URL with copy button, replies-to-me list, my-posts list (reuses `PostCard`)
+- Stub pages: `/matches`, `/screen` (placeholders)
 - Header with tab nav
+- UI: removed scaffold's `prefers-color-scheme: dark` override + forced `color-scheme: light` (was causing white-on-white form fields under macOS dark mode)
 
 ### Verified
 - `tsc --noEmit` passes
 - `npx eslint src` passes
-- Dev server boots, `GET /` → 200 with rendered Chinese password form
+- Dev server boots
+- Password gate → `/feed` works
+- Recovery link works cross-browser (uid + token URL, valid 7 days post-event)
 
-### NOT yet verified (next session step 1)
-End-to-end browser test: password → `/feed` → post → like → reply
+### NOT yet verified
+- Profile edit save round-trip in `/me`
+- Posting / liking / replying end-to-end (rendered, but not user-confirmed)
+- Cross-user replies-to-me display (no second user has posted yet)
 
 ### Known quirks (don't relitigate)
 - User's `~/package.json` + `~/package-lock.json` + `~/node_modules` moved to `~/.home-pkg-backup/` because Turbopack v16 workspace detection conflicts even with `turbopack.root` set explicitly. Restore (`mv ~/.home-pkg-backup/* ~/`) only after dev confirmed stable, and re-clear `.next` if errors return.
@@ -121,14 +127,15 @@ npm run dev          # → ./scripts/dev.sh injects secrets, starts on :3000
 Then point Claude at this file: it contains all the architectural decisions and current state.
 
 ### Task queue (in priority order)
-1. **E2E browser smoke test** of password → feed → post → like → reply (blocked on user)
-2. `/me` tab — profile edit + my posts + replies received + recovery URL display (task #11, also closes #10)
-3. VIP polls (task #6) — token-claim flow, poll composer for VIPs, vote UI
-4. `/screen` projection mode (task #7) — auto-scroll feed + poll takeover
-5. AI matching service (task #12) — Supabase Edge Function + pg_cron + DeepSeek call → `matches` table; isolated failure
-6. `/matches` tab (task #13) — read `matches` table; graceful empty state
-7. Supabase Realtime wiring (task #8) — live INSERTs on posts/replies/likes
-8. CF Workers deploy via `@opennextjs/cloudflare` (task #9) — env vars, custom domain `meet.zhaidewei.com`
+1. VIP polls (task #6) — token-claim flow (`?vip=<token>`), poll composer for VIPs, vote UI
+2. `/screen` projection mode (task #7) — auto-scroll feed + poll takeover
+3. AI matching service (task #12) — Supabase Edge Function + pg_cron + DeepSeek call → `matches` table; isolated failure
+4. `/matches` tab (task #13) — read `matches` table; graceful empty state
+5. Supabase Realtime wiring (task #8) — live INSERTs on posts/replies/likes
+6. CF Workers deploy via `@opennextjs/cloudflare` (task #9) — env vars, custom domain `meet.zhaidewei.com`
+
+### Recently shipped
+- 2026-04-25: `/me` tab + recovery route handler + UI dark-mode contrast fix
 
 ## Out of scope (v1)
 - DM / messaging — replaced by L1 contact-handle reveal on post

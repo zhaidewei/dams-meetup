@@ -29,26 +29,30 @@ export type FeedPost = PostRow & {
 
 export async function fetchFeed(
   viewerId: string,
-  opts: { limit?: number } = {},
+  opts: { limit?: number; authorId?: string } = {},
 ): Promise<FeedPost[]> {
   const sb = getServerSupabase()
   const limit = opts.limit ?? 100
 
+  let postsQuery = sb
+    .from('posts')
+    .select(
+      `id, user_id, type, body, tags, show_contact,
+       poll_options, poll_multi, poll_deadline, poll_hide_results,
+       created_at,
+       author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
+       replies (
+         id, body, created_at,
+         author:users!user_id ( nickname, company, is_vip, vip_name, vip_title )
+       )`,
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (opts.authorId) postsQuery = postsQuery.eq('user_id', opts.authorId)
+
   const [postsRes, likesRes] = await Promise.all([
-    sb
-      .from('posts')
-      .select(
-        `id, user_id, type, body, tags, show_contact,
-         poll_options, poll_multi, poll_deadline, poll_hide_results,
-         created_at,
-         author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
-         replies (
-           id, body, created_at,
-           author:users!user_id ( nickname, company, is_vip, vip_name, vip_title )
-         )`,
-      )
-      .order('created_at', { ascending: false })
-      .limit(limit),
+    postsQuery,
     sb.from('likes').select('post_id, user_id'),
   ])
 

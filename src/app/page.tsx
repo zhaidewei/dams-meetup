@@ -1,10 +1,5 @@
 import { redirect } from 'next/navigation'
-import {
-  ensureUser,
-  readPwCookie,
-  recoverUser,
-  setPwCookie,
-} from '@/lib/identity'
+import { ensureUser, readPwCookie, setPwCookie } from '@/lib/identity'
 import { EVENT_NAME, EVENT_ORGANIZER } from '@/lib/constants'
 
 type SearchParams = Promise<{
@@ -21,10 +16,12 @@ export default async function HomePage({
 }) {
   const sp = await searchParams
 
-  // Recovery flow: ?u=<uuid>&t=<token>
+  // Recovery flow: ?u=<uuid>&t=<token> — delegate to /recover route handler.
+  // (Cookie writes are not allowed in Server Components.)
   if (sp.u && sp.t) {
-    const user = await recoverUser(sp.u, sp.t)
-    if (user) redirect(safeNext(sp.next))
+    const qs = new URLSearchParams({ u: sp.u, t: sp.t })
+    if (sp.next) qs.set('next', sp.next)
+    redirect(`/recover?${qs.toString()}`)
   }
 
   // Already authed → straight to feed
@@ -33,7 +30,7 @@ export default async function HomePage({
   }
 
   const showError = sp.error === '1'
-  const recoveryFailed = !!(sp.u && sp.t) && !showError
+  const recoveryFailed = sp.error === 'recovery'
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center px-6 py-12">

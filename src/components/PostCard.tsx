@@ -12,7 +12,7 @@ export function PostCard({ post }: Props) {
   const displayMeta = author.is_vip ? author.vip_title : author.company
 
   return (
-    <article className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+    <article id={`post-${post.id}`} className="scroll-mt-20 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
       <header className="mb-2 flex items-baseline gap-2 text-sm">
         <span className="font-semibold text-zinc-900">{displayName}</span>
         {displayMeta && <span className="text-zinc-500">· {displayMeta}</span>}
