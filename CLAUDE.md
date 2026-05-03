@@ -142,16 +142,19 @@ npm run dev          # → ./scripts/dev.sh injects secrets, starts on :3000
 Then point Claude at this file: it contains all the architectural decisions and current state.
 
 ### Task queue (in priority order)
-1. **重新部署 match edge function** — `supabase/functions/match/index.ts` 已经改成从 `post_match_intents` join 读 intent（migration 0011 后字段不在 posts 上了），需要 `supabase functions deploy match` 才会生效。不部署的话 cron 跑会失败。
-2. AI 撮合实现（方案 F''）剩余切片
-   - ✅ slice 1: schema + 前端管道（DONE）
-   - slice 2: 手工 SQL mock AI reply 验 UI（30min）
-   - slice 3: Supabase Edge Function + DeepSeek + pg_cron（代码 done，待重新部署 — 见 1）
+1. ~~重新部署 match edge function~~ — **DONE**（2026-05-03 傍晚）— 用户跑了 `supabase functions deploy match`，含 redactContacts 兜底 + post_match_intents 读路径
+2. ~~AI 撮合实现（方案 F''）~~ — **DONE**
+   - ✅ slice 1: schema + 前端管道
+   - ✅ slice 2: mock SQL 验 UI 链路（commit 92e7146）
+   - ✅ slice 3: Edge Function + DeepSeek + pg_cron + match_runs 日志（commit f1bc1ca + 部署 2026-05-03 傍晚）
 3. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
 4. ~~Supabase Realtime 接线~~ — **DONE**（issue #7，2026-05-03）
-5. CF Workers 部署 via `@opennextjs/cloudflare` — env vars + 自定义域名 `meet.zhaidewei.com`
+5. CF Workers 部署收尾 — adapter + GitHub Actions PR gate 已加（commit 88cfbd3）；剩 env vars 灌入 + 自定义域名 `meet.zhaidewei.com`
+6. **端到端验证 match function 真跑通** — 部署完成但还没观测到 match_runs 表里有 success 行；至少塞 ≥3 条暗需求 mock 数据后等下一次 cron（5min），或 admin force token 手动触发，验证 DeepSeek 调用+ AI reply 写回
 
 ### Recently shipped
+- 2026-05-03 傍晚: **issue #17 — 投票手动关闭 + DeepSeek 数据声明 + redact 兜底** — `closePollAction` 把 `poll_deadline` 提前到 now()（复用既有字段，无新状态列），PollCard 给作者显示「立即截止」按钮；`prompt.ts` 加 `redactContacts()`（邮箱/URL/≥10 数字串 → `[已隐藏]`），UI 显式声明数据流向 DeepSeek。`docs/matching-design.md` §8 完整字段清单。
+- 2026-05-03 傍晚: **issue #15 — 联系方式一键复制** — PostCard / DmThreadView 展示对方联系方式时附复制按钮（复用 RecoveryLink 同款 CopyButton）。
 - 2026-05-03: **Supabase Realtime 接线 (issue #7)** — `/feed` 双标签实测自动同步通过。`FeedRealtime` 客户端订阅 posts/replies/likes/poll_votes，500ms debounce 后 `router.refresh()`；`ScreenView` 同样改成 Realtime 触发 + 60s 兜底 interval。`match_intent` 整列搬到独立表 `post_match_intents`（migration 0011），物理隔离、不进 publication，不依赖 Realtime 内部行为。途中踩了两个坑：(a) PG 15 列白名单 publication Supabase Realtime 不支持，(b) `ALTER PUBLICATION` 后必须 Dashboard toggle 才能让 Realtime 重载 — 都记到 Known quirks。
 - 2026-04-25: F'' 撮合 slice 1 — schema migration 0004 + PostComposer 暗字段 + ReplySection AiReplyRow + /me "有人想找你" + 删 /matches。**migration 待人工应用**。
 - 2026-04-25: 基础夯实 — `docs/{architecture,schema,dev-setup}.md` + vitest（9/9 pass，含 Supabase smoke）
