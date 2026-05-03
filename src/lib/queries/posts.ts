@@ -24,6 +24,7 @@ export type MentionedUserMini = Pick<
 export type FeedReply = {
   id: number
   user_id: string | null
+  parent_reply_id: number | null
   body: string
   created_at: string
   updated_at: string | null
@@ -59,7 +60,7 @@ export async function fetchFeed(
        match_intent, created_at,
        author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
        replies (
-         id, user_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
+         id, user_id, parent_reply_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
          author:users!user_id ( nickname, company, is_vip, vip_name, vip_title ),
          mentioned_user:users!mentioned_user_id ( id, nickname, is_vip, vip_name )
        )`,
@@ -118,6 +119,7 @@ export async function fetchFeed(
     const repliesRaw = (row.replies ?? []) as Array<{
       id: number
       user_id: string | null
+      parent_reply_id: number | null
       body: string
       created_at: string
       updated_at: string | null
@@ -134,6 +136,7 @@ export async function fetchFeed(
       .map((r) => ({
         id: r.id,
         user_id: r.user_id,
+        parent_reply_id: r.parent_reply_id,
         body: r.body,
         created_at: r.created_at,
         updated_at: r.updated_at,

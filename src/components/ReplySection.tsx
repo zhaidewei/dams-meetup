@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useRef, useState, useTransition } from 'react'
+import { useActionState, useMemo, useRef, useState, useTransition } from 'react'
 import {
   createReplyAction,
   deleteReplyAction,
@@ -15,6 +15,7 @@ const initial: ReplyFormState = { error: null }
 export type ReplyDisplay = {
   id: number
   user_id: string | null
+  parent_reply_id: number | null
   body: string
   created_at: string
   updated_at: string | null
@@ -51,9 +52,25 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
   const [state, formAction] = useActionState(createReplyAction, initial)
   const [, startTransition] = useTransition()
   const [body, setBody] = useState('')
+  const [replyingTo, setReplyingTo] = useState<{ id: number; name: string } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const remaining = REPLY_MAX_CHARS - body.length
+
+  const { topLevel, childrenByParent } = useMemo(() => {
+    const top: ReplyDisplay[] = []
+    const childMap = new Map<number, ReplyDisplay[]>()
+    for (const r of replies) {
+      if (r.parent_reply_id === null) {
+        top.push(r)
+      } else {
+        const arr = childMap.get(r.parent_reply_id) ?? []
+        arr.push(r)
+        childMap.set(r.parent_reply_id, arr)
+      }
+    }
+    return { topLevel: top, childrenByParent: childMap }
+  }, [replies])
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -63,9 +80,11 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
       formAction(fd)
     })
     setBody('')
+    setReplyingTo(null)
   }
 
-  function replyTo(name: string) {
+  function onReplyTo(id: number, name: string) {
+    setReplyingTo({ id, name })
     const mention = `@${name} `
     setBody((prev) => (prev.startsWith(mention) ? prev : mention + prev.replace(/^@\S+\s+/, '')))
     setOpen(true)
@@ -76,6 +95,12 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
       const len = el.value.length
       el.setSelectionRange(len, len)
     })
+  }
+
+  function onCancelReplyingTo() {
+    setReplyingTo(null)
+    // Strip leading @mention from textarea since the user explicitly cancelled.
+    setBody((prev) => prev.replace(/^@\S+\s+/, ''))
   }
 
   return (
@@ -92,21 +117,53 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
 
       {open && (
         <div className="mt-2 space-y-2">
-          {replies.map((r) =>
-            r.is_ai ? (
-              <AiReplyRow key={r.id} reply={r} />
-            ) : (
-              <ReplyRow
-                key={r.id}
-                reply={r}
-                viewerId={viewerId}
-                onReply={() => replyTo(nameOf(r.author))}
-              />
-            ),
-          )}
+          {topLevel.map((parent) => {
+            const children = childrenByParent.get(parent.id) ?? []
+            return (
+              <div key={parent.id} className="space-y-2">
+                {parent.is_ai ? (
+                  <AiReplyRow reply={parent} />
+                ) : (
+                  <ReplyRow
+                    reply={parent}
+                    viewerId={viewerId}
+                    onReply={() => onReplyTo(parent.id, nameOf(parent.author))}
+                  />
+                )}
+                {children.length > 0 && (
+                  <div className="ml-3 space-y-2 border-l-2 border-zinc-200 pl-3">
+                    {children.map((child) => (
+                      <ReplyRow
+                        key={child.id}
+                        reply={child}
+                        viewerId={viewerId}
+                        onReply={() => onReplyTo(child.id, nameOf(child.author))}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
           <form onSubmit={onSubmit} className="space-y-1">
             <input type="hidden" name="post_id" value={postId} />
+            <input type="hidden" name="parent_reply_id" value={replyingTo?.id ?? ''} />
+            {replyingTo && (
+              <div className="flex items-center justify-between rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-800">
+                <span>
+                  正在回复 <span className="font-medium">@{replyingTo.name}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={onCancelReplyingTo}
+                  className="rounded px-1.5 py-0.5 text-sky-700 hover:bg-sky-100"
+                  aria-label="取消回复对象"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <textarea
               ref={textareaRef}
               name="body"
