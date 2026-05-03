@@ -105,6 +105,7 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 - Recovery link works cross-browser (uid + token URL, valid 7 days post-event)
 - VIP login + poll create + vote end-to-end (single VIP user, one device)
 - `/screen` renders timeline + poll layouts; QR shows; online count visible
+- **Realtime end-to-end** — `/feed` 双标签验证：A 发帖，B 几秒内自动收到（无需手动刷新）。`scripts/diag-realtime.mjs` 验证 anon 订阅 posts/likes/replies 都收到 INSERT broadcast，`post_match_intents` 不广播给 anon
 
 ### NOT yet verified
 - Profile edit save round-trip in `/me`
@@ -117,6 +118,8 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 - User's `~/package.json` + `~/package-lock.json` + `~/node_modules` moved to `~/.home-pkg-backup/` because Turbopack v16 workspace detection conflicts even with `turbopack.root` set explicitly. Restore (`mv ~/.home-pkg-backup/* ~/`) only after dev confirmed stable, and re-clear `.next` if errors return.
 - `.next` cache must be cleared (`rm -rf .next`) if Turbopack picks up stale state after config or env changes.
 - `@supabase/ssr` is installed but unused; we go straight to `@supabase/supabase-js` since we don't have Supabase Auth. Safe to leave.
+- **Realtime + `ALTER PUBLICATION` 缓存坑**：纯 SQL `alter publication supabase_realtime ...` 不会让 Supabase Realtime 服务重新加载 publication 状态，旧的内部状态会一直缓存住 → 表现为 "publication 看起来对，但 anon 订阅永远收不到 broadcast"。修复：Dashboard → Database → Publications → 点 `supabase_realtime` → 把目标表 toggle 一下（关再开）。以后改 publication 必须配合 Dashboard toggle，否则别 ship。
+- **Realtime 不支持列白名单 publication**：PG 15 的 `add table foo (col1, col2)` 列白名单语法在 pg 层正确，但 Supabase Realtime 会静默丢掉这种 publication 的事件（订阅成功，永远收不到 broadcast）。结论：要隐藏字段就把字段搬到独立表（见 migration 0011 `post_match_intents`），不要用列白名单。
 
 ### Secrets (in macOS Keychain via `secret`)
 - `dams-event-password` — global event password
@@ -134,17 +137,17 @@ npm run dev          # → ./scripts/dev.sh injects secrets, starts on :3000
 Then point Claude at this file: it contains all the architectural decisions and current state.
 
 ### Task queue (in priority order)
-0. **应用 migration 0004 到 Supabase** — 手工跑 `supabase/migrations/0004_match_intent.sql`（不应用 `/feed` 和 `/me` 会报 column 错）
-1. AI 撮合实现（方案 F''）剩余切片
+1. **重新部署 match edge function** — `supabase/functions/match/index.ts` 已经改成从 `post_match_intents` join 读 intent（migration 0011 后字段不在 posts 上了），需要 `supabase functions deploy match` 才会生效。不部署的话 cron 跑会失败。
+2. AI 撮合实现（方案 F''）剩余切片
    - ✅ slice 1: schema + 前端管道（DONE）
    - slice 2: 手工 SQL mock AI reply 验 UI（30min）
-   - slice 3: Supabase Edge Function + DeepSeek + pg_cron
-2. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
-3. Supabase Realtime 接线 — live INSERTs on posts/replies/likes；替换 `/screen` 10s polling + `/feed` pull-to-refresh
-   - 注：接 Realtime 时必须 redact `posts.match_intent`，否则 anon 客户端会通过 broadcast 收到（0004 已留 TODO 注释）
-4. CF Workers 部署 via `@opennextjs/cloudflare` — env vars + 自定义域名 `meet.zhaidewei.com`
+   - slice 3: Supabase Edge Function + DeepSeek + pg_cron（代码 done，待重新部署 — 见 1）
+3. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
+4. ~~Supabase Realtime 接线~~ — **DONE**（issue #7，2026-05-03）
+5. CF Workers 部署 via `@opennextjs/cloudflare` — env vars + 自定义域名 `meet.zhaidewei.com`
 
 ### Recently shipped
+- 2026-05-03: **Supabase Realtime 接线 (issue #7)** — `/feed` 双标签实测自动同步通过。`FeedRealtime` 客户端订阅 posts/replies/likes/poll_votes，500ms debounce 后 `router.refresh()`；`ScreenView` 同样改成 Realtime 触发 + 60s 兜底 interval。`match_intent` 整列搬到独立表 `post_match_intents`（migration 0011），物理隔离、不进 publication，不依赖 Realtime 内部行为。途中踩了两个坑：(a) PG 15 列白名单 publication Supabase Realtime 不支持，(b) `ALTER PUBLICATION` 后必须 Dashboard toggle 才能让 Realtime 重载 — 都记到 Known quirks。
 - 2026-04-25: F'' 撮合 slice 1 — schema migration 0004 + PostComposer 暗字段 + ReplySection AiReplyRow + /me "有人想找你" + 删 /matches。**migration 待人工应用**。
 - 2026-04-25: 基础夯实 — `docs/{architecture,schema,dev-setup}.md` + vitest（9/9 pass，含 Supabase smoke）
 - 2026-04-25: AI 撮合方案设计定稿（方案 F''）— `docs/matching-design.md` + `docs/progress.md`

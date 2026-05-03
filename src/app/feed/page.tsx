@@ -4,6 +4,7 @@ import { Header } from '@/components/Header'
 import { PostComposer } from '@/components/PostComposer'
 import { PostCard } from '@/components/PostCard'
 import { SectionTabs } from '@/components/SectionTabs'
+import { FeedRealtime } from '@/components/FeedRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
@@ -30,6 +31,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   return (
     <>
       <Header active="feed" />
+      <FeedRealtime />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
         <SectionTabs active={section} />
         <div className="mt-4 space-y-4">

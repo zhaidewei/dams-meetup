@@ -106,10 +106,25 @@ Deno.serve(async (req) => {
 })
 
 async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[]> {
-  const { data: all, error } = await supabase
-    .from('posts')
-    .select('id, body, tags, section, user_id, match_intent, created_at')
-    .not('match_intent', 'is', null)
+  // match_intent 自 migration 0011 起搬到 post_match_intents（防 Realtime 泄漏）。
+  // 这里反向 join：以 intent 表为驱动，inner join posts 取业务字段。
+  type IntentRow = {
+    intent: string
+    post: {
+      id: number
+      body: string
+      tags: string[]
+      section: string | null
+      user_id: string
+      created_at: string
+    } | null
+  }
+
+  const { data: rows, error } = await supabase
+    .from('post_match_intents')
+    .select(
+      'intent, post:posts!inner ( id, body, tags, section, user_id, created_at )',
+    )
     .order('created_at', { ascending: false })
     .limit(CANDIDATE_LIMIT)
   if (error) throw new Error(`candidate query: ${error.message}`)
@@ -122,15 +137,17 @@ async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[
   if (procErr) throw new Error(`processed query: ${procErr.message}`)
   const skip = new Set((processed ?? []).map((r) => r.post_id))
 
-  return (all ?? [])
-    .filter((p) => !skip.has(p.id) && typeof p.match_intent === 'string')
-    .map((p) => ({
-      id: p.id,
-      body: p.body,
-      tags: p.tags,
-      section: p.section,
-      user_id: p.user_id,
-      match_intent: p.match_intent,
+  return ((rows ?? []) as IntentRow[])
+    .filter((r): r is IntentRow & { post: NonNullable<IntentRow['post']> } =>
+      r.post !== null && !skip.has(r.post.id),
+    )
+    .map((r) => ({
+      id: r.post.id,
+      body: r.post.body,
+      tags: r.post.tags,
+      section: r.post.section,
+      user_id: r.post.user_id,
+      match_intent: r.intent,
     }))
 }
 

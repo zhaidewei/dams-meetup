@@ -29,7 +29,14 @@ export type PostRow = {
   poll_multi: boolean | null
   poll_deadline: string | null
   poll_hide_results: boolean | null
-  match_intent: string | null
+  created_at: string
+}
+
+// match_intent moved to its own table (migration 0011) so it cannot leak via
+// Realtime broadcast. Server-side joins read from this table when needed.
+export type PostMatchIntentRow = {
+  post_id: number
+  intent: string
   created_at: string
 }
 

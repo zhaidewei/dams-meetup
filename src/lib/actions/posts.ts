@@ -45,17 +45,32 @@ export async function createPostAction(
   if (contactHandle !== undefined) updates.contact_handle = contactHandle
   await sb.from('users').update(updates).eq('id', user.id)
 
-  const { error } = await sb.from('posts').insert({
-    user_id: user.id,
-    type: 'text',
-    body,
-    tags,
-    show_contact: showContact,
-    section,
-    match_intent: matchIntent,
-  })
+  const { data: inserted, error } = await sb
+    .from('posts')
+    .insert({
+      user_id: user.id,
+      type: 'text',
+      body,
+      tags,
+      show_contact: showContact,
+      section,
+    })
+    .select('id')
+    .single()
 
   if (error) return { error: error.message }
+
+  // match_intent lives in a separate table (migration 0011) so it can't leak
+  // via Realtime broadcast. Best-effort write — if it fails we still keep the
+  // post; AI matching can run without intent for that post.
+  if (matchIntent) {
+    const { error: intentErr } = await sb
+      .from('post_match_intents')
+      .insert({ post_id: inserted.id, intent: matchIntent })
+    if (intentErr) {
+      console.error('post_match_intents insert failed:', intentErr.message)
+    }
+  }
 
   revalidatePath('/feed')
   return { error: null, ok: true }

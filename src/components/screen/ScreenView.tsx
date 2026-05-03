@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { fetchScreenData } from '@/lib/actions/screen'
+import { getBrowserSupabase } from '@/lib/supabase/client'
 import type { SectionId } from '@/lib/sections'
 import { displayName, displayMeta } from '@/lib/display'
 
 const POLL_TICK_MS = 1_000 // ui re-render cadence
-const REFRESH_MS = 10_000 // server-data poll cadence
+// Safety-net resync if the websocket drops silently — projection mode runs
+// unattended for hours. Realtime events are the primary trigger.
+const FALLBACK_REFRESH_MS = 60_000
+const REALTIME_DEBOUNCE_MS = 500
 const SLOT_MS = 30_000 // each poll/timeline slot
 const TIMELINE_FOCUS_MS = 8_000 // each timeline post highlight duration
 
@@ -39,6 +43,8 @@ export function ScreenView({
 
   useEffect(() => {
     let cancelled = false
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
     async function refresh() {
       try {
         const snap = await fetchScreenData(section)
@@ -46,13 +52,34 @@ export function ScreenView({
         setPosts(snap.posts)
         setOnline(snap.online)
       } catch {
-        // network blip — next tick retries
+        // network blip — fallback interval will retry
       }
     }
-    const id = setInterval(refresh, REFRESH_MS)
+
+    function bump() {
+      if (debounceTimer) return
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        void refresh()
+      }, REALTIME_DEBOUNCE_MS)
+    }
+
+    const sb = getBrowserSupabase()
+    const channel = sb
+      .channel('screen-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'replies' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
+      .subscribe()
+
+    const fallback = setInterval(refresh, FALLBACK_REFRESH_MS)
+
     return () => {
       cancelled = true
-      clearInterval(id)
+      if (debounceTimer) clearTimeout(debounceTimer)
+      clearInterval(fallback)
+      sb.removeChannel(channel)
     }
   }, [section])
 

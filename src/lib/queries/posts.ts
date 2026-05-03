@@ -57,7 +57,7 @@ export async function fetchFeed(
     .select(
       `id, user_id, type, body, tags, show_contact, section,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
-       match_intent, created_at,
+       created_at,
        author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
        replies (
          id, user_id, parent_reply_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
