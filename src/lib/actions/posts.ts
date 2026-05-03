@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/identity'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import { isSectionId } from '@/lib/sections'
+import { parseTags } from '@/lib/tags'
 
 export type PostFormState = { error: string | null; ok?: boolean }
 export type PostMutationResult = { error: string | null }
@@ -68,17 +69,6 @@ function nullableStr(v: FormDataEntryValue | null): string | null | undefined {
   if (v == null) return undefined
   const s = String(v).trim()
   return s.length === 0 ? null : s
-}
-
-function parseTags(raw: string): string[] {
-  return Array.from(
-    new Set(
-      raw
-        .split(/[\s,，；;]+/)
-        .map((t) => t.replace(/^#/, '').trim().toLowerCase())
-        .filter(Boolean),
-    ),
-  ).slice(0, 5)
 }
 
 // Authorize-by-filter: .eq('user_id', user.id) means a non-owner update
