@@ -8,15 +8,19 @@ import { deletePostAction, updatePostAction } from '@/lib/actions/posts'
 import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
+import { DmButton } from './DmButton'
 
-type Props = { post: FeedPost; viewerId: string }
+type Props = { post: FeedPost; viewerId: string; viewerCanDm: boolean }
 
-export function PostCard({ post, viewerId }: Props) {
+export function PostCard({ post, viewerId, viewerCanDm }: Props) {
   const author = post.author
   const name = displayName(author)
   const meta = displayMeta(author)
   const isPoll = post.type === 'poll'
   const isMine = post.user_id === viewerId
+  // 作者匿名（既无 nickname 又非 VIP）→ 无法接收 DM；按钮也藏起来。
+  const authorIsAnon = author.nickname === null && !author.is_vip
+  const canDm = viewerCanDm && !isMine && !authorIsAnon
 
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(post.body)
@@ -183,6 +187,7 @@ export function PostCard({ post, viewerId }: Props) {
 
       <div className="mt-3 flex items-center gap-1">
         <LikeButton postId={post.id} count={post.like_count} liked={post.liked_by_me} />
+        {canDm && <DmButton toUserId={post.user_id} />}
       </div>
 
       <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} viewerId={viewerId} />

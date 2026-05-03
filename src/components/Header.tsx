@@ -3,9 +3,10 @@ import { EVENT_NAME } from '@/lib/constants'
 
 type Props = {
   active?: 'feed' | 'agenda' | 'me'
+  unreadDmCount?: number
 }
 
-export function Header({ active = 'feed' }: Props) {
+export function Header({ active = 'feed', unreadDmCount = 0 }: Props) {
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
@@ -15,23 +16,38 @@ export function Header({ active = 'feed' }: Props) {
         <nav className="flex gap-1 text-sm">
           <NavTab href="/feed" label="时间线" active={active === 'feed'} />
           <NavTab href="/agenda" label="议程" active={active === 'agenda'} />
-          <NavTab href="/me" label="我" active={active === 'me'} />
+          <NavTab href="/me" label="我" active={active === 'me'} badge={unreadDmCount} />
         </nav>
       </div>
     </header>
   )
 }
 
-function NavTab({ href, label, active }: { href: string; label: string; active: boolean }) {
+function NavTab({
+  href,
+  label,
+  active,
+  badge = 0,
+}: {
+  href: string
+  label: string
+  active: boolean
+  badge?: number
+}) {
   return (
     <Link
       href={href}
       className={
-        'rounded-md px-2.5 py-1.5 transition-colors ' +
+        'relative rounded-md px-2.5 py-1.5 transition-colors ' +
         (active ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100')
       }
     >
       {label}
+      {badge > 0 && (
+        <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-medium leading-[18px] text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   )
 }
