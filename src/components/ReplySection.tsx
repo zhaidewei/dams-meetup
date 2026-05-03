@@ -1,7 +1,12 @@
 'use client'
 
 import { useActionState, useRef, useState, useTransition } from 'react'
-import { createReplyAction, type ReplyFormState } from '@/lib/actions/replies'
+import {
+  createReplyAction,
+  deleteReplyAction,
+  updateReplyAction,
+  type ReplyFormState,
+} from '@/lib/actions/replies'
 import { REPLY_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
 
@@ -9,8 +14,10 @@ const initial: ReplyFormState = { error: null }
 
 export type ReplyDisplay = {
   id: number
+  user_id: string | null
   body: string
   created_at: string
+  updated_at: string | null
   is_ai: boolean
   author: {
     nickname: string | null
@@ -31,6 +38,7 @@ type Props = {
   postId: number
   count: number
   replies: ReplyDisplay[]
+  viewerId: string
 }
 
 function nameOf(a: ReplyDisplay['author']): string {
@@ -38,7 +46,7 @@ function nameOf(a: ReplyDisplay['author']): string {
   return displayName(a)
 }
 
-export function ReplySection({ postId, count, replies }: Props) {
+export function ReplySection({ postId, count, replies, viewerId }: Props) {
   const [open, setOpen] = useState(count > 0)
   const [state, formAction] = useActionState(createReplyAction, initial)
   const [, startTransition] = useTransition()
@@ -91,6 +99,7 @@ export function ReplySection({ postId, count, replies }: Props) {
               <ReplyRow
                 key={r.id}
                 reply={r}
+                viewerId={viewerId}
                 onReply={() => replyTo(nameOf(r.author))}
               />
             ),
@@ -126,11 +135,62 @@ export function ReplySection({ postId, count, replies }: Props) {
   )
 }
 
-function ReplyRow({ reply, onReply }: { reply: ReplyDisplay; onReply: () => void }) {
+function ReplyRow({
+  reply,
+  viewerId,
+  onReply,
+}: {
+  reply: ReplyDisplay
+  viewerId: string
+  onReply: () => void
+}) {
   const a = reply.author
+  const [editing, setEditing] = useState(false)
+  const [editBody, setEditBody] = useState(reply.body)
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
   if (!a) return null
   const name = displayName(a)
   const meta = displayMeta(a)
+  const isMine = reply.user_id !== null && reply.user_id === viewerId
+  const editRemaining = REPLY_MAX_CHARS - editBody.length
+
+  function onSaveEdit() {
+    const trimmed = editBody.trim()
+    if (!trimmed) {
+      setError('回复不能为空')
+      return
+    }
+    if (trimmed.length > REPLY_MAX_CHARS) {
+      setError(`不能超过 ${REPLY_MAX_CHARS} 字`)
+      return
+    }
+    startTransition(async () => {
+      const res = await updateReplyAction(reply.id, trimmed)
+      if (res.error) {
+        setError(res.error)
+      } else {
+        setError(null)
+        setEditing(false)
+      }
+    })
+  }
+
+  function onCancelEdit() {
+    setEditing(false)
+    setError(null)
+    setEditBody(reply.body)
+  }
+
+  function onDelete() {
+    if (!window.confirm('删除这条回复？')) return
+    startTransition(async () => {
+      const res = await deleteReplyAction(reply.id)
+      if (res.error) setError(res.error)
+    })
+  }
+
   return (
     <div className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
       <div className="mb-0.5 flex items-baseline gap-2 text-xs">
@@ -141,15 +201,77 @@ function ReplyRow({ reply, onReply }: { reply: ReplyDisplay; onReply: () => void
             嘉宾
           </span>
         )}
-        <button
-          type="button"
-          onClick={onReply}
-          className="ml-auto rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800"
-        >
-          回复
-        </button>
+        {reply.updated_at && <span className="text-zinc-400">已编辑</span>}
+        <div className="ml-auto flex items-center gap-1">
+          {!editing && (
+            <button
+              type="button"
+              onClick={onReply}
+              className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800"
+            >
+              回复
+            </button>
+          )}
+          {!editing && isMine && (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800"
+              >
+                编辑
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={pending}
+                className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+              >
+                删除
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <ReplyBody body={reply.body} />
+
+      {editing ? (
+        <div className="space-y-1">
+          <textarea
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
+            maxLength={REPLY_MAX_CHARS}
+            rows={2}
+            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:border-zinc-400 focus:outline-none"
+          />
+          <div className="flex items-center justify-between text-xs text-zinc-400">
+            <span className={editRemaining < 0 ? 'text-red-500' : ''}>
+              {editRemaining < 0 ? editRemaining : ''}
+            </span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={pending}
+                className="rounded-md px-2 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={onSaveEdit}
+                disabled={pending || editBody.trim().length === 0 || editRemaining < 0}
+                className="rounded-md bg-zinc-900 px-2.5 py-0.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
+              >
+                {pending ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <ReplyBody body={reply.body} />
+      )}
+
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   )
 }

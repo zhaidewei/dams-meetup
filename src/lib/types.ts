@@ -41,6 +41,7 @@ export type ReplyRow = {
   user_id: string | null
   body: string
   created_at: string
+  updated_at: string | null
   is_ai: boolean
   visibility: ReplyVisibility
   mentioned_user_id: string | null

@@ -51,7 +51,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
           ) : (
             <div className="space-y-3">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} viewerId={user.id} />
               ))}
             </div>
           )}

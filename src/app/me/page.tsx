@@ -71,7 +71,7 @@ export default async function MePage() {
             ) : (
               <div className="space-y-3">
                 {myPosts.map((post) => (
-                  <PostCard key={post.id} post={post} />
+                  <PostCard key={post.id} post={post} viewerId={user.id} />
                 ))}
               </div>
             )}

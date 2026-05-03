@@ -4,9 +4,9 @@ import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
 
-type Props = { post: FeedPost }
+type Props = { post: FeedPost; viewerId: string }
 
-export function PostCard({ post }: Props) {
+export function PostCard({ post, viewerId }: Props) {
   const author = post.author
   const name = displayName(author)
   const meta = displayMeta(author)
@@ -70,7 +70,7 @@ export function PostCard({ post }: Props) {
         <LikeButton postId={post.id} count={post.like_count} liked={post.liked_by_me} />
       </div>
 
-      <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} />
+      <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} viewerId={viewerId} />
     </article>
   )
 }
