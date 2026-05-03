@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useTransition } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { createPostAction, type PostFormState } from '@/lib/actions/posts'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import type { SectionId } from '@/lib/sections'
@@ -20,6 +20,18 @@ type Props = {
   section: SectionId
 }
 
+// IMPORTANT: textareas here are intentionally uncontrolled.
+// On iPhone Chrome, this 'use client' component's React event listeners
+// (onChange, onCompositionEnd, onClick) were not firing — likely a
+// hydration boundary issue we couldn't pin down (logout had the same
+// symptom and was fixed by switching to native form action).
+//
+// With uncontrolled textareas + form action={formAction}:
+//   - DOM value isn't reset by React re-renders
+//   - submit goes through native HTML form path (progressive enhancement),
+//     so the post is sent even if React event handlers never bound
+//   - char counter is best-effort UI; it stops updating if hydration fails,
+//     but nothing else breaks.
 export function PostComposer({
   defaultNickname,
   defaultCompany,
@@ -30,35 +42,32 @@ export function PostComposer({
   vipTitle,
   section,
 }: Props) {
-  const [state, formAction] = useActionState(createPostAction, initial)
-  const [, startTransition] = useTransition()
-  const [body, setBody] = useState('')
+  const [state, formAction, isPending] = useActionState(createPostAction, initial)
   const [identityOpen, setIdentityOpen] = useState(false)
   const [matchOpen, setMatchOpen] = useState(false)
-  const [matchIntent, setMatchIntent] = useState('')
   const [mode, setMode] = useState<'text' | 'poll'>('text')
+  const [bodyLen, setBodyLen] = useState(0)
+  const [matchLen, setMatchLen] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Reset uncontrolled form fields after a successful submit. The new
+  // useActionState identity (and state.ok) flips after the server action
+  // resolves, so this effect runs once per successful post.
+  useEffect(() => {
+    if (!state.ok) return
+    formRef.current?.reset()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate sync of UI counters with form reset triggered by external (server action) state change
+    setBodyLen(0)
+    setMatchLen(0)
+    setMatchOpen(false)
+  }, [state])
 
   if (mode === 'poll') {
     return <PollComposer section={section} onCancel={() => setMode('text')} />
   }
 
-  const remaining = POST_MAX_CHARS - body.length
-
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    startTransition(() => {
-      formAction(fd)
-    })
-    if (!state.error) {
-      // Optimistic clear; server will revalidate the feed
-      setBody('')
-      setMatchIntent('')
-      setMatchOpen(false)
-    }
-  }
-
-  const matchRemaining = MATCH_INTENT_MAX_CHARS - matchIntent.length
+  const remaining = POST_MAX_CHARS - bodyLen
+  const matchRemaining = MATCH_INTENT_MAX_CHARS - matchLen
 
   const previewUser = {
     nickname: defaultNickname,
@@ -73,7 +82,8 @@ export function PostComposer({
 
   return (
     <form
-      onSubmit={onSubmit}
+      ref={formRef}
+      action={formAction}
       className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
       <input type="hidden" name="section" value={section} />
@@ -91,8 +101,8 @@ export function PostComposer({
 
       <textarea
         name="body"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
+        defaultValue=""
+        onInput={(e) => setBodyLen(e.currentTarget.value.length)}
         maxLength={POST_MAX_CHARS}
         placeholder="说点什么…  (#标签 用空格分隔)"
         rows={3}
@@ -157,8 +167,8 @@ export function PostComposer({
           <div className="space-y-1.5">
             <textarea
               name="match_intent"
-              value={matchIntent}
-              onChange={(e) => setMatchIntent(e.target.value)}
+              defaultValue=""
+              onInput={(e) => setMatchLen(e.currentTarget.value.length)}
               maxLength={MATCH_INTENT_MAX_CHARS}
               placeholder="比如：想找 Booking 的同学聊内推 / 想找会 dbt 的人 / 想找做 PM 的同行聊聊"
               rows={3}
@@ -185,10 +195,10 @@ export function PostComposer({
         </label>
         <button
           type="submit"
-          disabled={remaining < 0 || body.trim().length === 0}
-          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
+          disabled={isPending}
+          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
         >
-          发帖
+          {isPending ? '发送中…' : '发帖'}
         </button>
       </div>
 

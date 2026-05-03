@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useTransition } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { createPollAction, type PollFormState } from '@/lib/actions/polls'
 import {
   POLL_MAX_OPTIONS,
@@ -11,6 +11,9 @@ import type { SectionId } from '@/lib/sections'
 
 const initial: PollFormState = { error: null }
 
+// Same uncontrolled-form pattern as PostComposer (see that file for the
+// iPhone-Chrome hydration story). We track only option *slot ids* in React
+// state so we can add/remove rows; each input keeps its own DOM value.
 export function PollComposer({
   section,
   onCancel,
@@ -18,36 +21,37 @@ export function PollComposer({
   section: SectionId
   onCancel: () => void
 }) {
-  const [state, formAction] = useActionState(createPollAction, initial)
-  const [isPending, startTransition] = useTransition()
-  const [body, setBody] = useState('')
-  const [options, setOptions] = useState<string[]>(['', ''])
+  const [state, formAction, isPending] = useActionState(createPollAction, initial)
+  const [optionIds, setOptionIds] = useState<number[]>([0, 1])
+  const [bodyLen, setBodyLen] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
+  const nextIdRef = useRef(2)
 
-  const remaining = POST_MAX_CHARS - body.length
-  const canAdd = options.length < POLL_MAX_OPTIONS
-  const canRemove = options.length > POLL_MIN_OPTIONS
-  const canSubmit =
-    body.trim().length > 0 &&
-    remaining >= 0 &&
-    options.filter((o) => o.trim()).length >= POLL_MIN_OPTIONS
+  const remaining = POST_MAX_CHARS - bodyLen
+  const canAdd = optionIds.length < POLL_MAX_OPTIONS
+  const canRemove = optionIds.length > POLL_MIN_OPTIONS
 
-  function setOption(i: number, value: string) {
-    setOptions((prev) => prev.map((o, idx) => (idx === i ? value : o)))
+  useEffect(() => {
+    if (!state.ok) return
+    formRef.current?.reset()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate reset triggered by server action result
+    setBodyLen(0)
+    setOptionIds([0, 1])
+    nextIdRef.current = 2
+  }, [state])
+
+  function addOption() {
+    setOptionIds((prev) => [...prev, nextIdRef.current++])
   }
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    startTransition(() => formAction(fd))
-    if (!state.error) {
-      setBody('')
-      setOptions(['', ''])
-    }
+  function removeOption(id: number) {
+    setOptionIds((prev) => prev.filter((x) => x !== id))
   }
 
   return (
     <form
-      onSubmit={onSubmit}
+      ref={formRef}
+      action={formAction}
       className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
     >
       <input type="hidden" name="section" value={section} />
@@ -64,8 +68,8 @@ export function PollComposer({
 
       <textarea
         name="body"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
+        defaultValue=""
+        onInput={(e) => setBodyLen(e.currentTarget.value.length)}
         maxLength={POST_MAX_CHARS}
         placeholder="投票题目，例如：今晚去哪吃？"
         rows={2}
@@ -73,22 +77,19 @@ export function PollComposer({
       />
 
       <div className="space-y-1.5">
-        {options.map((opt, i) => (
-          <div key={i} className="flex items-center gap-2">
+        {optionIds.map((id, i) => (
+          <div key={id} className="flex items-center gap-2">
             <span className="w-5 text-center text-xs text-zinc-500">{i + 1}</span>
             <input
               name="option"
-              value={opt}
-              onChange={(e) => setOption(i, e.target.value)}
+              defaultValue=""
               placeholder={`选项 ${i + 1}`}
               className="flex-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-400"
             />
             {canRemove && (
               <button
                 type="button"
-                onClick={() =>
-                  setOptions((prev) => prev.filter((_, idx) => idx !== i))
-                }
+                onClick={() => removeOption(id)}
                 className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-200"
                 aria-label={`删除选项 ${i + 1}`}
               >
@@ -100,7 +101,7 @@ export function PollComposer({
         {canAdd && (
           <button
             type="button"
-            onClick={() => setOptions((prev) => [...prev, ''])}
+            onClick={addOption}
             className="ml-7 text-xs text-zinc-700 hover:underline"
           >
             + 加选项（最多 {POLL_MAX_OPTIONS}）
@@ -134,7 +135,7 @@ export function PollComposer({
         </span>
         <button
           type="submit"
-          disabled={!canSubmit || isPending}
+          disabled={isPending}
           className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
         >
           {isPending ? '发布中…' : '发布投票'}

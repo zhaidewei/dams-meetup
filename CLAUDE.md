@@ -120,6 +120,11 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 - `@supabase/ssr` is installed but unused; we go straight to `@supabase/supabase-js` since we don't have Supabase Auth. Safe to leave.
 - **Realtime + `ALTER PUBLICATION` 缓存坑**：纯 SQL `alter publication supabase_realtime ...` 不会让 Supabase Realtime 服务重新加载 publication 状态，旧的内部状态会一直缓存住 → 表现为 "publication 看起来对，但 anon 订阅永远收不到 broadcast"。修复：Dashboard → Database → Publications → 点 `supabase_realtime` → 把目标表 toggle 一下（关再开）。以后改 publication 必须配合 Dashboard toggle，否则别 ship。
 - **Realtime 不支持列白名单 publication**：PG 15 的 `add table foo (col1, col2)` 列白名单语法在 pg 层正确，但 Supabase Realtime 会静默丢掉这种 publication 的事件（订阅成功，永远收不到 broadcast）。结论：要隐藏字段就把字段搬到独立表（见 migration 0011 `post_match_intents`），不要用列白名单。
+- **iPhone Chrome / iOS WebKit hydration 双坑**（debug 2026-05-03）：
+  1. **Google Chrome iOS 自动注入** `__gcrremoteframetoken` 到 `<html>` 和 `__gcruniqueid` 到所有 `<form>`/`<input>`/`<textarea>`（Chrome iOS 跨页面 form auto-fill 内部机制，无法关闭）。Server render 没这些 attribute → React 看到 root-level mismatch → React 19 abort 整个 tree 的 hydration → 所有 `onClick`/`onChange`/`useState`/`useOptimistic` 都不工作，但 `<Link>` 导航和 native form submit 还能用（progressive enhancement 的天然 fallback）。修复：`<html suppressHydrationWarning>`（layout.tsx）+ 所有写操作走 React 19 form action（`action={formAction}`），而不是 `onSubmit`/`onClick`。
+  2. **Next 16 `allowedDevOrigins` 默认不含 LAN IP**。从手机用 `http://192.168.68.x:3000` 访问 dev server 时，HMR WebSocket 等 `/_next/*` 请求会被 cross-origin block 返回 403 → HotReload 组件的 client state 对不上 SSR → 又一个 hydration mismatch。修复：`next.config.ts` 加 `allowedDevOrigins: ['<LAN-IP>']`，**改完必须重启 dev server**，hot reload 不会让这个生效。
+  - 这两个一起表现为"iPhone Chrome 上所有按钮没反应、字符计数器不动、发帖按钮永远灰"。修代码前先确认是不是这俩。仅出现在 iPhone Chrome / iOS Safari，桌面浏览器从 localhost 访问不会触发。
+  - **生产**只有 (1) 仍然存在（CF Workers 是 HTTPS 域名，没有 dev server cross-origin 问题），所以 form action progressive enhancement 是必要的、不能 revert。
 
 ### Secrets (in macOS Keychain via `secret`)
 - `dams-event-password` — global event password

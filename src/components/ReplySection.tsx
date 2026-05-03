@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useMemo, useRef, useState, useTransition } from 'react'
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   createReplyAction,
   deleteReplyAction,
@@ -49,13 +49,20 @@ function nameOf(a: ReplyDisplay['author']): string {
 
 export function ReplySection({ postId, count, replies, viewerId }: Props) {
   const [open, setOpen] = useState(count > 0)
-  const [state, formAction] = useActionState(createReplyAction, initial)
-  const [, startTransition] = useTransition()
-  const [body, setBody] = useState('')
+  const [state, formAction, isPending] = useActionState(createReplyAction, initial)
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string } | null>(null)
+  const [bodyLen, setBodyLen] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
-  const remaining = REPLY_MAX_CHARS - body.length
+  const remaining = REPLY_MAX_CHARS - bodyLen
+
+  // textarea is uncontrolled — directly read DOM value to avoid React
+  // controlled-component clearing the input on iPhone Chrome (see PostComposer
+  // for the full explanation).
+  function syncBodyLen() {
+    setBodyLen(textareaRef.current?.value.length ?? 0)
+  }
 
   const { topLevel, childrenByParent } = useMemo(() => {
     const top: ReplyDisplay[] = []
@@ -72,25 +79,27 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
     return { topLevel: top, childrenByParent: childMap }
   }, [replies])
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (body.trim().length === 0 || body.length > REPLY_MAX_CHARS) return
-    const fd = new FormData(e.currentTarget)
-    startTransition(() => {
-      formAction(fd)
-    })
-    setBody('')
+  // Reset uncontrolled form after a successful reply submit.
+  useEffect(() => {
+    if (!state.ok) return
+    formRef.current?.reset()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate reset of UI counter triggered by server action result
+    setBodyLen(0)
     setReplyingTo(null)
-  }
+  }, [state])
 
   function onReplyTo(id: number, name: string) {
     setReplyingTo({ id, name })
-    const mention = `@${name} `
-    setBody((prev) => (prev.startsWith(mention) ? prev : mention + prev.replace(/^@\S+\s+/, '')))
     setOpen(true)
+    const el = textareaRef.current
+    if (!el) return
+    const mention = `@${name} `
+    const cur = el.value
+    if (!cur.startsWith(mention)) {
+      el.value = mention + cur.replace(/^@\S+\s+/, '')
+      setBodyLen(el.value.length)
+    }
     requestAnimationFrame(() => {
-      const el = textareaRef.current
-      if (!el) return
       el.focus()
       const len = el.value.length
       el.setSelectionRange(len, len)
@@ -99,8 +108,10 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
 
   function onCancelReplyingTo() {
     setReplyingTo(null)
-    // Strip leading @mention from textarea since the user explicitly cancelled.
-    setBody((prev) => prev.replace(/^@\S+\s+/, ''))
+    const el = textareaRef.current
+    if (!el) return
+    el.value = el.value.replace(/^@\S+\s+/, '')
+    setBodyLen(el.value.length)
   }
 
   return (
@@ -146,7 +157,7 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
             )
           })}
 
-          <form onSubmit={onSubmit} className="space-y-1">
+          <form ref={formRef} action={formAction} className="space-y-1">
             <input type="hidden" name="post_id" value={postId} />
             <input type="hidden" name="parent_reply_id" value={replyingTo?.id ?? ''} />
             {replyingTo && (
@@ -167,8 +178,8 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
             <textarea
               ref={textareaRef}
               name="body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
+              defaultValue=""
+              onInput={syncBodyLen}
               maxLength={REPLY_MAX_CHARS}
               placeholder="写回复…"
               rows={2}
@@ -178,10 +189,10 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
               <span>{remaining < 0 ? <span className="text-red-500">{remaining}</span> : null}</span>
               <button
                 type="submit"
-                disabled={body.trim().length === 0 || remaining < 0}
-                className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
+                disabled={isPending}
+                className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
               >
-                回复
+                {isPending ? '发送中…' : '回复'}
               </button>
             </div>
             {state.error && <p className="text-xs text-red-600">{state.error}</p>}
@@ -296,6 +307,7 @@ function ReplyRow({
           <textarea
             value={editBody}
             onChange={(e) => setEditBody(e.target.value)}
+            onCompositionEnd={(e) => setEditBody(e.currentTarget.value)}
             maxLength={REPLY_MAX_CHARS}
             rows={2}
             className="w-full resize-none rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:border-zinc-400 focus:outline-none"

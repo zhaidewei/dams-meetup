@@ -26,3 +26,11 @@ export async function toggleLikeAction(postId: number) {
 
   revalidatePath('/feed')
 }
+
+// FormData wrapper so LikeButton can use <form action={...}> (progressive
+// enhancement — works even when React event listeners fail to bind on iOS).
+export async function toggleLikeFormAction(formData: FormData): Promise<void> {
+  const postId = Number(formData.get('post_id'))
+  if (!Number.isFinite(postId) || postId <= 0) return
+  await toggleLikeAction(postId)
+}

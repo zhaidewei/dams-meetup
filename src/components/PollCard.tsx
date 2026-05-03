@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useTransition } from 'react'
+import { useActionState } from 'react'
 import { voteAction, type VoteFormState } from '@/lib/actions/polls'
 import type { PollOption } from '@/lib/types'
 
@@ -17,6 +17,10 @@ type Props = {
   myVoteOptions: number[]
 }
 
+// Native <input type="checkbox|radio"> + form action: voting works even when
+// React event handlers don't bind (iPhone Chrome hydration issue, see
+// PostComposer). Browser collects checked option_id values into FormData
+// natively; selection visuals are driven by CSS :checked / peer-checked.
 export function PollCard({
   postId,
   options,
@@ -28,53 +32,24 @@ export function PollCard({
   myVoteOptions,
 }: Props) {
   const hasVoted = myVoteOptions.length > 0
-  // Hide raw counts only when: hide_results enabled, not closed, not voted yet.
   const showCounts = closed || hasVoted || !hideResults
-
-  const [state, formAction] = useActionState(voteAction, initial)
-  const [isPending, startTransition] = useTransition()
-  const [selected, setSelected] = useState<number[]>(myVoteOptions)
-
-  function toggle(oid: number) {
-    if (closed) return
-    if (multi) {
-      setSelected((prev) =>
-        prev.includes(oid) ? prev.filter((x) => x !== oid) : [...prev, oid],
-      )
-    } else {
-      setSelected([oid])
-    }
-  }
-
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (selected.length === 0 || closed) return
-    const fd = new FormData()
-    fd.set('post_id', String(postId))
-    selected.forEach((oid) => fd.append('option_id', String(oid)))
-    startTransition(() => formAction(fd))
-  }
+  const [state, formAction, isPending] = useActionState(voteAction, initial)
+  const inputType = multi ? 'checkbox' : 'radio'
 
   return (
-    <form onSubmit={onSubmit} className="mt-1 space-y-2">
+    <form action={formAction} className="mt-1 space-y-2">
+      <input type="hidden" name="post_id" value={postId} />
       <div className="space-y-1.5">
         {options.map((opt) => {
           const count = optionCounts[opt.id] ?? 0
           const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0
-          const isSelected = selected.includes(opt.id)
           const isMine = myVoteOptions.includes(opt.id)
 
           return (
-            <button
+            <label
               key={opt.id}
-              type="button"
-              onClick={() => toggle(opt.id)}
-              disabled={closed}
               className={
-                'relative w-full overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors ' +
-                (isSelected
-                  ? 'border-zinc-900 bg-white'
-                  : 'border-zinc-200 bg-white hover:border-zinc-400') +
+                'relative block w-full cursor-pointer overflow-hidden rounded-md border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition-colors has-[:checked]:border-zinc-900' +
                 (closed ? ' cursor-default' : '')
               }
             >
@@ -82,25 +57,28 @@ export function PollCard({
                 <span
                   aria-hidden
                   className={
-                    'absolute inset-y-0 left-0 ' +
+                    'pointer-events-none absolute inset-y-0 left-0 ' +
                     (isMine ? 'bg-zinc-900/10' : 'bg-zinc-200/60')
                   }
                   style={{ width: `${pct}%` }}
                 />
               )}
               <span className="relative flex items-center gap-2">
+                <input
+                  type={inputType}
+                  name="option_id"
+                  value={opt.id}
+                  defaultChecked={isMine}
+                  disabled={closed}
+                  className="peer sr-only"
+                />
                 <span
+                  aria-hidden
                   className={
-                    'inline-flex size-4 shrink-0 items-center justify-center ' +
-                    (multi ? 'rounded-sm' : 'rounded-full') +
-                    ' border ' +
-                    (isSelected
-                      ? 'border-zinc-900 bg-zinc-900 text-white'
-                      : 'border-zinc-300 bg-white')
+                    'inline-flex size-4 shrink-0 items-center justify-center border border-zinc-300 bg-white peer-checked:border-zinc-900 peer-checked:bg-zinc-900 ' +
+                    (multi ? 'rounded-sm' : 'rounded-full')
                   }
-                >
-                  {isSelected && <span className="text-[10px] leading-none">✓</span>}
-                </span>
+                />
                 <span className="flex-1 text-zinc-900">{opt.label}</span>
                 {showCounts && (
                   <span className="shrink-0 text-xs tabular-nums text-zinc-600">
@@ -108,7 +86,7 @@ export function PollCard({
                   </span>
                 )}
               </span>
-            </button>
+            </label>
           )
         })}
       </div>
@@ -125,7 +103,7 @@ export function PollCard({
         {!closed && (
           <button
             type="submit"
-            disabled={selected.length === 0 || isPending}
+            disabled={isPending}
             className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
           >
             {isPending ? '提交中…' : hasVoted ? '改投' : '投票'}

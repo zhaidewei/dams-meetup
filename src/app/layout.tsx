@@ -18,7 +18,16 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN" className="h-full antialiased">
+    // suppressHydrationWarning: iPhone Chrome injects __gcrremoteframetoken
+    // on <html> and __gcruniqueid on every <form>/<input>/<textarea> (Google
+    // Chrome iOS internal cross-page form-fill feature). Without this flag
+    // the root-level attribute mismatch makes React 19 abort hydration of
+    // the whole tree, breaking every onClick/onChange/useState on iOS Chrome
+    // (and likely iOS Safari). The progressive-enhancement form actions in
+    // PostComposer/ReplySection/PollComposer/LikeButton/LogoutButton are the
+    // primary defense; this just lets React finish hydrating instead of
+    // bailing on the root.
+    <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">{children}</body>
     </html>
   )
