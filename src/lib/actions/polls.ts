@@ -11,6 +11,7 @@ import {
   POST_MAX_CHARS,
 } from '@/lib/constants'
 import type { PollOption } from '@/lib/types'
+import { isSectionId } from '@/lib/sections'
 
 export type PollFormState = { error: string | null; ok?: boolean }
 
@@ -46,6 +47,9 @@ export async function createPollAction(
   const multi = formData.get('multi') === 'on'
   const hideResults = formData.get('hide_results') === 'on'
 
+  const sectionRaw = formData.get('section')
+  const section = isSectionId(sectionRaw) ? sectionRaw : null
+
   const sb = getServerSupabase()
   const { error } = await sb.from('posts').insert({
     user_id: user.id,
@@ -53,6 +57,7 @@ export async function createPollAction(
     body,
     tags: [],
     show_contact: false,
+    section,
     poll_options: options,
     poll_multi: multi,
     poll_deadline: EVENT_END_ISO,

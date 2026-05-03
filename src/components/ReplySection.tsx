@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useTransition } from 'react'
+import { useActionState, useRef, useState, useTransition } from 'react'
 import { createReplyAction, type ReplyFormState } from '@/lib/actions/replies'
 import { REPLY_MAX_CHARS } from '@/lib/constants'
 
@@ -32,11 +32,17 @@ type Props = {
   replies: ReplyDisplay[]
 }
 
+function displayName(a: ReplyDisplay['author']): string {
+  if (!a) return '匿名'
+  return a.is_vip ? a.vip_name ?? '嘉宾' : a.nickname ?? '匿名'
+}
+
 export function ReplySection({ postId, count, replies }: Props) {
   const [open, setOpen] = useState(count > 0)
   const [state, formAction] = useActionState(createReplyAction, initial)
   const [, startTransition] = useTransition()
   const [body, setBody] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const remaining = REPLY_MAX_CHARS - body.length
 
@@ -48,6 +54,19 @@ export function ReplySection({ postId, count, replies }: Props) {
       formAction(fd)
     })
     setBody('')
+  }
+
+  function replyTo(name: string) {
+    const mention = `@${name} `
+    setBody((prev) => (prev.startsWith(mention) ? prev : mention + prev.replace(/^@\S+\s+/, '')))
+    setOpen(true)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      const len = el.value.length
+      el.setSelectionRange(len, len)
+    })
   }
 
   return (
@@ -65,12 +84,21 @@ export function ReplySection({ postId, count, replies }: Props) {
       {open && (
         <div className="mt-2 space-y-2">
           {replies.map((r) =>
-            r.is_ai ? <AiReplyRow key={r.id} reply={r} /> : <ReplyRow key={r.id} reply={r} />,
+            r.is_ai ? (
+              <AiReplyRow key={r.id} reply={r} />
+            ) : (
+              <ReplyRow
+                key={r.id}
+                reply={r}
+                onReply={() => replyTo(displayName(r.author))}
+              />
+            ),
           )}
 
           <form onSubmit={onSubmit} className="space-y-1">
             <input type="hidden" name="post_id" value={postId} />
             <textarea
+              ref={textareaRef}
               name="body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -97,10 +125,10 @@ export function ReplySection({ postId, count, replies }: Props) {
   )
 }
 
-function ReplyRow({ reply }: { reply: ReplyDisplay }) {
+function ReplyRow({ reply, onReply }: { reply: ReplyDisplay; onReply: () => void }) {
   const a = reply.author
   if (!a) return null
-  const name = a.is_vip ? a.vip_name ?? '嘉宾' : a.nickname ?? '匿名'
+  const name = displayName(a)
   const meta = a.is_vip ? a.vip_title : a.company
   return (
     <div className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
@@ -112,9 +140,28 @@ function ReplyRow({ reply }: { reply: ReplyDisplay }) {
             嘉宾
           </span>
         )}
+        <button
+          type="button"
+          onClick={onReply}
+          className="ml-auto rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800"
+        >
+          回复
+        </button>
       </div>
-      <p className="whitespace-pre-wrap text-zinc-800">{reply.body}</p>
+      <ReplyBody body={reply.body} />
     </div>
+  )
+}
+
+function ReplyBody({ body }: { body: string }) {
+  const m = body.match(/^(@\S+)(\s+)([\s\S]*)$/)
+  if (!m) return <p className="whitespace-pre-wrap text-zinc-800">{body}</p>
+  return (
+    <p className="whitespace-pre-wrap text-zinc-800">
+      <span className="font-medium text-sky-700">{m[1]}</span>
+      {m[2]}
+      {m[3]}
+    </p>
   )
 }
 

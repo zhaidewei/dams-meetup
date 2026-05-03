@@ -5,6 +5,7 @@ import { Header } from '@/components/Header'
 import { PostCard } from '@/components/PostCard'
 import { ProfileForm } from '@/components/ProfileForm'
 import { RecoveryLink } from '@/components/RecoveryLink'
+import { LogoutButton } from '@/components/LogoutButton'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchRepliesToMe, fetchMentionsOfMe, type ReplyToMe, type MentionOfMe } from '@/lib/queries/me'
 
@@ -36,6 +37,8 @@ export default async function MePage() {
           />
 
           <RecoveryLink uid={user.id} token={user.recovery_token} />
+
+          <LogoutButton />
 
           <Section title={`有人想找你 (${mentionsOfMe.length})`}>
             {mentionsOfMe.length === 0 ? (
