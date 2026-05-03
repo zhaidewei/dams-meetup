@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { EVENT_NAME } from '@/lib/constants'
 
 type Props = {
-  active?: 'feed' | 'me'
+  active?: 'feed' | 'agenda' | 'me'
 }
 
 export function Header({ active = 'feed' }: Props) {
@@ -14,6 +14,7 @@ export function Header({ active = 'feed' }: Props) {
         </Link>
         <nav className="flex gap-1 text-sm">
           <NavTab href="/feed" label="时间线" active={active === 'feed'} />
+          <NavTab href="/agenda" label="议程" active={active === 'agenda'} />
           <NavTab href="/me" label="我" active={active === 'me'} />
         </nav>
       </div>
