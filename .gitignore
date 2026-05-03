@@ -51,3 +51,6 @@ next-env.d.ts
 
 # local backups
 *.zip
+
+# supabase CLI scratch
+supabase/.temp/
