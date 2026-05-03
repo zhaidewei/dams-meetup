@@ -2,6 +2,7 @@
 
 import { getServerSupabase } from '@/lib/supabase/server'
 import { fetchFeed, type FeedPost } from '@/lib/queries/posts'
+import { isSectionId, type SectionId } from '@/lib/sections'
 
 // The screen has no viewer identity — using a zero UUID makes liked_by_me /
 // poll_my_vote_options always false in fetchFeed (no row matches).
@@ -14,11 +15,12 @@ export type ScreenSnapshot = {
   serverNow: number
 }
 
-export async function fetchScreenData(): Promise<ScreenSnapshot> {
+export async function fetchScreenData(section?: string | null): Promise<ScreenSnapshot> {
   const sb = getServerSupabase()
   const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString()
+  const sectionFilter: SectionId | undefined = isSectionId(section) ? section : undefined
   const [posts, onlineRes] = await Promise.all([
-    fetchFeed(SCREEN_VIEWER_ID, { limit: 50 }),
+    fetchFeed(SCREEN_VIEWER_ID, { limit: 50, section: sectionFilter }),
     sb
       .from('users')
       .select('id', { count: 'exact', head: true })

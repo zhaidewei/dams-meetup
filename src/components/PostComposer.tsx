@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from 'react'
 import { createPostAction, type PostFormState } from '@/lib/actions/posts'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
+import type { SectionId } from '@/lib/sections'
 import { PollComposer } from './PollComposer'
 
 const initial: PostFormState = { error: null }
@@ -13,6 +14,7 @@ type Props = {
   defaultContactHandle: string | null
   defaultShowContact: boolean
   isVip: boolean
+  section: SectionId
 }
 
 export function PostComposer({
@@ -21,6 +23,7 @@ export function PostComposer({
   defaultContactHandle,
   defaultShowContact,
   isVip,
+  section,
 }: Props) {
   const [state, formAction] = useActionState(createPostAction, initial)
   const [, startTransition] = useTransition()
@@ -31,7 +34,7 @@ export function PostComposer({
   const [mode, setMode] = useState<'text' | 'poll'>('text')
 
   if (mode === 'poll') {
-    return <PollComposer onCancel={() => setMode('text')} />
+    return <PollComposer section={section} onCancel={() => setMode('text')} />
   }
 
   const remaining = POST_MAX_CHARS - body.length
@@ -60,6 +63,7 @@ export function PostComposer({
       onSubmit={onSubmit}
       className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
+      <input type="hidden" name="section" value={section} />
       {isVip && (
         <div className="flex justify-end">
           <button

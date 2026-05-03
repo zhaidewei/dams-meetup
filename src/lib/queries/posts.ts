@@ -1,6 +1,7 @@
 import 'server-only'
 import { getServerSupabase } from '@/lib/supabase/server'
 import type { PostRow, PublicUserDisplay } from '@/lib/types'
+import type { SectionId } from '@/lib/sections'
 
 type AuthorMini = Pick<
   PublicUserDisplay,
@@ -43,7 +44,7 @@ export type FeedPost = PostRow & {
 
 export async function fetchFeed(
   viewerId: string,
-  opts: { limit?: number; authorId?: string } = {},
+  opts: { limit?: number; authorId?: string; section?: SectionId } = {},
 ): Promise<FeedPost[]> {
   const sb = getServerSupabase()
   const limit = opts.limit ?? 100
@@ -51,7 +52,7 @@ export async function fetchFeed(
   let postsQuery = sb
     .from('posts')
     .select(
-      `id, user_id, type, body, tags, show_contact,
+      `id, user_id, type, body, tags, show_contact, section,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
        match_intent, created_at,
        author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
@@ -65,6 +66,7 @@ export async function fetchFeed(
     .limit(limit)
 
   if (opts.authorId) postsQuery = postsQuery.eq('user_id', opts.authorId)
+  if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
 
   const [postsRes, likesRes, votesRes] = await Promise.all([
     postsQuery,

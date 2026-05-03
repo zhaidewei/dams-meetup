@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/identity'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
+import { isSectionId } from '@/lib/sections'
 
 export type PostFormState = { error: string | null; ok?: boolean }
 
@@ -30,6 +31,9 @@ export async function createPostAction(
   }
   const matchIntent = matchIntentRaw.length > 0 ? matchIntentRaw : null
 
+  const sectionRaw = formData.get('section')
+  const section = isSectionId(sectionRaw) ? sectionRaw : null
+
   const sb = getServerSupabase()
 
   // Persist identity updates so the next post auto-fills.
@@ -45,6 +49,7 @@ export async function createPostAction(
     body,
     tags,
     show_contact: showContact,
+    section,
     match_intent: matchIntent,
   })
 

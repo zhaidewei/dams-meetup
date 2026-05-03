@@ -7,10 +7,17 @@ import {
   POLL_MIN_OPTIONS,
   POST_MAX_CHARS,
 } from '@/lib/constants'
+import type { SectionId } from '@/lib/sections'
 
 const initial: PollFormState = { error: null }
 
-export function PollComposer({ onCancel }: { onCancel: () => void }) {
+export function PollComposer({
+  section,
+  onCancel,
+}: {
+  section: SectionId
+  onCancel: () => void
+}) {
   const [state, formAction] = useActionState(createPollAction, initial)
   const [isPending, startTransition] = useTransition()
   const [body, setBody] = useState('')
@@ -43,6 +50,7 @@ export function PollComposer({ onCancel }: { onCancel: () => void }) {
       onSubmit={onSubmit}
       className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
     >
+      <input type="hidden" name="section" value={section} />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-amber-900">发起投票（嘉宾）</h3>
         <button

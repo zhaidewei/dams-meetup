@@ -5,25 +5,40 @@ import { fetchScreenData } from '@/lib/actions/screen'
 import { QRCode } from '@/components/QRCode'
 import { ScreenView } from '@/components/screen/ScreenView'
 import { EVENT_NAME } from '@/lib/constants'
+import { isSectionId, sectionLabel } from '@/lib/sections'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ScreenPage() {
+type SearchParams = Promise<{ section?: string }>
+
+export default async function ScreenPage({
+  searchParams,
+}: {
+  searchParams: SearchParams
+}) {
   const user = await getCurrentUser()
   if (!user) redirect('/')
 
-  const [snap, h] = await Promise.all([fetchScreenData(), headers()])
+  const sp = await searchParams
+  const section = isSectionId(sp.section) ? sp.section : null
+
+  const [snap, h] = await Promise.all([fetchScreenData(section), headers()])
 
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? ''
   const proto =
     h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
-  const feedUrl = host ? `${proto}://${host}/feed` : '/feed'
+  // QR points to the feed of the same section, so attendees joining mid-talk
+  // land in the right discussion stream.
+  const feedPath = section ? `/feed?section=${section}` : '/feed'
+  const feedUrl = host ? `${proto}://${host}${feedPath}` : feedPath
 
   return (
     <ScreenView
       initialPosts={snap.posts}
       initialOnline={snap.online}
       eventName={EVENT_NAME}
+      section={section}
+      sectionLabel={section ? sectionLabel(section) : null}
       qrSlot={<QRCode value={feedUrl} size={160} />}
     />
   )

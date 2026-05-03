@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { fetchScreenData } from '@/lib/actions/screen'
+import type { SectionId } from '@/lib/sections'
 
 const POLL_TICK_MS = 1_000 // ui re-render cadence
 const REFRESH_MS = 10_000 // server-data poll cadence
@@ -13,6 +14,8 @@ type Props = {
   initialPosts: FeedPost[]
   initialOnline: number
   eventName: string
+  section: SectionId | null
+  sectionLabel: string | null
   qrSlot: React.ReactNode
 }
 
@@ -20,6 +23,8 @@ export function ScreenView({
   initialPosts,
   initialOnline,
   eventName,
+  section,
+  sectionLabel,
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
@@ -35,7 +40,7 @@ export function ScreenView({
     let cancelled = false
     async function refresh() {
       try {
-        const snap = await fetchScreenData()
+        const snap = await fetchScreenData(section)
         if (cancelled) return
         setPosts(snap.posts)
         setOnline(snap.online)
@@ -48,7 +53,7 @@ export function ScreenView({
       cancelled = true
       clearInterval(id)
     }
-  }, [])
+  }, [section])
 
   const activePolls = useMemo(
     () =>
@@ -74,7 +79,14 @@ export function ScreenView({
   return (
     <div className="flex h-svh w-screen flex-col bg-zinc-950 text-zinc-100">
       <header className="mx-auto flex w-full max-w-[1400px] items-baseline justify-between px-10 py-6 text-zinc-300">
-        <h1 className="text-3xl font-semibold tracking-tight">{eventName}</h1>
+        <div className="flex items-baseline gap-4">
+          <h1 className="text-3xl font-semibold tracking-tight">{eventName}</h1>
+          {sectionLabel && (
+            <span className="rounded-full bg-zinc-800 px-3 py-1 text-base font-medium text-zinc-200">
+              {sectionLabel}
+            </span>
+          )}
+        </div>
         <div className="text-xl tabular-nums">
           在线 <span className="font-semibold text-white">{online}</span> 人
         </div>

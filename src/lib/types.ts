@@ -24,6 +24,7 @@ export type PostRow = {
   body: string
   tags: string[]
   show_contact: boolean
+  section: 'p1' | 'p2' | 'breakout' | 'panel' | null
   poll_options: PollOption[] | null
   poll_multi: boolean | null
   poll_deadline: string | null
