@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "dams-meetup",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "dams-meetup"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    { "pattern": "meet.zhaidewei.com", "custom_domain": true }
+  ]
+}

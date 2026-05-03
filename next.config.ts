@@ -1,9 +1,12 @@
 import type { NextConfig } from 'next'
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare'
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: '/Users/zhaidewei/dams-meetup',
+    root: process.cwd(),
   },
 }
+
+initOpenNextCloudflareForDev()
 
 export default nextConfig
