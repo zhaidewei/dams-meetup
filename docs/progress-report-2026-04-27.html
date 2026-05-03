@@ -181,28 +181,36 @@
 
 <header class="report-head">
   <h1>DAMS Meetup #14 互动 App</h1>
-  <p class="meta">技术进度汇报 · 更新于 2026-05-03 · 距活动开始 6 天 · 首版 2026-04-27</p>
+  <p class="meta">技术进度汇报 · 更新于 2026-05-03（傍晚）· 距活动开始 6 天 · 首版 2026-04-27</p>
   <p class="repo">仓库：<a href="https://github.com/zhaidewei/dams-meetup" target="_blank" rel="noopener">github.com/zhaidewei/dams-meetup</a> · public · PR / Issue 欢迎 · <a href="https://github.com/zhaidewei/dams-meetup/issues/1" target="_blank" rel="noopener" style="border-bottom-color: var(--warn); color: var(--warn);">⚠️ Issue #1 待 stakeholder 拍板</a></p>
 </header>
 
 <div class="tldr">
-  <h2>TL;DR · 更新于 2026-05-03</h2>
+  <h2>TL;DR · 更新于 2026-05-03 傍晚</h2>
   <ul>
-    <li><strong>MVP 主线已通</strong> — 密码门、feed、点赞、回复、VIP 登录、投票、/me、/screen 投影全部跑通且通过 typecheck/lint/9 个测试</li>
-    <li><strong>migration 0004 已应用到 live Supabase</strong>（5/3 完成）— 撮合 schema + 前端管道在生产可用，发帖能存 match_intent</li>
-    <li><strong>核心剩余工作是 AI 撮合 slice 3</strong> — DeepSeek 接线 + pg_cron；slice 2（mock 验 UI）30 min 即可</li>
-    <li><strong>已开 Issue #1 征集 stakeholder 决策</strong> — 9 个拍板项（撮合做到哪一档 / 部署日期 / Realtime / 现场分工等）请直接到 GitHub 评论投票</li>
+    <li><strong>5/3 一天大跃进</strong> — 23 个 commit 落地：CF Workers 部署 / 议程页 / 4 板块 / 帖子&回复编辑 / @mention / AI 撮合 slice 2+3 / Realtime / 站内信 / iPhone Chrome 修复 / 联系方式一键复制（详见下方 §9）</li>
+    <li><strong>AI 撮合代码已完成</strong> — slice 2（mock 验 UI）+ slice 3（Edge Function + cron + match_runs 日志），等下一次 deploy；DeepSeek 数据流 + redact 见 §7 + <a href="matching-design.md">matching-design.md §8</a></li>
+    <li><strong>Realtime 接线完成</strong>（issue #7）— 取代 /screen 10s 轮询；<code>match_intent</code> 物理隔离到 <code>post_match_intents</code> 表，不进 publication，不会泄漏给 anon 客户端</li>
+    <li><strong>站内信功能上线</strong>（issue #6）— 用户间 1-on-1 对话，可选附带联系方式</li>
+    <li><strong>iPhone Chrome 写操作全部失效</strong> 已修复 — 所有写操作改用 React 19 form action progressive enhancement，hydration 挂掉也不影响功能</li>
+    <li><strong>已开 Issue #1 征集 stakeholder 决策</strong> — 9 个拍板项（部署日期 / 现场分工等）请直接到 GitHub 评论投票</li>
   </ul>
 </div>
 
 <div class="tldr" style="background: var(--warn-soft); border-color: #fecaca;">
   <h2 style="color: var(--warn);">自首版（2026-04-27）以来的更新</h2>
   <ul>
-    <li><strong>5/3 · migration 0004 应用到 live Supabase</strong> — 包括 <code>posts.match_intent</code> 列、<code>replies</code> 三个新列（<code>is_ai</code>/<code>visibility</code>/<code>mentioned_user_id</code>）、收紧 anon RLS 至 <code>visibility='public'</code>、删除遗留 <code>matches</code> 表。service-role 验证 4/4 通过。</li>
-    <li><strong>5/2 · GitHub Issue #1 发布</strong> — 9 项 stakeholder 决策清单（P0/P1/P2 三档），等队友评论区投票</li>
-    <li><strong>5/3 · 设计澄清：AI 撮合走"胖 prompt"，不上 RAG</strong> — 见下方 §8</li>
-    <li><strong>5/3 · /screen 大屏逻辑梳理完成</strong> — 4 时钟 state machine 文档化，已知短板见 §3</li>
-    <li><strong>5/2 · Slido 对比评估</strong> — 结论：核心差异化（peer 广播 + AI 撮合）成立，不算重造轮子。Q&A + wordcloud 投票是 Slido 强项，可考虑混合方案</li>
+    <li><strong>5/3 · 23 个 commit 推进</strong> — 见 §9 「5/3 当天产出」流水（已去重）</li>
+    <li><strong>5/3 · AI 撮合 Edge Function 编码完成</strong> — DeepSeek 接线 + pg_cron 5min + match_runs 日志表 + dedupe；prompt.ts 含 redactContacts 兜底</li>
+    <li><strong>5/3 · Supabase Realtime 接线完成</strong> — feed 双标签实测同步通过；<code>match_intent</code> 搬到独立表 <code>post_match_intents</code> 物理隔离</li>
+    <li><strong>5/3 · 站内信（DM）落地</strong> — issue #6，1-on-1 对话 + 可选 reveal_contact</li>
+    <li><strong>5/3 · CF Workers 部署 + GitHub Actions PR gate 接入</strong></li>
+    <li><strong>5/3 · iPhone Chrome 写操作 hydration 修复</strong> — 所有写操作走 form action，已知 quirk 文档化在 CLAUDE.md</li>
+    <li><strong>5/3 · 议程页 + 4 板块</strong> — feed/screen 按 p1/p2/breakout/panel 拆分</li>
+    <li><strong>5/3 · 帖子 + 回复的编辑/删除/嵌套/@mention</strong></li>
+    <li><strong>5/3 · 联系方式一键复制 + 投票手动关闭</strong>（issue #15、#17）</li>
+    <li><strong>5/2 · GitHub Issue #1 发布</strong> — 9 项 stakeholder 决策清单</li>
+    <li><strong>5/2 · Slido 对比评估</strong> — 结论：核心差异化（peer 广播 + AI 撮合）成立</li>
   </ul>
 </div>
 
@@ -300,35 +308,59 @@
       </tr>
       <tr>
         <td>AI 撮合（F'' 方案）</td>
-        <td><span class="badge badge-progress">SLICE 1/3</span></td>
+        <td><span class="badge badge-progress">CODE DONE</span></td>
         <td>
-          <strong>schema 已应用 live</strong>（5/3）+ 前端管道完成；mock 验 UI（slice 2）+ DeepSeek 接入（slice 3）待做。
-          <br/><span style="color: var(--warn);">⚠️ 是否做 slice 3 待 stakeholder 拍板（Issue #1 P0.1：A 砍掉 / B mock 演示 / C 全做）</span>
+          <strong>slice 1（schema + 前端）+ slice 2（mock UI）+ slice 3（Edge Function + cron + 日志）全部编码完成</strong>。
+          <code>supabase/functions/match/</code> 含 prompt 构造 + redactContacts 兜底 + DeepSeek 调用。
+          <br/>剩余：<code>supabase functions deploy match</code> 并验一次端到端。
         </td>
       </tr>
       <tr>
-        <td><code>/screen</code> 已知短板</td>
-        <td><span class="badge badge-warn">CAVEAT</span></td>
-        <td>
-          ① 没接 Realtime → 帖子上屏最长 10s 延迟<br/>
-          ② 多投票轮播未真测过（仅单投票场景验证）<br/>
-          ③ AI 回帖不进 timeline（当前 TimelineSlot 只取 posts，不渲染 replies）
-        </td>
+        <td>站内信（DM）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>issue #6 — 1-on-1 对话 + 可选附带联系方式（reveal_contact）</td>
       </tr>
       <tr>
         <td>Realtime 实时刷新</td>
-        <td><span class="badge badge-planned">PLANNED</span></td>
-        <td>当前 10s 轮询；Supabase Realtime 已 publish 表，前端 anon 订阅未接</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>
+          issue #7 — feed/me/screen 全接 Realtime。<code>match_intent</code> 物理隔离到独立表 <code>post_match_intents</code>，不在 publication，anon 拿不到。
+        </td>
+      </tr>
+      <tr>
+        <td>4 板块拆分</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>feed 拆 p1 / p2 / breakout / panel；screen 按板块投影；header 含 /agenda 议程页</td>
+      </tr>
+      <tr>
+        <td>帖子 + 回复编辑/删除</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>用户可编辑/删除自己的内容；回复支持嵌套（一层）+ @mention 楼上</td>
+      </tr>
+      <tr>
+        <td>iPhone Chrome 写操作修复</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>所有写操作改用 React 19 form action progressive enhancement，hydration 挂掉也工作</td>
+      </tr>
+      <tr>
+        <td>VIP 投票手动关闭</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>issue #17 — 作者可在 deadline 之前手动截止（poll_deadline = now()）</td>
+      </tr>
+      <tr>
+        <td>联系方式一键复制</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>issue #15 — PostCard / DmThreadView 展示对方联系方式时附复制按钮</td>
       </tr>
       <tr>
         <td>CF Workers 部署</td>
-        <td><span class="badge badge-planned">PLANNED</span></td>
-        <td>本地 dev 通；OpenNext.js Cloudflare adapter 集成 + 域名待做</td>
+        <td><span class="badge badge-progress">在路上</span></td>
+        <td>OpenNext.js adapter + GitHub Actions PR gate 已加；自定义域名 <code>meet.zhaidewei.com</code> 待挂</td>
       </tr>
       <tr>
         <td>测试 / 文档</td>
-        <td><span class="badge badge-done">BASE</span></td>
-        <td>vitest 9/9 通过；docs/ 有架构 / schema / 开发 / 撮合设计四篇</td>
+        <td><span class="badge badge-done">42/42</span></td>
+        <td>vitest 42 个测试全过（display / sections / tags / dm / constants / supabase smoke）；docs/ 五篇</td>
       </tr>
     </tbody>
   </table>
@@ -379,45 +411,45 @@ graph LR
     <tbody>
       <tr>
         <td>P0</td>
-        <td>AI 撮合 slice 2 — mock SQL 验 UI</td>
-        <td>30 分钟</td>
-        <td>无风险，纯 SQL insert 验证渲染逻辑</td>
+        <td>部署 match Edge Function + DeepSeek 端到端验证</td>
+        <td>0.5 天</td>
+        <td>代码已 ready，需 <code>supabase functions deploy match</code> + 至少 3 条暗需求 mock 数据触发一次跑通</td>
       </tr>
       <tr>
         <td>P0</td>
-        <td>AI 撮合 slice 3 — Edge Function + DeepSeek + cron</td>
-        <td>2-3 天</td>
-        <td>prompt engineering 质量；DeepSeek 配额；冷启动表现</td>
+        <td>CF Workers 部署收尾 + 自定义域名 <code>meet.zhaidewei.com</code></td>
+        <td>0.5 天</td>
+        <td>OpenNext 已接，PR gate 已通；剩域名 + 环境变量灌入</td>
       </tr>
       <tr>
         <td>P1</td>
-        <td>Realtime 接入</td>
-        <td>1 天</td>
-        <td>需要在 broadcast 层 redact <code>posts.match_intent</code> 暗字段</td>
-      </tr>
-      <tr>
-        <td>P1</td>
-        <td>CF Workers 部署 + 自定义域名</td>
-        <td>1 天</td>
-        <td>Next.js 16 × OpenNext × Workers 兼容性；Server Actions cookie 行为验证</td>
-      </tr>
-      <tr>
-        <td>P2</td>
         <td>VIP 密码批量导入流程</td>
         <td>0.5 天</td>
-        <td>主办方好用 + 不出错为先；命令行小工具或 Supabase SQL 模板</td>
+        <td>主办方好用 + 不出错为先；CLI 小工具或 SQL 模板</td>
+      </tr>
+      <tr>
+        <td>P1</td>
+        <td>压力 / 体验测试</td>
+        <td>1 天</td>
+        <td>200 并发的 Realtime 性能；移动端窄屏体验；现场 WiFi 抖动；多投票轮播</td>
+      </tr>
+      <tr>
+        <td>P1</td>
+        <td>隐私公告 / 知情同意</td>
+        <td>0.5 天</td>
+        <td>密码门 / onboarding 加一段说明：data 流向 DeepSeek（已 redact）+ 数据保留策略；见 §7</td>
       </tr>
       <tr>
         <td>P2</td>
-        <td>压力 / 体验测试</td>
-        <td>1 天</td>
-        <td>200 并发的 RT 性能；移动端窄屏体验；活动现场 WiFi 抖动</td>
+        <td>主办方运营仪表板（<code>/admin</code>）</td>
+        <td>未估</td>
+        <td>需求未确认，见 §6 Q5</td>
       </tr>
       <tr>
-        <td>P3</td>
-        <td>主办方运营仪表板</td>
-        <td>未估</td>
-        <td>需求未确认，见 §6</td>
+        <td>P2</td>
+        <td>screen 渲染 AI replies + 多投票轮播实测</td>
+        <td>0.5 天</td>
+        <td>当前 TimelineSlot 只取 posts 不渲染 replies；多投票 30s 轮播未真测</td>
       </tr>
     </tbody>
   </table>
@@ -427,13 +459,13 @@ graph LR
   </p>
 
   <div class="card" style="margin-top: 16px; border-left: 3px solid var(--warn); background: #fffaf5;">
-    <h3 style="margin-top: 0;">⚠️ 6 天倒计时 · stakeholder 必须立刻拍的 P0</h3>
-    <p style="margin-bottom: 8px;">完整版见 <a href="https://github.com/zhaidewei/dams-meetup/issues/1" target="_blank" rel="noopener">Issue #1</a>，请直接到评论区按编号回复你的选择：</p>
+    <h3 style="margin-top: 0;">⚠️ 6 天倒计时 · stakeholder 仍需拍板的事</h3>
+    <p style="margin-bottom: 8px;">原 Issue #1 大部分已通过实施回答（撮合做了、Realtime 接了）。以下仍需决策——请到 <a href="https://github.com/zhaidewei/dams-meetup/issues/1" target="_blank" rel="noopener">Issue #1</a> 评论：</p>
     <ol style="margin-bottom: 0;">
-      <li><strong>撮合 slice 3 做不做？</strong> A 砍掉 / B mock 演示 / C 全做（建议 B，C 当 stretch）</li>
-      <li><strong>部署不晚于哪天上线？</strong> 建议 5/6，留 3 天压测</li>
-      <li><strong>Realtime 接不接？</strong> 1-2 天工作量 vs 现场体验提升</li>
+      <li><strong>正式部署日期</strong>？建议 5/6 之前 freeze 主线、留 3 天压测 + 主办方走查</li>
       <li><strong>5/9 当天 3 个角色谁兜底？</strong> 投影机 / 用户支持 / 监控</li>
+      <li><strong>隐私公告要不要做</strong>？数据发往 DeepSeek（已 redact 兜底）+ 7 天后数据保留策略，要不要在密码门或 onboarding 显式告知？</li>
+      <li><strong>VIP 密码批量导入</strong>由谁出名单 + 谁灌库？</li>
     </ol>
   </div>
 </section>
@@ -536,25 +568,174 @@ graph LR
       </tbody>
     </table>
 
-    <h3>但是有个真问题：所有数据都流向 DeepSeek</h3>
-    <p>这才是当前设计的隐忧（不是 RAG vs 胖 prompt 的事）：</p>
+    <h3>5/3 已实施：隐私防护双保险</h3>
+    <p>原本担心的"<code>contact_handle</code> 流出 / 用户暗需求里手写联系方式"已落地处理。<strong>详细字段清单 + redact 实现见 <a href="matching-design.md" target="_blank">matching-design.md §8</a></strong>。</p>
     <table>
       <thead>
-        <tr><th>流向 DeepSeek 的内容</th><th>是否敏感</th></tr>
+        <tr><th>项</th><th>处理</th></tr>
       </thead>
       <tbody>
-        <tr><td><code>match_intent</code>（私下暗需求）</td><td><span class="badge badge-warn">敏感</span> 用户期望"仅 AI 看到"</td></tr>
-        <tr><td>发帖人公开 <code>body</code></td><td>已公开，无所谓</td></tr>
-        <tr><td>候选人 <code>nickname</code> / <code>company</code></td><td>用户同意公开才填的</td></tr>
-        <tr><td>候选人 <code>contact_handle</code></td><td><span class="badge badge-warn">不应流出</span> 只在帖子作者主动 reveal 时显示，LLM 不需要</td></tr>
+        <tr>
+          <td><code>users.contact_handle</code> 是否进 prompt</td>
+          <td><span class="badge badge-done">不进</span> 数据库 select 根本不拉这个字段</td>
+        </tr>
+        <tr>
+          <td>用户暗需求 / body 里手写邮箱、URL、长数字</td>
+          <td><span class="badge badge-done">兜底 redact</span> <code>redactContacts()</code> 正则替换为 <code>[已隐藏]</code></td>
+        </tr>
+        <tr>
+          <td>用户知情同意</td>
+          <td><span class="badge badge-done">UI 声明</span> PostComposer 暗需求面板显式提示"内容会发往 DeepSeek API"</td>
+        </tr>
+        <tr>
+          <td>带空格手机号 / 微信号</td>
+          <td><span class="badge badge-warn">残余风险</span> 正则无法可靠捕获，靠 UI 提示作主防线</td>
+        </tr>
       </tbody>
     </table>
-    <p style="margin-top: 12px; margin-bottom: 0;"><strong>影响 Issue #1 P1.6 隐私公告决策</strong>：DeepSeek 是境外服务，把华人用户的私下意图 + 真实姓名 + 公司发过去，需不需要在活动前明确告知？</p>
+    <p style="margin-top: 12px;"><strong>实际发往 DeepSeek 的字段</strong>：</p>
+    <ul style="margin-bottom: 12px;">
+      <li><strong>candidate 帖（≤50 条）</strong>：post_id / user_id (UUID) / 板块 / body (redacted) / tags / 暗需求 (redacted)</li>
+      <li><strong>全场画像（≤500 条聚合）</strong>：user_id / display_name (昵称或嘉宾实名) / affiliation (公司或职位) / 最近 5 条帖的 body 摘要 (redacted)</li>
+      <li><strong>不发</strong>：contact_handle、recovery_token、vip 密码 hash、replies、likes、poll_votes、私信、时间戳</li>
+    </ul>
+    <p style="margin-bottom: 0;"><strong>仍然影响 Issue #1 P1.6 隐私公告决策</strong>：即便已 redact，把华人用户的私下意图 + 实名 + 公司发到境外 LLM 服务，活动前是否需要在密码门或 onboarding 里明确告知？</p>
   </div>
 </section>
 
 <section>
-  <h2><span class="num">§8</span>怎么参与</h2>
+  <h2><span class="num">§8</span>5/3 当天产出 · commit 流水（去重）</h2>
+
+  <p style="font-size: 13.5px; color: var(--text-muted);">
+    一天 23 条有效 commit（已合并 PR 与 merge commit 去重），按主题分组。
+  </p>
+
+  <table>
+    <thead>
+      <tr><th style="width: 22%;">主题</th><th style="width: 14%;">commit / 时间</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td rowspan="2"><strong>基础设施 / 部署</strong></td>
+        <td><code>88cfbd3</code> · 12:42</td>
+        <td>Cloudflare Workers 部署 + GitHub Actions PR gate</td>
+      </tr>
+      <tr>
+        <td><code>c3b23eb</code> · 10:00</td>
+        <td>GitHub Pages 根路径加 docs 索引</td>
+      </tr>
+
+      <tr>
+        <td rowspan="3"><strong>页面 / 导航</strong></td>
+        <td><code>5ea6d1c</code> · 13:25</td>
+        <td>首页密码门加活动议程</td>
+      </tr>
+      <tr>
+        <td><code>616a550</code> · 14:05</td>
+        <td>新增 <code>/agenda</code> 路由 + Header 议程导航</td>
+      </tr>
+      <tr>
+        <td><code>618ec25</code> · 14:18</td>
+        <td>feed 拆 4 板块（p1/p2/breakout/panel）+ screen 按板块投影</td>
+      </tr>
+
+      <tr>
+        <td rowspan="6"><strong>互动功能</strong></td>
+        <td><code>8d3590e</code> · 14:41</td>
+        <td>嘉宾自填昵称/公司覆盖默认显示</td>
+      </tr>
+      <tr>
+        <td><code>e98e819</code> · 14:19</td>
+        <td>退出登录按钮（清 cookie + 本地缓存）</td>
+      </tr>
+      <tr>
+        <td><code>e978676</code> · 14:19</td>
+        <td>回复支持 @mention 楼上</td>
+      </tr>
+      <tr>
+        <td><code>a389e0a</code> · 14:50</td>
+        <td>用户可编辑/删除自己的回复</td>
+      </tr>
+      <tr>
+        <td><code>097b04d</code> · 14:57</td>
+        <td>回复嵌套（一层）</td>
+      </tr>
+      <tr>
+        <td><code>2649f0a</code> · 15:13</td>
+        <td>用户可编辑/删除自己的帖子</td>
+      </tr>
+
+      <tr>
+        <td rowspan="2"><strong>AI 撮合</strong>（issue #1 主线）</td>
+        <td><code>92e7146</code> · 15:21</td>
+        <td>slice 2 — mock SQL 验 UI 链路</td>
+      </tr>
+      <tr>
+        <td><code>f1bc1ca</code> · 15:21</td>
+        <td>slice 3 — Edge Function + DeepSeek 接线 + pg_cron + match_runs 日志</td>
+      </tr>
+
+      <tr>
+        <td><strong>Realtime（issue #7）</strong></td>
+        <td><code>130d16e</code> · 16:41</td>
+        <td>Supabase Realtime 接线 + <code>match_intent</code> 物理隔离到 <code>post_match_intents</code></td>
+      </tr>
+
+      <tr>
+        <td><strong>站内信（issue #6）</strong></td>
+        <td><code>bb0ba09</code> · 17:14</td>
+        <td>1-on-1 站内信 + /me 接 Realtime</td>
+      </tr>
+
+      <tr>
+        <td rowspan="4"><strong>关键修复</strong></td>
+        <td><code>659527f</code> · 15:20</td>
+        <td>PostCard 时间显示 hydration mismatch</td>
+      </tr>
+      <tr>
+        <td><code>e4bf8d8</code> · 15:38</td>
+        <td>posts.body 列名（slice 3 部署后发现）</td>
+      </tr>
+      <tr>
+        <td><code>6d89ab3</code> · 15:42</td>
+        <td>tsconfig 排除 supabase 目录（避免主项目 typecheck 误触 Deno 文件）</td>
+      </tr>
+      <tr>
+        <td><code>d6f2a60</code> · 21:05</td>
+        <td><strong>iPhone Chrome 写操作全部失效 → 改 form action progressive enhancement</strong></td>
+      </tr>
+
+      <tr>
+        <td><strong>体验小功能</strong></td>
+        <td><code>58de5fc</code> · 21:14</td>
+        <td>联系方式一键复制按钮（issue #15）</td>
+      </tr>
+
+      <tr>
+        <td rowspan="2"><strong>质量基线</strong></td>
+        <td><code>a12d626</code> · 14:05</td>
+        <td>本地 deploy 脚本注入 NEXT_PUBLIC_*</td>
+      </tr>
+      <tr>
+        <td><code>5d9de41</code> · 15:34</td>
+        <td>display / sections / tags 单元测试（vitest 42 个全过）</td>
+      </tr>
+
+      <tr>
+        <td><strong>本次会话进行中</strong></td>
+        <td>未 commit</td>
+        <td>issue #17 — VIP 投票手动关闭 + DeepSeek 数据声明 + redactContacts 兜底 + 本进度文档更新</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+    完整 commit 信息：<code>git log --since="2026-05-03 00:00:00"</code>。Merge commits（<code>3098730</code>、<code>11342b2</code>、<code>c832b44</code> 等）已与所属 feat commit 合并去重。
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">§9</span>怎么参与</h2>
 
   <div class="card">
     <p><strong>仓库 public，PR 直接发</strong>。先扫这几篇文档建立背景：</p>

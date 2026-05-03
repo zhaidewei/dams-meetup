@@ -409,3 +409,101 @@ A-E 作为历史备选保留在文档里，仅供回溯。
 - 实现：依 §6 checklist 进行；预估 3 天
 
 下一个 session 开工时直接读这份文档 + §6 清单照做即可。
+
+---
+
+## 8. 实现细节：发往 DeepSeek 的数据流（2026-05-03 补充）
+
+> 队友 / Stakeholder 关注点：暗需求 + 公司 + 真名要发到境外 LLM，到底发什么、能不能漏？
+> 本节给出**字段级**清单 + redact 实现，供隐私公告 / 合规审查参考。
+
+### 8.1 入口：每条 cron 跑一次（默认 5 分钟）
+
+`supabase/functions/match/index.ts` 给 DeepSeek 发**两条 message**：
+
+| 角色 | 内容 | 是否含用户数据 |
+|---|---|---|
+| `system` | 固定文案：会议主题 + 推荐规则 + JSON 输出约定 | ❌ 纯模板 |
+| `user` | `buildPrompt({candidates, profiles})` 输出 | ✅ 见 §8.2 |
+
+system prompt 见 `supabase/functions/match/deepseek.ts`，纯静态字符串。
+
+### 8.2 user prompt 字段清单
+
+#### 部分 A：candidates — 这次要撮合的帖子（≤50 条）
+
+来源：`post_match_intents` inner join `posts` ORDER BY created_at DESC LIMIT 50。
+
+| 字段 | 来源 | 处理 |
+|---|---|---|
+| `post_id` | `posts.id` | 原值（自增整数，无 PII） |
+| 作者 `user_id` | `posts.user_id` | 原值（UUID） |
+| 板块 | `posts.section` | 标签化（"Presentation 1" 等） |
+| 公开 body | `posts.body` | **redactContacts** |
+| tags | `posts.tags` | 原值 |
+| 暗需求 | `post_match_intents.intent` | **redactContacts** |
+
+#### 部分 B：profiles — 全场用户画像（≤500 条最新帖聚合）
+
+来源：`posts` join `users` ORDER BY created_at DESC LIMIT 500，按 `user_id` 聚合，每用户保留最近 5 条帖。
+
+| 字段 | 来源 | 处理 |
+|---|---|---|
+| `user_id` | `users.id` | 原值（UUID） |
+| display_name | 嘉宾→`vip_name`<br/>普通→`nickname`<br/>匿名用户→字面"匿名" | 原值 |
+| affiliation | 嘉宾→`vip_title`<br/>普通→`company` | 原值 |
+| 帖子 section | `posts.section` | 标签化 |
+| 帖子 tags | `posts.tags` | 原值 |
+| 帖子 body | `posts.body` | **redactContacts** + 截断到 120 字 |
+
+### 8.3 不发送的字段（已确认）
+
+| 字段 | 状态 | 来源 |
+|---|---|---|
+| `users.contact_handle`（联系方式） | ❌ select 根本不拉 | 数据库查询不包含 |
+| `users.show_contact` | ❌ 同上 | 数据库查询不包含 |
+| `users.recovery_token` | ❌ 同上 | 凭据，绝不出库 |
+| `vip_tokens.password_hash` | ❌ 同上 | 凭据 |
+| `replies` / `likes` / `poll_votes` | ❌ 不查 | 不属于撮合上下文 |
+| `dm_messages` 私信内容 | ❌ 不查 | 物理隔离 |
+| `last_seen_at` / `created_at` | ❌ 不进 prompt | 时间戳无撮合价值 |
+
+### 8.4 兜底过滤：redactContacts
+
+用户 UI 上已被提示"请勿在暗需求里写邮箱/电话/微信号"，但用户可能手滑。`supabase/functions/match/prompt.ts` 提供的 `redactContacts(text)` 是兜底防线，作用于所有进 prompt 的文本字段（candidate body / match_intent / profile post body）：
+
+```ts
+function redactContacts(text: string): string {
+  return text
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[已隐藏]')  // 邮箱
+    .replace(/https?:\/\/\S+/gi, '[已隐藏]')                // URL
+    .replace(/\d{10,}/g, '[已隐藏]')                        // ≥10 位连续数字
+}
+```
+
+**已知短板**（明确不修，因为 false-positive 代价过高）：
+- "138 1234 5678" 这种**带空格**的手机号穿透
+- 微信号（混字母数字，正则无法可靠区分微信号与昵称/产品名）
+- → 兜底失败 ⇒ 主防线（UI 提示）兜不住 ⇒ 个别敏感数据可能进 prompt
+- 5/9 单场场景下评估为可接受残余风险
+
+### 8.5 UI 知情同意（PostComposer 蓝色折叠区）
+
+```
+🤖 委托 AI 寻找匹配（私下，仅你可见）
+    [textarea: 你的暗需求]
+    这条不进时间线，结果以回帖形式仅你可见。
+    ⚠️ 内容会发往 DeepSeek API 用于撮合。请勿在此填写邮箱 / 电话 / 微信号；
+       系统已做基础过滤，但不能保证 100% 拦截。
+```
+
+明确告知 + 兜底 redact = 双重保险。
+
+### 8.6 决策记录
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 是否发送 contact_handle | **否** | LLM 不需要联系方式做匹配；用户在帖子上 reveal 是另一个独立流程 |
+| 是否在 LLM 端做 redact | **否** | 不信外部 LLM 处理 PII；redact 在我方代码里（`prompt.ts`）做掉再发 |
+| 用户在暗需求里手写联系方式 | **UI 提示 + 兜底 redact** | 不在前端校验阻挡（影响用户表达），仅警告 + 后端兜底 |
+| 是否发送 user_id (UUID) | **是** | DeepSeek 返回 user_id 用于回填 reply.mentioned_user_id；UUID 本身无业务含义 |

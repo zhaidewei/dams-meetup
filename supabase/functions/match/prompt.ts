@@ -1,6 +1,17 @@
 // 纯函数：把候选帖子 + 全场画像组装成 LLM 输入。
 // 抽出来便于本地单测（不依赖 Deno / Supabase 环境）。
 
+// 把文本里常见的个人联系方式（邮箱 / URL / 长数字串）换成 [已隐藏]，
+// 避免随 prompt 发到 DeepSeek。最后一道防线 —— 用户已被提示不要写，
+// 但写错了时这里兜底。不做手机号 / 微信号的精确匹配（误伤率太高），
+// 用"≥10 位连续数字"覆盖手机/QQ；微信号继续靠 UI 提示。
+function redactContacts(text: string): string {
+  return text
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[已隐藏]')
+    .replace(/https?:\/\/\S+/gi, '[已隐藏]')
+    .replace(/\d{10,}/g, '[已隐藏]')
+}
+
 export type CandidatePost = {
   id: number
   body: string
@@ -39,9 +50,9 @@ export function buildPrompt(args: {
   for (const c of args.candidates) {
     lines.push(`### post_id=${c.id}`)
     lines.push(`作者 user_id=${c.user_id} | 板块: ${labelSection(c.section)}`)
-    lines.push(`公开内容: ${c.body}`)
+    lines.push(`公开内容: ${redactContacts(c.body)}`)
     if (c.tags?.length) lines.push(`tags: ${c.tags.join(', ')}`)
-    lines.push(`暗需求: ${c.match_intent}`)
+    lines.push(`暗需求: ${redactContacts(c.match_intent)}`)
     lines.push('')
   }
 
@@ -52,7 +63,8 @@ export function buildPrompt(args: {
     lines.push(`### user_id=${p.user_id} | ${head}`)
     for (const post of p.posts.slice(0, 5)) {
       const tags = post.tags?.length ? ` [${post.tags.join(',')}]` : ''
-      const snippet = post.body.length > 120 ? post.body.slice(0, 120) + '…' : post.body
+      const redacted = redactContacts(post.body)
+      const snippet = redacted.length > 120 ? redacted.slice(0, 120) + '…' : redacted
       lines.push(`- [${labelSection(post.section)}]${tags} ${snippet}`)
     }
     lines.push('')

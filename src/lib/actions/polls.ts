@@ -71,6 +71,47 @@ export async function createPollAction(
   return { error: null, ok: true }
 }
 
+export type ClosePollFormState = { error: string | null; ok?: boolean }
+
+// 把 poll_deadline 提前到 now() 等价于"立即截止"。复用既有字段，
+// 不引入新状态列。
+export async function closePollAction(
+  _prev: ClosePollFormState,
+  formData: FormData,
+): Promise<ClosePollFormState> {
+  const user = await getCurrentUser()
+  if (!user) redirect('/')
+
+  const postId = Number(formData.get('post_id'))
+  if (!Number.isFinite(postId)) return { error: '无效的投票' }
+
+  const sb = getServerSupabase()
+
+  const { data: post } = await sb
+    .from('posts')
+    .select('id, type, user_id, poll_deadline')
+    .eq('id', postId)
+    .maybeSingle()
+
+  if (!post || post.type !== 'poll') return { error: '该帖子不是投票' }
+  if (post.user_id !== user.id) return { error: '只有发起人可以关闭' }
+
+  const deadline = post.poll_deadline ? new Date(post.poll_deadline) : null
+  if (deadline && Date.now() >= deadline.getTime()) {
+    return { error: '投票已截止' }
+  }
+
+  const { error } = await sb
+    .from('posts')
+    .update({ poll_deadline: new Date().toISOString() })
+    .eq('id', postId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/feed')
+  revalidatePath('/me')
+  return { error: null, ok: true }
+}
+
 export type VoteFormState = { error: string | null; ok?: boolean }
 
 export async function voteAction(

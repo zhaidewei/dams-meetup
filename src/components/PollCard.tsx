@@ -1,10 +1,16 @@
 'use client'
 
 import { useActionState } from 'react'
-import { voteAction, type VoteFormState } from '@/lib/actions/polls'
+import {
+  closePollAction,
+  voteAction,
+  type ClosePollFormState,
+  type VoteFormState,
+} from '@/lib/actions/polls'
 import type { PollOption } from '@/lib/types'
 
 const initial: VoteFormState = { error: null }
+const closeInitial: ClosePollFormState = { error: null }
 
 type Props = {
   postId: number
@@ -12,6 +18,7 @@ type Props = {
   multi: boolean
   hideResults: boolean
   closed: boolean
+  canClose: boolean
   totalVotes: number
   optionCounts: Record<number, number>
   myVoteOptions: number[]
@@ -27,6 +34,7 @@ export function PollCard({
   multi,
   hideResults,
   closed,
+  canClose,
   totalVotes,
   optionCounts,
   myVoteOptions,
@@ -34,10 +42,16 @@ export function PollCard({
   const hasVoted = myVoteOptions.length > 0
   const showCounts = closed || hasVoted || !hideResults
   const [state, formAction, isPending] = useActionState(voteAction, initial)
+  const [closeState, closeFormAction, isClosing] = useActionState(
+    closePollAction,
+    closeInitial,
+  )
   const inputType = multi ? 'checkbox' : 'radio'
+  const showCloseButton = !closed && canClose
 
   return (
-    <form action={formAction} className="mt-1 space-y-2">
+    <div className="mt-1 space-y-2">
+    <form action={formAction} className="space-y-2">
       <input type="hidden" name="post_id" value={postId} />
       <div className="space-y-1.5">
         {options.map((opt) => {
@@ -113,5 +127,21 @@ export function PollCard({
 
       {state.error && <p className="text-xs text-red-600">{state.error}</p>}
     </form>
+      {showCloseButton && (
+        <form action={closeFormAction} className="flex items-center justify-end gap-2">
+          <input type="hidden" name="post_id" value={postId} />
+          {closeState.error && (
+            <span className="text-xs text-red-600">{closeState.error}</span>
+          )}
+          <button
+            type="submit"
+            disabled={isClosing}
+            className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+          >
+            {isClosing ? '关闭中…' : '立即截止'}
+          </button>
+        </form>
+      )}
+    </div>
   )
 }

@@ -174,9 +174,14 @@ export function PostComposer({
               rows={3}
               className="w-full resize-none rounded-md border border-sky-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-sky-400 focus:outline-none"
             />
-            <div className="flex items-center justify-between text-[11px] text-sky-700">
-              <span>这条不进时间线。AI 会按你的描述帮你找人，结果以回帖形式仅你可见。</span>
-              <span className={matchRemaining < 0 ? 'text-red-600' : ''}>{matchRemaining}</span>
+            <div className="space-y-1 text-[11px] text-sky-700">
+              <p>这条不进时间线，结果以回帖形式仅你可见。</p>
+              <p className="text-sky-800">
+                ⚠️ 内容会发往 DeepSeek API 用于撮合。请勿在此填写邮箱 / 电话 / 微信号；系统已做基础过滤，但不能保证 100% 拦截。
+              </p>
+              <div className="flex justify-end">
+                <span className={matchRemaining < 0 ? 'text-red-600' : ''}>{matchRemaining}</span>
+              </div>
             </div>
           </div>
         )}
