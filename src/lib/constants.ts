@@ -5,6 +5,7 @@ export const EVENT_END_ISO = process.env.NEXT_PUBLIC_EVENT_END ?? '2026-05-09T18
 
 export const POST_MAX_CHARS = 300
 export const REPLY_MAX_CHARS = 300
+export const DM_MAX_CHARS = 300
 export const POLL_MAX_OPTIONS = 6
 export const POLL_MIN_OPTIONS = 2
 export const MATCH_INTENT_MAX_CHARS = 200

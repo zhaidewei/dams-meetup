@@ -6,9 +6,14 @@ import { PostCard } from '@/components/PostCard'
 import { ProfileForm } from '@/components/ProfileForm'
 import { RecoveryLink } from '@/components/RecoveryLink'
 import { LogoutButton } from '@/components/LogoutButton'
+import { DmThreadList } from '@/components/DmThreadList'
+import { DmRealtime } from '@/components/DmRealtime'
+import { MeRealtime } from '@/components/MeRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchRepliesToMe, fetchMentionsOfMe, type ReplyToMe, type MentionOfMe } from '@/lib/queries/me'
+import { listMyThreads, fetchUnreadDmCount } from '@/lib/queries/dm'
 import { displayName, displayMeta } from '@/lib/display'
+import { isNonAnon } from '@/lib/dm'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,15 +21,20 @@ export default async function MePage() {
   const user = await getCurrentUser()
   if (!user) redirect('/')
 
-  const [myPosts, repliesToMe, mentionsOfMe] = await Promise.all([
+  const [myPosts, repliesToMe, mentionsOfMe, threads, unreadDm] = await Promise.all([
     fetchFeed(user.id, { authorId: user.id, limit: 50 }),
     fetchRepliesToMe(user.id),
     fetchMentionsOfMe(user.id),
+    listMyThreads(user.id),
+    fetchUnreadDmCount(user.id),
   ])
+  const viewerCanDm = isNonAnon(user)
 
   return (
     <>
-      <Header active="me" />
+      <Header active="me" unreadDmCount={unreadDm} />
+      <DmRealtime viewerId={user.id} />
+      <MeRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
         <div className="space-y-4">
           <ProfileForm
@@ -40,6 +50,10 @@ export default async function MePage() {
           <RecoveryLink uid={user.id} token={user.recovery_token} />
 
           <LogoutButton />
+
+          <Section title={`私信${unreadDm > 0 ? ` · 未读 ${unreadDm}` : ''}`}>
+            <DmThreadList threads={threads} viewerCanDm={viewerCanDm} viewerId={user.id} />
+          </Section>
 
           <Section title={`有人想找你 (${mentionsOfMe.length})`}>
             {mentionsOfMe.length === 0 ? (
@@ -71,7 +85,7 @@ export default async function MePage() {
             ) : (
               <div className="space-y-3">
                 {myPosts.map((post) => (
-                  <PostCard key={post.id} post={post} viewerId={user.id} />
+                  <PostCard key={post.id} post={post} viewerId={user.id} viewerCanDm={viewerCanDm} />
                 ))}
               </div>
             )}

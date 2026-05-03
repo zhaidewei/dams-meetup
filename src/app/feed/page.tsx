@@ -5,7 +5,10 @@ import { PostComposer } from '@/components/PostComposer'
 import { PostCard } from '@/components/PostCard'
 import { SectionTabs } from '@/components/SectionTabs'
 import { FeedRealtime } from '@/components/FeedRealtime'
+import { DmRealtime } from '@/components/DmRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
+import { fetchUnreadDmCount } from '@/lib/queries/dm'
+import { isNonAnon } from '@/lib/dm'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
 export const dynamic = 'force-dynamic'
@@ -26,12 +29,17 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // Fire-and-forget; don't await on the render path.
   void touchLastSeen(user.id)
 
-  const posts = await fetchFeed(user.id, { section })
+  const [posts, unreadDm] = await Promise.all([
+    fetchFeed(user.id, { section }),
+    fetchUnreadDmCount(user.id),
+  ])
+  const viewerCanDm = isNonAnon(user)
 
   return (
     <>
-      <Header active="feed" />
+      <Header active="feed" unreadDmCount={unreadDm} />
       <FeedRealtime />
+      <DmRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
         <SectionTabs active={section} />
         <div className="mt-4 space-y-4">
@@ -53,7 +61,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
           ) : (
             <div className="space-y-3">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} viewerId={user.id} />
+                <PostCard key={post.id} post={post} viewerId={user.id} viewerCanDm={viewerCanDm} />
               ))}
             </div>
           )}

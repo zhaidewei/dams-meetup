@@ -81,3 +81,30 @@ export type PublicUserDisplay = Pick<
   UserRow,
   'id' | 'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
 >
+
+// =====================================================================
+// DM (migration 0012)
+// =====================================================================
+export type DmThreadRow = {
+  id: number
+  user_low: string
+  user_high: string
+  created_at: string
+}
+
+export type DmMessageRow = {
+  id: number
+  thread_id: number
+  sender_id: string
+  body: string
+  revealed_contact: string | null
+  read_at: string | null
+  created_at: string
+}
+
+export type DmNotificationRow = {
+  id: number
+  recipient_id: string
+  thread_id: number
+  created_at: string
+}
