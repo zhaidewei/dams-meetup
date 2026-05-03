@@ -39,6 +39,8 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
             defaultContactHandle={user.contact_handle}
             defaultShowContact={user.show_contact}
             isVip={user.is_vip}
+            vipName={user.vip_name}
+            vipTitle={user.vip_title}
             section={section}
           />
 

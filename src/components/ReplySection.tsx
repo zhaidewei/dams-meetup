@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState, useTransition } from 'react'
 import { createReplyAction, type ReplyFormState } from '@/lib/actions/replies'
 import { REPLY_MAX_CHARS } from '@/lib/constants'
+import { displayName, displayMeta } from '@/lib/display'
 
 const initial: ReplyFormState = { error: null }
 
@@ -32,9 +33,9 @@ type Props = {
   replies: ReplyDisplay[]
 }
 
-function displayName(a: ReplyDisplay['author']): string {
+function nameOf(a: ReplyDisplay['author']): string {
   if (!a) return '匿名'
-  return a.is_vip ? a.vip_name ?? '嘉宾' : a.nickname ?? '匿名'
+  return displayName(a)
 }
 
 export function ReplySection({ postId, count, replies }: Props) {
@@ -90,7 +91,7 @@ export function ReplySection({ postId, count, replies }: Props) {
               <ReplyRow
                 key={r.id}
                 reply={r}
-                onReply={() => replyTo(displayName(r.author))}
+                onReply={() => replyTo(nameOf(r.author))}
               />
             ),
           )}
@@ -129,7 +130,7 @@ function ReplyRow({ reply, onReply }: { reply: ReplyDisplay; onReply: () => void
   const a = reply.author
   if (!a) return null
   const name = displayName(a)
-  const meta = a.is_vip ? a.vip_title : a.company
+  const meta = displayMeta(a)
   return (
     <div className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
       <div className="mb-0.5 flex items-baseline gap-2 text-xs">
@@ -167,11 +168,7 @@ function ReplyBody({ body }: { body: string }) {
 
 function AiReplyRow({ reply }: { reply: ReplyDisplay }) {
   const m = reply.mentioned_user
-  const targetName = m
-    ? m.is_vip
-      ? m.vip_name ?? '嘉宾'
-      : m.nickname ?? '匿名'
-    : null
+  const targetName = m ? displayName(m) : null
   return (
     <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm">
       <div className="mb-1 flex items-baseline gap-2 text-xs">

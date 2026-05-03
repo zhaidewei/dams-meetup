@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from 'react'
 import { createPostAction, type PostFormState } from '@/lib/actions/posts'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import type { SectionId } from '@/lib/sections'
+import { displayName, displayMeta } from '@/lib/display'
 import { PollComposer } from './PollComposer'
 
 const initial: PostFormState = { error: null }
@@ -14,6 +15,8 @@ type Props = {
   defaultContactHandle: string | null
   defaultShowContact: boolean
   isVip: boolean
+  vipName: string | null
+  vipTitle: string | null
   section: SectionId
 }
 
@@ -23,6 +26,8 @@ export function PostComposer({
   defaultContactHandle,
   defaultShowContact,
   isVip,
+  vipName,
+  vipTitle,
   section,
 }: Props) {
   const [state, formAction] = useActionState(createPostAction, initial)
@@ -55,8 +60,16 @@ export function PostComposer({
 
   const matchRemaining = MATCH_INTENT_MAX_CHARS - matchIntent.length
 
-  const displayName = defaultNickname || '匿名'
-  const displayCompany = defaultCompany ? ` · ${defaultCompany}` : ''
+  const previewUser = {
+    nickname: defaultNickname,
+    company: defaultCompany,
+    is_vip: isVip,
+    vip_name: vipName,
+    vip_title: vipTitle,
+  }
+  const previewName = displayName(previewUser)
+  const previewMeta = displayMeta(previewUser)
+  const displayCompanyLine = previewMeta ? ` · ${previewMeta}` : ''
 
   return (
     <form
@@ -98,8 +111,8 @@ export function PostComposer({
           onClick={() => setIdentityOpen((v) => !v)}
           className="flex items-center gap-1 rounded-md px-2 py-1 hover:bg-zinc-100"
         >
-          <span className="font-medium text-zinc-700">{displayName}</span>
-          <span>{displayCompany}</span>
+          <span className="font-medium text-zinc-700">{previewName}</span>
+          <span>{displayCompanyLine}</span>
           <span className="text-zinc-400">{identityOpen ? '收起' : '编辑身份'}</span>
         </button>
         <span className={remaining < 0 ? 'text-red-500' : ''}>{remaining}</span>

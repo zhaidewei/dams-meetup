@@ -8,6 +8,7 @@ import { RecoveryLink } from '@/components/RecoveryLink'
 import { LogoutButton } from '@/components/LogoutButton'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchRepliesToMe, fetchMentionsOfMe, type ReplyToMe, type MentionOfMe } from '@/lib/queries/me'
+import { displayName, displayMeta } from '@/lib/display'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,8 +119,8 @@ function MentionRow({ mention }: { mention: MentionOfMe }) {
 
 function ReplyToMeRow({ reply }: { reply: ReplyToMe }) {
   const a = reply.replier
-  const name = a.is_vip ? a.vip_name ?? '嘉宾' : a.nickname ?? '匿名'
-  const meta = a.is_vip ? a.vip_title : a.company
+  const name = displayName(a)
+  const meta = displayMeta(a)
   return (
     <Link
       href={`/feed#post-${reply.post_id}`}

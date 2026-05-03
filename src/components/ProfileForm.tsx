@@ -42,13 +42,13 @@ export function ProfileForm({
 
       {isVip && (
         <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          嘉宾身份：发帖时显示为 <span className="font-medium">{vipName}</span>
-          {vipTitle && ` · ${vipTitle}`}
+          嘉宾默认显示 <span className="font-medium">{vipName}</span>
+          {vipTitle && ` · ${vipTitle}`}。下方填昵称 / 公司可覆盖默认。
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Field label="昵称（留空显示为匿名）">
+        <Field label={isVip ? '昵称（留空用嘉宾默认名）' : '昵称（留空显示为匿名）'}>
           <input
             name="nickname"
             defaultValue={defaultNickname ?? ''}
@@ -56,7 +56,7 @@ export function ProfileForm({
             className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-400"
           />
         </Field>
-        <Field label="公司">
+        <Field label={isVip ? '公司（留空用嘉宾默认 title）' : '公司'}>
           <input
             name="company"
             defaultValue={defaultCompany ?? ''}

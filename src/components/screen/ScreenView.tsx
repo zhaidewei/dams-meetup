@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { fetchScreenData } from '@/lib/actions/screen'
 import type { SectionId } from '@/lib/sections'
+import { displayName, displayMeta } from '@/lib/display'
 
 const POLL_TICK_MS = 1_000 // ui re-render cadence
 const REFRESH_MS = 10_000 // server-data poll cadence
@@ -245,8 +246,8 @@ function PostHeader({
   compact?: boolean
 }) {
   const a = post.author
-  const name = a.is_vip ? a.vip_name ?? '嘉宾' : a.nickname ?? '匿名'
-  const meta = a.is_vip ? a.vip_title : a.company
+  const name = displayName(a)
+  const meta = displayMeta(a)
   const sizeName = large ? 'text-2xl' : compact ? 'text-base' : 'text-xl'
   const sizeMeta = large ? 'text-lg' : 'text-sm'
   return (
