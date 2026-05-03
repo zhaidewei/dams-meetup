@@ -1,5 +1,10 @@
+'use client'
+
+import { useState, useTransition } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
+import { POST_MAX_CHARS } from '@/lib/constants'
+import { deletePostAction, updatePostAction } from '@/lib/actions/posts'
 import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
@@ -11,6 +16,51 @@ export function PostCard({ post, viewerId }: Props) {
   const name = displayName(author)
   const meta = displayMeta(author)
   const isPoll = post.type === 'poll'
+  const isMine = post.user_id === viewerId
+
+  const [editing, setEditing] = useState(false)
+  const [body, setBody] = useState(post.body)
+  const [tags, setTags] = useState(post.tags.join(' '))
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  const remaining = POST_MAX_CHARS - body.length
+
+  function onSaveEdit() {
+    const trimmed = body.trim()
+    if (!trimmed) {
+      setError('内容不能为空')
+      return
+    }
+    if (trimmed.length > POST_MAX_CHARS) {
+      setError(`不能超过 ${POST_MAX_CHARS} 字`)
+      return
+    }
+    startTransition(async () => {
+      const res = await updatePostAction(post.id, trimmed, tags)
+      if (res.error) {
+        setError(res.error)
+      } else {
+        setError(null)
+        setEditing(false)
+      }
+    })
+  }
+
+  function onCancelEdit() {
+    setEditing(false)
+    setError(null)
+    setBody(post.body)
+    setTags(post.tags.join(' '))
+  }
+
+  function onDelete() {
+    if (!window.confirm(isPoll ? '删除这条投票？所有投票数据会一起清掉。' : '删除这条帖子？回复也会一起删掉。')) return
+    startTransition(async () => {
+      const res = await deletePostAction(post.id)
+      if (res.error) setError(res.error)
+    })
+  }
 
   return (
     <article id={`post-${post.id}`} className="scroll-mt-20 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
@@ -28,11 +78,76 @@ export function PostCard({ post, viewerId }: Props) {
           </span>
         )}
         <span className="ml-auto text-xs text-zinc-400">{formatTime(post.created_at)}</span>
+        {isMine && !editing && (
+          <div className="flex items-center gap-1">
+            {!isPoll && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+              >
+                编辑
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={pending}
+              className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+            >
+              删除
+            </button>
+          </div>
+        )}
       </header>
 
-      <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-800">
-        {post.body}
-      </p>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            maxLength={POST_MAX_CHARS}
+            rows={4}
+            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-zinc-400 focus:outline-none"
+          />
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="标签（空格分隔，最多 5 个）"
+            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none"
+          />
+          <div className="flex items-center justify-between text-xs text-zinc-400">
+            <span className={remaining < 0 ? 'text-red-500' : ''}>
+              {remaining < 0 ? remaining : ''}
+            </span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={pending}
+                className="rounded-md px-2.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={onSaveEdit}
+                disabled={pending || body.trim().length === 0 || remaining < 0}
+                className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
+              >
+                {pending ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-800">
+          {post.body}
+        </p>
+      )}
+
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
       {isPoll && post.poll_options && (
         <PollCard
@@ -47,7 +162,7 @@ export function PostCard({ post, viewerId }: Props) {
         />
       )}
 
-      {!isPoll && post.tags.length > 0 && (
+      {!isPoll && !editing && post.tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {post.tags.map((tag) => (
             <span
