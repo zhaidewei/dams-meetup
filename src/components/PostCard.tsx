@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useSyncExternalStore, useTransition } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
 import { POST_MAX_CHARS } from '@/lib/constants'
@@ -77,7 +77,7 @@ export function PostCard({ post, viewerId }: Props) {
             投票
           </span>
         )}
-        <span className="ml-auto text-xs text-zinc-400">{formatTime(post.created_at)}</span>
+        <span className="ml-auto text-xs text-zinc-400"><RelativeTime iso={post.created_at} /></span>
         {isMine && !editing && (
           <div className="flex items-center gap-1">
             {!isPoll && (
@@ -195,13 +195,36 @@ function isPollClosed(deadline: string | null): boolean {
   return Date.now() >= new Date(deadline).getTime()
 }
 
-function formatTime(iso: string): string {
-  const t = new Date(iso)
-  const now = new Date()
-  const diffMs = now.getTime() - t.getTime()
-  const diffSec = Math.floor(diffMs / 1000)
+// SSR + 首次 hydrate 都用绝对时间（带固定时区，server/client 一致）；
+// useEffect 之后才切相对时间。这样不会触发 hydration mismatch。
+function formatAbsolute(iso: string): string {
+  return new Date(iso).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Amsterdam',
+  })
+}
+
+function formatRelative(iso: string): string {
+  const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
   if (diffSec < 60) return '刚刚'
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h`
-  return t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return formatAbsolute(iso)
+}
+
+function subscribeMinute(callback: () => void): () => void {
+  const id = setInterval(callback, 60_000)
+  return () => clearInterval(id)
+}
+
+function RelativeTime({ iso }: { iso: string }) {
+  const text = useSyncExternalStore(
+    subscribeMinute,
+    () => formatRelative(iso),
+    () => formatAbsolute(iso),
+  )
+  return <>{text}</>
 }
