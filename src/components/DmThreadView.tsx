@@ -5,6 +5,7 @@ import { sendDmAction } from '@/lib/actions/dm'
 import { DM_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
 import type { DmMessageRow, PublicUserDisplay } from '@/lib/types'
+import { CopyButton } from './CopyButton'
 
 type Props = {
   threadId: number
@@ -149,11 +150,15 @@ function MessageBubble({ message, mine }: { message: DmMessageRow; mine: boolean
         {message.revealed_contact && (
           <div
             className={
-              'inline-block rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800 ' +
+              'inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800 ' +
               (mine ? 'ml-auto' : '')
             }
           >
-            📞 {message.revealed_contact}
+            <span>📞 {message.revealed_contact}</span>
+            <CopyButton
+              text={message.revealed_contact}
+              className="rounded border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] text-amber-700 hover:bg-amber-50 active:bg-amber-100"
+            />
           </div>
         )}
         <div className="text-[10px] text-zinc-400">{formatTime(message.created_at)}</div>

@@ -9,6 +9,7 @@ import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
 import { DmButton } from './DmButton'
+import { CopyButton } from './CopyButton'
 
 type Props = { post: FeedPost; viewerId: string; viewerCanDm: boolean }
 
@@ -180,8 +181,14 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
       )}
 
       {!isPoll && post.show_contact && author.contact_handle && (
-        <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-          联系方式：<span className="text-zinc-800">{author.contact_handle}</span>
+        <p className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+          <span>
+            联系方式：<span className="text-zinc-800">{author.contact_handle}</span>
+          </span>
+          <CopyButton
+            text={author.contact_handle}
+            className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200"
+          />
         </p>
       )}
 
