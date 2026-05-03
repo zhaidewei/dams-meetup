@@ -1,23 +1,22 @@
 import type { FeedPost } from '@/lib/queries/posts'
+import { displayName, displayMeta } from '@/lib/display'
 import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
 
-type Props = { post: FeedPost }
+type Props = { post: FeedPost; viewerId: string }
 
-export function PostCard({ post }: Props) {
+export function PostCard({ post, viewerId }: Props) {
   const author = post.author
-  const displayName = author.is_vip
-    ? author.vip_name ?? '嘉宾'
-    : author.nickname ?? '匿名'
-  const displayMeta = author.is_vip ? author.vip_title : author.company
+  const name = displayName(author)
+  const meta = displayMeta(author)
   const isPoll = post.type === 'poll'
 
   return (
     <article id={`post-${post.id}`} className="scroll-mt-20 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
       <header className="mb-2 flex items-baseline gap-2 text-sm">
-        <span className="font-semibold text-zinc-900">{displayName}</span>
-        {displayMeta && <span className="text-zinc-500">· {displayMeta}</span>}
+        <span className="font-semibold text-zinc-900">{name}</span>
+        {meta && <span className="text-zinc-500">· {meta}</span>}
         {author.is_vip && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
             嘉宾
@@ -71,7 +70,7 @@ export function PostCard({ post }: Props) {
         <LikeButton postId={post.id} count={post.like_count} liked={post.liked_by_me} />
       </div>
 
-      <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} />
+      <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} viewerId={viewerId} />
     </article>
   )
 }
