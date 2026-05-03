@@ -3,7 +3,7 @@
 
 export type CandidatePost = {
   id: number
-  content: string
+  body: string
   tags: string[] | null
   section: string | null
   user_id: string
@@ -14,7 +14,7 @@ export type UserProfile = {
   user_id: string
   display_name: string
   affiliation: string | null
-  posts: Array<{ content: string; tags: string[] | null; section: string | null }>
+  posts: Array<{ body: string; tags: string[] | null; section: string | null }>
 }
 
 const SECTION_LABEL: Record<string, string> = {
@@ -39,7 +39,7 @@ export function buildPrompt(args: {
   for (const c of args.candidates) {
     lines.push(`### post_id=${c.id}`)
     lines.push(`作者 user_id=${c.user_id} | 板块: ${labelSection(c.section)}`)
-    lines.push(`公开内容: ${c.content}`)
+    lines.push(`公开内容: ${c.body}`)
     if (c.tags?.length) lines.push(`tags: ${c.tags.join(', ')}`)
     lines.push(`暗需求: ${c.match_intent}`)
     lines.push('')
@@ -52,7 +52,7 @@ export function buildPrompt(args: {
     lines.push(`### user_id=${p.user_id} | ${head}`)
     for (const post of p.posts.slice(0, 5)) {
       const tags = post.tags?.length ? ` [${post.tags.join(',')}]` : ''
-      const snippet = post.content.length > 120 ? post.content.slice(0, 120) + '…' : post.content
+      const snippet = post.body.length > 120 ? post.body.slice(0, 120) + '…' : post.body
       lines.push(`- [${labelSection(post.section)}]${tags} ${snippet}`)
     }
     lines.push('')
@@ -63,7 +63,7 @@ export function buildPrompt(args: {
 
 export type RawPostWithUser = {
   user_id: string | null
-  content: string
+  body: string
   tags: string[] | null
   section: string | null
   users: {
@@ -94,7 +94,7 @@ export function aggregateProfiles(rows: RawPostWithUser[]): UserProfile[] {
       map.set(row.user_id, profile)
     }
     profile.posts.push({
-      content: row.content,
+      body: row.body,
       tags: row.tags,
       section: row.section,
     })

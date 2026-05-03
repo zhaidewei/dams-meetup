@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
 async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[]> {
   const { data: all, error } = await supabase
     .from('posts')
-    .select('id, content, tags, section, user_id, match_intent, created_at')
+    .select('id, body, tags, section, user_id, match_intent, created_at')
     .not('match_intent', 'is', null)
     .order('created_at', { ascending: false })
     .limit(CANDIDATE_LIMIT)
@@ -126,7 +126,7 @@ async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[
     .filter((p) => !skip.has(p.id) && typeof p.match_intent === 'string')
     .map((p) => ({
       id: p.id,
-      content: p.content,
+      body: p.body,
       tags: p.tags,
       section: p.section,
       user_id: p.user_id,
@@ -137,7 +137,7 @@ async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[
 async function fetchProfiles(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from('posts')
-    .select('user_id, content, tags, section, users:user_id (id, nickname, company, is_vip, vip_name, vip_title)')
+    .select('user_id, body, tags, section, users:user_id (id, nickname, company, is_vip, vip_name, vip_title)')
     .order('created_at', { ascending: false })
     .limit(PROFILES_POST_LIMIT)
   if (error) throw new Error(`profiles query: ${error.message}`)
