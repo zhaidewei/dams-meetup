@@ -26,7 +26,7 @@ export function DmThreadList({ threads, viewerCanDm, viewerId }: Props) {
     )
   }
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {threads.map((t) => (
         <ThreadRow key={t.thread_id} thread={t} viewerId={viewerId} />
       ))}
