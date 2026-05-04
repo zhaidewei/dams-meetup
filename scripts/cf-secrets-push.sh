@@ -33,6 +33,7 @@ push() {
 push EVENT_PASSWORD            dams-event-password
 push SUPABASE_SERVICE_ROLE_KEY supabase-dams-srv
 push DEEPSEEK_API_KEY          deepseek-dams-key
+push ADMIN_TOKEN               dams-admin-token
 
 echo ""
 echo "Done. Verify with: $WRANGLER secret list"
