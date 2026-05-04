@@ -13,6 +13,7 @@ export type UserRow = {
   vip_title: string | null
   created_at: string
   last_seen_at: string
+  last_seen_me_at: string
 }
 
 export type PollOption = { id: number; label: string }

@@ -6,6 +6,7 @@ import type { UserRow } from './types'
 
 export const COOKIE_UID = 'dams-uid'
 export const COOKIE_PW = 'dams-pw-ok'
+export const COOKIE_ADMIN = 'dams-admin-ok'
 
 function cookieOpts() {
   return {
@@ -27,6 +28,16 @@ export async function readPwCookie(): Promise<boolean> {
   return Boolean(c.get(COOKIE_PW)?.value)
 }
 
+export async function readAdminCookie(): Promise<boolean> {
+  const c = await cookies()
+  return Boolean(c.get(COOKIE_ADMIN)?.value)
+}
+
+export async function setAdminCookie() {
+  const c = await cookies()
+  c.set(COOKIE_ADMIN, '1', cookieOpts())
+}
+
 export async function setPwCookie() {
   const c = await cookies()
   c.set(COOKIE_PW, '1', cookieOpts())
@@ -41,6 +52,7 @@ export async function clearAllCookies() {
   const c = await cookies()
   c.delete(COOKIE_UID)
   c.delete(COOKIE_PW)
+  c.delete(COOKIE_ADMIN)
 }
 
 // Reads the current user (or null). Server-only.
@@ -59,6 +71,16 @@ export async function touchLastSeen(uid: string): Promise<void> {
   await sb
     .from('users')
     .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', uid)
+}
+
+// Updates last_seen_me_at — Header 红点（未读回复 + 未读 AI 提及）以这个为基线。
+// 进 /me 时调一次，相当于把"我"tab 的未读清零。
+export async function touchLastSeenMe(uid: string): Promise<void> {
+  const sb = getServerSupabase()
+  await sb
+    .from('users')
+    .update({ last_seen_me_at: new Date().toISOString() })
     .eq('id', uid)
 }
 

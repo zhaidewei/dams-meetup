@@ -21,3 +21,28 @@ export function isSectionId(value: unknown): value is SectionId {
 export function sectionLabel(id: SectionId): string {
   return SECTIONS.find((s) => s.id === id)!.label
 }
+
+// 议程时间表（与 src/components/Agenda.tsx 内容对齐）：把每个板块映射到一个时间窗。
+// 时间用 Europe/Amsterdam，与 NEXT_PUBLIC_EVENT_START / END 一致。
+// 用于：(1) getCurrentSection() 在没有覆写时的回落；(2) 板块上下文条显示当前讲者（issue #18 C）。
+export type SectionWindow = {
+  id: SectionId
+  startIso: string
+  endIso: string
+}
+
+export const SECTION_WINDOWS: SectionWindow[] = [
+  { id: 'p1', startIso: '2026-05-09T13:30:00+02:00', endIso: '2026-05-09T14:00:00+02:00' },
+  { id: 'p2', startIso: '2026-05-09T14:00:00+02:00', endIso: '2026-05-09T14:30:00+02:00' },
+  { id: 'breakout', startIso: '2026-05-09T14:45:00+02:00', endIso: '2026-05-09T15:30:00+02:00' },
+  { id: 'panel', startIso: '2026-05-09T15:30:00+02:00', endIso: '2026-05-09T17:20:00+02:00' },
+]
+
+// 纯时间驱动：当前时间落在哪个板块窗口里。命中即返回该 section；不命中（空档期 / 活动外）返回 null。
+export function sectionByClock(now: Date = new Date()): SectionId | null {
+  const t = now.getTime()
+  for (const w of SECTION_WINDOWS) {
+    if (t >= Date.parse(w.startIso) && t < Date.parse(w.endIso)) return w.id
+  }
+  return null
+}

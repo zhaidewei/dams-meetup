@@ -7,7 +7,7 @@ import { SectionTabs } from '@/components/SectionTabs'
 import { FeedRealtime } from '@/components/FeedRealtime'
 import { DmRealtime } from '@/components/DmRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
-import { fetchUnreadDmCount } from '@/lib/queries/dm'
+import { fetchUnreadMe } from '@/lib/queries/unread'
 import { isNonAnon } from '@/lib/dm'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
@@ -29,15 +29,15 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // Fire-and-forget; don't await on the render path.
   void touchLastSeen(user.id)
 
-  const [posts, unreadDm] = await Promise.all([
+  const [posts, unreadMe] = await Promise.all([
     fetchFeed(user.id, { section }),
-    fetchUnreadDmCount(user.id),
+    fetchUnreadMe(user),
   ])
   const viewerCanDm = isNonAnon(user)
 
   return (
     <>
-      <Header active="feed" unreadDmCount={unreadDm} />
+      <Header active="feed" unreadMeCount={unreadMe.total} />
       <FeedRealtime />
       <DmRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">

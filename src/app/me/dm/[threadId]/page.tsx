@@ -5,7 +5,8 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { Header } from '@/components/Header'
 import { DmThreadView } from '@/components/DmThreadView'
 import { DmRealtime } from '@/components/DmRealtime'
-import { fetchThread, fetchUnreadDmCount } from '@/lib/queries/dm'
+import { fetchThread } from '@/lib/queries/dm'
+import { fetchUnreadMe } from '@/lib/queries/unread'
 import { isNonAnon } from '@/lib/dm'
 
 export const dynamic = 'force-dynamic'
@@ -33,13 +34,13 @@ export default async function DmThreadPage({ params }: { params: Params }) {
     .eq('sender_id', detail.other.id)
     .is('read_at', null)
 
-  const unreadDm = await fetchUnreadDmCount(user.id)
+  const unreadMe = await fetchUnreadMe(user)
   const viewerCanSend = isNonAnon(user)
   const viewerHasContact = (user.contact_handle ?? '').trim().length > 0
 
   return (
     <>
-      <Header active="me" unreadDmCount={unreadDm} />
+      <Header active="me" unreadMeCount={unreadMe.total} />
       <DmRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
         <div className="mb-3 text-sm">

@@ -97,3 +97,37 @@ export async function fetchRepliesToMe(myUserId: string): Promise<ReplyToMe[]> {
 function unnestRelation<T>(value: T | T[]): T {
   return Array.isArray(value) ? value[0] : value
 }
+
+// 未读回复 = 我帖子下、别人发的、is_ai=false、created_at > last_seen_me_at 的 reply 数。
+export async function fetchUnreadRepliesCount(
+  myUserId: string,
+  lastSeenMeAt: string,
+): Promise<number> {
+  const sb = getServerSupabase()
+  const myPosts = await sb.from('posts').select('id').eq('user_id', myUserId)
+  const postIds = (myPosts.data ?? []).map((r) => r.id as number)
+  if (postIds.length === 0) return 0
+  const { count } = await sb
+    .from('replies')
+    .select('id', { count: 'exact', head: true })
+    .in('post_id', postIds)
+    .neq('user_id', myUserId)
+    .eq('is_ai', false)
+    .gt('created_at', lastSeenMeAt)
+  return count ?? 0
+}
+
+// 未读 AI 提及 = is_ai=true 且 mentioned_user_id 是我，且 created_at > last_seen_me_at。
+export async function fetchUnreadMentionsCount(
+  myUserId: string,
+  lastSeenMeAt: string,
+): Promise<number> {
+  const sb = getServerSupabase()
+  const { count } = await sb
+    .from('replies')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_ai', true)
+    .eq('mentioned_user_id', myUserId)
+    .gt('created_at', lastSeenMeAt)
+  return count ?? 0
+}

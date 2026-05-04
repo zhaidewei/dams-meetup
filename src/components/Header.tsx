@@ -3,10 +3,11 @@ import { EVENT_NAME } from '@/lib/constants'
 
 type Props = {
   active?: 'feed' | 'agenda' | 'me'
-  unreadDmCount?: number
+  // 「我」tab 红点合计：DM 未读 + 未读回复 + 未读 AI 提及。
+  unreadMeCount?: number
 }
 
-export function Header({ active = 'feed', unreadDmCount = 0 }: Props) {
+export function Header({ active = 'feed', unreadMeCount = 0 }: Props) {
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
@@ -16,7 +17,7 @@ export function Header({ active = 'feed', unreadDmCount = 0 }: Props) {
         <nav className="flex gap-1 text-sm">
           <NavTab href="/feed" label="时间线" active={active === 'feed'} />
           <NavTab href="/agenda" label="议程" active={active === 'agenda'} />
-          <NavTab href="/me" label="我" active={active === 'me'} badge={unreadDmCount} />
+          <NavTab href="/me" label="我" active={active === 'me'} badge={unreadMeCount} />
         </nav>
       </div>
     </header>

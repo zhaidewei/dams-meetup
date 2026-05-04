@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/identity'
+import { getCurrentUser, touchLastSeenMe } from '@/lib/identity'
 import { Header } from '@/components/Header'
 import { PostCard } from '@/components/PostCard'
 import { ProfileForm } from '@/components/ProfileForm'
@@ -11,7 +11,8 @@ import { DmRealtime } from '@/components/DmRealtime'
 import { MeRealtime } from '@/components/MeRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchRepliesToMe, fetchMentionsOfMe, type ReplyToMe, type MentionOfMe } from '@/lib/queries/me'
-import { listMyThreads, fetchUnreadDmCount } from '@/lib/queries/dm'
+import { listMyThreads } from '@/lib/queries/dm'
+import { fetchUnreadMe } from '@/lib/queries/unread'
 import { displayName, displayMeta } from '@/lib/display'
 import { isNonAnon } from '@/lib/dm'
 
@@ -21,18 +22,22 @@ export default async function MePage() {
   const user = await getCurrentUser()
   if (!user) redirect('/')
 
-  const [myPosts, repliesToMe, mentionsOfMe, threads, unreadDm] = await Promise.all([
+  const [myPosts, repliesToMe, mentionsOfMe, threads, unreadMe] = await Promise.all([
     fetchFeed(user.id, { authorId: user.id, limit: 50 }),
     fetchRepliesToMe(user.id),
     fetchMentionsOfMe(user.id),
     listMyThreads(user.id),
-    fetchUnreadDmCount(user.id),
+    fetchUnreadMe(user),
   ])
   const viewerCanDm = isNonAnon(user)
 
+  // 进 /me 即把"我"tab 红点清零（下次刷新时回复 / 提及未读 → 0）。
+  // Fire-and-forget — 失败不影响渲染。
+  void touchLastSeenMe(user.id)
+
   return (
     <>
-      <Header active="me" unreadDmCount={unreadDm} />
+      <Header active="me" unreadMeCount={unreadMe.total} />
       <DmRealtime viewerId={user.id} />
       <MeRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
@@ -51,7 +56,7 @@ export default async function MePage() {
 
           <LogoutButton />
 
-          <Section title={`私信${unreadDm > 0 ? ` · 未读 ${unreadDm}` : ''}`}>
+          <Section title={`私信${unreadMe.dm > 0 ? ` · 未读 ${unreadMe.dm}` : ''}`}>
             <DmThreadList threads={threads} viewerCanDm={viewerCanDm} viewerId={user.id} />
           </Section>
 
