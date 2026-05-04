@@ -14,7 +14,6 @@ type Props = {
   defaultNickname: string | null
   defaultCompany: string | null
   defaultContactHandle: string | null
-  defaultShowContact: boolean
   isVip: boolean
   vipName: string | null
   vipTitle: string | null
@@ -42,7 +41,6 @@ export function PostComposer({
   defaultNickname,
   defaultCompany,
   defaultContactHandle,
-  defaultShowContact,
   isVip,
   vipName,
   vipTitle,
@@ -155,15 +153,9 @@ export function PostComposer({
               className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 sm:col-span-2"
             />
           </div>
-          <label className="flex items-center gap-2 text-xs text-zinc-600">
-            <input
-              type="checkbox"
-              name="show_contact"
-              defaultChecked={defaultShowContact}
-              className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
-            />
-            这条帖子里显示我的联系方式
-          </label>
+          <p className="text-[11px] text-zinc-500">
+            联系方式由资料卡公开 — 别人点你头像即可查看 / 复制 / DM。
+          </p>
         </div>
       )}
 

@@ -83,7 +83,7 @@ export function ProfileForm({
           defaultChecked={defaultShowContact}
           className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-400"
         />
-        新发帖默认显示我的联系方式
+        公开联系方式（其他人点你头像可看 / 复制）
       </label>
 
       <div className="flex items-center justify-between">

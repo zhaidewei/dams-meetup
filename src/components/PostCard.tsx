@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useSyncExternalStore, useTransition } from 'react'
-import { AtSign, Check, Copy, Link2, UserCircle2 } from 'lucide-react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
 import { POST_MAX_CHARS } from '@/lib/constants'
@@ -10,7 +9,7 @@ import { Avatar } from './Avatar'
 import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
-import { DmButton } from './DmButton'
+import { UserCardTrigger } from './UserCard'
 
 type Props = { post: FeedPost; viewerId: string; viewerCanDm: boolean }
 
@@ -20,9 +19,6 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
   const meta = displayMeta(author)
   const isPoll = post.type === 'poll'
   const isMine = post.user_id === viewerId
-  // 作者匿名（既无 nickname 又非 VIP）→ 无法接收 DM；按钮也藏起来。
-  const authorIsAnon = author.nickname === null && !author.is_vip
-  const canDm = viewerCanDm && !isMine && !authorIsAnon
 
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(post.body)
@@ -69,14 +65,21 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
   return (
     <article id={`post-${post.id}`} className="scroll-mt-20 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
       <header className="mb-2 flex items-center gap-2 text-sm">
-        <Avatar seed={post.user_id} user={author} size="sm" />
-        <span className="font-semibold text-zinc-900">{name}</span>
-        {meta && <span className="text-zinc-500">· {meta}</span>}
-        {author.is_vip && (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-            嘉宾
-          </span>
-        )}
+        <UserCardTrigger
+          user={{ id: post.user_id, ...author }}
+          viewerCanDm={viewerCanDm}
+          isMine={isMine}
+          className="-mx-1 flex items-center gap-2 px-1 py-0.5 text-left"
+        >
+          <Avatar seed={post.user_id} user={author} size="sm" />
+          <span className="font-semibold text-zinc-900">{name}</span>
+          {meta && <span className="text-zinc-500">· {meta}</span>}
+          {author.is_vip && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+              嘉宾
+            </span>
+          )}
+        </UserCardTrigger>
         {isPoll && (
           <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
             投票
@@ -161,66 +164,13 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
         />
       )}
 
-      {!isPoll && post.show_contact && author.contact_handle && (
-        <ContactPill text={author.contact_handle} />
-      )}
-
       <div className="mt-3 flex items-center gap-1">
         <LikeButton postId={post.id} count={post.like_count} liked={post.liked_by_me} />
-        {canDm && <DmButton toUserId={post.user_id} />}
       </div>
 
-      <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} viewerId={viewerId} />
+      <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} viewerId={viewerId} viewerCanDm={viewerCanDm} />
     </article>
   )
-}
-
-// 联系方式胶囊：整行可点击复制，左侧自动判断图标类型（链接 / 邮箱 / 其他）。
-function ContactPill({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  const kind = contactKind(text)
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // clipboard 被浏览器拦截：不致命，保留默认 UI
-    }
-  }
-  const iconClass = 'size-3.5 shrink-0 text-zinc-500 group-hover:text-indigo-600'
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      title={copied ? '已复制' : '点击复制'}
-      className="group mt-3 inline-flex w-full max-w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
-    >
-      {kind === 'url' && <Link2 className={iconClass} aria-hidden />}
-      {kind === 'email' && <AtSign className={iconClass} aria-hidden />}
-      {kind === 'other' && <UserCircle2 className={iconClass} aria-hidden />}
-      <span className="truncate text-left font-medium text-zinc-800">{text}</span>
-      <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-zinc-500 group-hover:text-indigo-700">
-        {copied ? (
-          <>
-            <Check className="size-3" aria-hidden />
-            已复制
-          </>
-        ) : (
-          <>
-            <Copy className="size-3" aria-hidden />
-            复制
-          </>
-        )}
-      </span>
-    </button>
-  )
-}
-
-function contactKind(s: string): 'url' | 'email' | 'other' {
-  if (/^https?:\/\//i.test(s)) return 'url'
-  if (/@.+\./.test(s)) return 'email'
-  return 'other'
 }
 
 function isPollClosed(deadline: string | null): boolean {

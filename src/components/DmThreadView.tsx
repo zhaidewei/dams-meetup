@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Phone } from 'lucide-react'
 import { Avatar } from './Avatar'
+import { UserCardTrigger } from './UserCard'
 import { sendDmAction } from '@/lib/actions/dm'
 import { DM_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
@@ -65,15 +66,22 @@ export function DmThreadView({
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm">
-        <Avatar seed={other.id} user={other} size="md" />
-        <span className="font-semibold text-zinc-900">{otherName}</span>
-        {otherMeta && <span className="text-zinc-500">· {otherMeta}</span>}
-        {other.is_vip && (
-          <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
-            嘉宾
-          </span>
-        )}
+      <header className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm">
+        <UserCardTrigger
+          user={other}
+          viewerCanDm={false}
+          isMine={false}
+          className="flex items-center gap-3"
+        >
+          <Avatar seed={other.id} user={other} size="md" />
+          <span className="font-semibold text-zinc-900">{otherName}</span>
+          {otherMeta && <span className="text-zinc-500">· {otherMeta}</span>}
+          {other.is_vip && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
+              嘉宾
+            </span>
+          )}
+        </UserCardTrigger>
       </header>
 
       <div className="min-h-[40vh] space-y-2 rounded-2xl border border-zinc-200 bg-white p-3">

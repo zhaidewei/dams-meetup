@@ -5,12 +5,12 @@ import type { SectionId } from '@/lib/sections'
 
 type AuthorMini = Pick<
   PublicUserDisplay,
-  'nickname' | 'company' | 'contact_handle' | 'is_vip' | 'vip_name' | 'vip_title'
+  'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
 >
 
 type ReplyAuthorMini = Pick<
   PublicUserDisplay,
-  'nickname' | 'company' | 'is_vip' | 'vip_name' | 'vip_title'
+  'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
 >
 
 export type MentionedUserMini = Pick<
@@ -58,10 +58,10 @@ export async function fetchFeed(
       `id, user_id, type, body, tags, show_contact, section,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
        created_at,
-       author:users!user_id ( nickname, company, contact_handle, is_vip, vip_name, vip_title ),
+       author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
        replies (
          id, user_id, parent_reply_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
-         author:users!user_id ( nickname, company, is_vip, vip_name, vip_title ),
+         author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
          mentioned_user:users!mentioned_user_id ( id, nickname, is_vip, vip_name )
        )`,
     )

@@ -11,6 +11,7 @@ import {
 import { REPLY_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
 import { Avatar } from './Avatar'
+import { UserCardTrigger } from './UserCard'
 
 const initial: ReplyFormState = { error: null }
 
@@ -25,6 +26,8 @@ export type ReplyDisplay = {
   author: {
     nickname: string | null
     company: string | null
+    contact_handle: string | null
+    show_contact: boolean
     is_vip: boolean
     vip_name: string | null
     vip_title: string | null
@@ -42,6 +45,7 @@ type Props = {
   count: number
   replies: ReplyDisplay[]
   viewerId: string
+  viewerCanDm: boolean
 }
 
 function nameOf(a: ReplyDisplay['author']): string {
@@ -49,7 +53,7 @@ function nameOf(a: ReplyDisplay['author']): string {
   return displayName(a)
 }
 
-export function ReplySection({ postId, count, replies, viewerId }: Props) {
+export function ReplySection({ postId, count, replies, viewerId, viewerCanDm }: Props) {
   const [open, setOpen] = useState(count > 0)
   const [state, formAction, isPending] = useActionState(createReplyAction, initial)
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string } | null>(null)
@@ -140,6 +144,7 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
                   <ReplyRow
                     reply={parent}
                     viewerId={viewerId}
+                    viewerCanDm={viewerCanDm}
                     onReply={() => onReplyTo(parent.id, nameOf(parent.author))}
                   />
                 )}
@@ -150,6 +155,7 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
                         key={child.id}
                         reply={child}
                         viewerId={viewerId}
+                        viewerCanDm={viewerCanDm}
                         onReply={() => onReplyTo(child.id, nameOf(child.author))}
                       />
                     ))}
@@ -208,10 +214,12 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
 function ReplyRow({
   reply,
   viewerId,
+  viewerCanDm,
   onReply,
 }: {
   reply: ReplyDisplay
   viewerId: string
+  viewerCanDm: boolean
   onReply: () => void
 }) {
   const a = reply.author
@@ -264,14 +272,21 @@ function ReplyRow({
   return (
     <div className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
       <div className="mb-0.5 flex items-center gap-2 text-xs">
-        {reply.user_id && <Avatar seed={reply.user_id} user={a} size="xs" />}
-        <span className="font-medium text-zinc-700">{name}</span>
-        {meta && <span className="text-zinc-500">· {meta}</span>}
-        {a.is_vip && (
-          <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
-            嘉宾
-          </span>
-        )}
+        <UserCardTrigger
+          user={reply.user_id ? { id: reply.user_id, ...a } : null}
+          viewerCanDm={viewerCanDm}
+          isMine={isMine}
+          className="-mx-1 flex items-center gap-1.5 px-1 py-0.5"
+        >
+          {reply.user_id && <Avatar seed={reply.user_id} user={a} size="xs" />}
+          <span className="font-medium text-zinc-700">{name}</span>
+          {meta && <span className="text-zinc-500">· {meta}</span>}
+          {a.is_vip && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
+              嘉宾
+            </span>
+          )}
+        </UserCardTrigger>
         {reply.updated_at && <span className="text-zinc-400">已编辑</span>}
         <div className="ml-auto flex items-center gap-1">
           {!editing && (
