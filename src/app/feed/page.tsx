@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser, touchLastSeen } from '@/lib/identity'
 import { Header } from '@/components/Header'
+import { EventHero } from '@/components/EventHero'
 import { PostComposer } from '@/components/PostComposer'
 import { PostCard } from '@/components/PostCard'
 import { SectionTabs } from '@/components/SectionTabs'
@@ -52,6 +53,9 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       <FeedRealtime />
       <DmRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
+        <div className="mb-4">
+          <EventHero liveSection={liveSection} />
+        </div>
         <SectionTabs active={section} live={liveSection} />
         <SectionContextBar section={section} />
         <div className="mt-4 space-y-4">
@@ -68,7 +72,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
           />
 
           {posts.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-12 text-center text-sm text-zinc-500">
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-12 text-center text-sm text-zinc-500">
               这个板块还没有人发帖。第一条由你来。
             </div>
           ) : (

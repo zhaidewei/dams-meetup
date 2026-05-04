@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { Settings, X } from 'lucide-react'
 import {
   setCurrentSectionAction,
   clearCurrentSectionAction,
@@ -40,9 +41,9 @@ export function ScreenAdminBar({ currentSection }: Props) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="主办方控制台"
-        className="fixed bottom-3 right-3 z-50 size-9 rounded-full border border-zinc-700 bg-zinc-900/80 text-sm text-zinc-100 opacity-30 hover:opacity-100"
+        className="fixed bottom-3 right-3 z-50 flex size-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/80 text-zinc-100 opacity-30 hover:opacity-100"
       >
-        ⚙
+        <Settings className="size-4" aria-hidden />
       </button>
     )
   }
@@ -55,9 +56,9 @@ export function ScreenAdminBar({ currentSection }: Props) {
           type="button"
           onClick={() => setOpen(false)}
           aria-label="收起"
-          className="rounded px-1.5 py-0.5 text-xs text-zinc-400 hover:bg-zinc-800"
+          className="rounded p-1 text-zinc-400 hover:bg-zinc-800"
         >
-          ✕
+          <X className="size-3.5" aria-hidden />
         </button>
       </div>
 
@@ -80,7 +81,7 @@ export function ScreenAdminBar({ currentSection }: Props) {
               className={
                 'rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ' +
                 (active
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-indigo-500 text-white'
                   : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700')
               }
             >

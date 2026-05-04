@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { MessageCircle, Sparkles, X } from 'lucide-react'
 import {
   createReplyAction,
   deleteReplyAction,
@@ -119,9 +120,9 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
       >
-        <span>💬</span>
+        <MessageCircle className="size-4" aria-hidden />
         <span>{count}</span>
         <span className="text-xs text-zinc-400">{open ? '收起' : '查看回复'}</span>
       </button>
@@ -161,17 +162,17 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
             <input type="hidden" name="post_id" value={postId} />
             <input type="hidden" name="parent_reply_id" value={replyingTo?.id ?? ''} />
             {replyingTo && (
-              <div className="flex items-center justify-between rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-800">
+              <div className="flex items-center justify-between rounded-md bg-indigo-50 px-2 py-1 text-xs text-indigo-800">
                 <span>
                   正在回复 <span className="font-medium">@{replyingTo.name}</span>
                 </span>
                 <button
                   type="button"
                   onClick={onCancelReplyingTo}
-                  className="rounded px-1.5 py-0.5 text-sky-700 hover:bg-sky-100"
+                  className="rounded p-1 text-indigo-700 hover:bg-indigo-100"
                   aria-label="取消回复对象"
                 >
-                  ✕
+                  <X className="size-3" aria-hidden />
                 </button>
               </div>
             )}
@@ -190,7 +191,7 @@ export function ReplySection({ postId, count, replies, viewerId }: Props) {
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+                className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-400"
               >
                 {isPending ? '发送中…' : '回复'}
               </button>
@@ -350,7 +351,7 @@ function ReplyBody({ body }: { body: string }) {
   if (!m) return <p className="whitespace-pre-wrap text-zinc-800">{body}</p>
   return (
     <p className="whitespace-pre-wrap text-zinc-800">
-      <span className="font-medium text-sky-700">{m[1]}</span>
+      <span className="font-medium text-indigo-700">{m[1]}</span>
       {m[2]}
       {m[3]}
     </p>
@@ -361,15 +362,15 @@ function AiReplyRow({ reply }: { reply: ReplyDisplay }) {
   const m = reply.mentioned_user
   const targetName = m ? displayName(m) : null
   return (
-    <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm">
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
       <div className="mb-1 flex items-baseline gap-2 text-xs">
-        <span aria-hidden>🤖</span>
-        <span className="font-medium text-sky-900">AI 撮合</span>
-        <span className="rounded-full bg-sky-100 px-1.5 py-px text-[10px] text-sky-800">
+        <Sparkles className="size-3.5 self-center text-indigo-700" aria-hidden />
+        <span className="font-medium text-indigo-900">AI 撮合</span>
+        <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] text-indigo-800">
           仅你可见
         </span>
         {targetName && (
-          <span className="text-sky-700">推荐：{targetName}</span>
+          <span className="text-indigo-700">推荐：{targetName}</span>
         )}
       </div>
       <p className="whitespace-pre-wrap text-zinc-800">{reply.body}</p>

@@ -68,7 +68,7 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
   }
 
   return (
-    <article id={`post-${post.id}`} className="scroll-mt-20 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+    <article id={`post-${post.id}`} className="scroll-mt-20 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
       <header className="mb-2 flex items-baseline gap-2 text-sm">
         <span className="font-semibold text-zinc-900">{name}</span>
         {meta && <span className="text-zinc-500">· {meta}</span>}

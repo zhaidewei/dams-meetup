@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
+import { Sparkles, AlertTriangle, X } from 'lucide-react'
 import { createPostAction, type PostFormState } from '@/lib/actions/posts'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import type { SectionId } from '@/lib/sections'
@@ -94,7 +95,7 @@ export function PostComposer({
     <form
       ref={formRef}
       action={formAction}
-      className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+      className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
       <input type="hidden" name="section" value={section} />
       {isVip && (
@@ -173,24 +174,24 @@ export function PostComposer({
       )}
 
       {matchOpen && (
-        <div className="space-y-1.5 rounded-lg border border-sky-200 bg-sky-50/60 p-3">
-          <div className="flex items-baseline justify-between text-xs text-sky-900">
-            <span className="font-medium">
-              <span aria-hidden className="mr-1">🤖</span>
+        <div className="space-y-1.5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+          <div className="flex items-baseline justify-between text-xs text-indigo-900">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Sparkles className="size-3.5" aria-hidden />
               委托 AI 撮合（私下，仅你可见）
             </span>
             <button
               type="button"
               onClick={() => setMatchOpen(false)}
-              className="rounded px-1 text-sky-700 hover:bg-sky-100"
+              className="rounded p-1 text-indigo-700 hover:bg-indigo-100"
               aria-label="收起 AI 撮合"
             >
-              ✕
+              <X className="size-3.5" aria-hidden />
             </button>
           </div>
           {isAnon && (
             <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
-              <span aria-hidden>⚠️</span>
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
               <div className="flex-1 space-y-0.5">
                 <p>
                   你目前是<span className="font-medium">匿名</span>状态：撮合到的人
@@ -213,12 +214,15 @@ export function PostComposer({
             maxLength={MATCH_INTENT_MAX_CHARS}
             placeholder="比如：想找 Booking 的同学聊内推 / 想找会 dbt 的人 / 想找做 PM 的同行聊聊"
             rows={2}
-            className="w-full resize-none rounded-md border border-sky-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-sky-400 focus:outline-none"
+            className="w-full resize-none rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-indigo-400 focus:outline-none"
           />
-          <div className="space-y-1 text-[11px] text-sky-700">
+          <div className="space-y-1 text-[11px] text-indigo-700">
             <p>这条不进时间线，结果以回帖形式仅你可见。</p>
-            <p className="text-sky-800">
-              ⚠️ 内容会发往 DeepSeek API。请勿在此填邮箱 / 电话 / 微信号；系统已做基础过滤但不能保证 100% 拦截。
+            <p className="flex items-start gap-1 text-indigo-800">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />
+              <span>
+                内容会发往 DeepSeek API。请勿在此填邮箱 / 电话 / 微信号；系统已做基础过滤但不能保证 100% 拦截。
+              </span>
             </p>
             <div className="flex justify-end">
               <span className={matchRemaining < 0 ? 'text-red-600' : ''}>{matchRemaining}</span>
@@ -233,19 +237,19 @@ export function PostComposer({
           onClick={() => setMatchOpen((v) => !v)}
           aria-pressed={matchOpen}
           className={
-            'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ' +
+            'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ' +
             (matchOpen
-              ? 'border-sky-400 bg-sky-100 text-sky-900'
-              : 'border-zinc-200 bg-white text-zinc-600 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800')
+              ? 'border-indigo-400 bg-indigo-100 text-indigo-900'
+              : 'border-zinc-200 bg-white text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800')
           }
         >
-          <span aria-hidden className="mr-1">🤖</span>
+          <Sparkles className="size-3.5" aria-hidden />
           {matchOpen ? '收起 AI 撮合' : '委托 AI 撮合'}
         </button>
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+          className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-400"
         >
           {isPending ? '发送中…' : '发帖'}
         </button>

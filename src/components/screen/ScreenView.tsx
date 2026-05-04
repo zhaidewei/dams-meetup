@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { ArrowDown } from 'lucide-react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { fetchScreenData } from '@/lib/actions/screen'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -152,7 +153,10 @@ function TimelineSlot({ posts, now }: { posts: FeedPost[]; now: number }) {
   if (textPosts.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-zinc-500">
-        <p className="text-2xl">还没有人发帖。扫码加入聊起来 👇</p>
+        <p className="flex items-center gap-2 text-2xl">
+          还没有人发帖。扫码加入聊起来
+          <ArrowDown className="size-6" aria-hidden />
+        </p>
       </div>
     )
   }
@@ -289,7 +293,7 @@ function SectionSwitcher({ active }: { active: SectionId | null }) {
   const base =
     'rounded-full px-4 py-1.5 text-base font-medium transition-colors'
   const inactive = 'bg-zinc-800/70 text-zinc-300 hover:bg-zinc-800'
-  const activeCls = 'bg-amber-500 text-zinc-950'
+  const activeCls = 'bg-indigo-500 text-white'
   return (
     <nav aria-label="板块筛选" className="flex flex-wrap gap-2">
       <Link

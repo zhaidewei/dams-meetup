@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { createPollAction, type PollFormState } from '@/lib/actions/polls'
 import {
   POLL_MAX_OPTIONS,
@@ -52,7 +53,7 @@ export function PollComposer({
     <form
       ref={formRef}
       action={formAction}
-      className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
+      className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
     >
       <input type="hidden" name="section" value={section} />
       <div className="flex items-center justify-between">
@@ -90,10 +91,10 @@ export function PollComposer({
               <button
                 type="button"
                 onClick={() => removeOption(id)}
-                className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-200"
+                className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200"
                 aria-label={`删除选项 ${i + 1}`}
               >
-                ✕
+                <X className="size-3.5" aria-hidden />
               </button>
             )}
           </div>
@@ -114,7 +115,7 @@ export function PollComposer({
           <input
             type="checkbox"
             name="multi"
-            className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
+            className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-400"
           />
           多选
         </label>
@@ -122,7 +123,7 @@ export function PollComposer({
           <input
             type="checkbox"
             name="hide_results"
-            className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
+            className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-400"
           />
           投票前隐藏结果
         </label>
@@ -136,7 +137,7 @@ export function PollComposer({
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+          className="rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:bg-zinc-400"
         >
           {isPending ? '发布中…' : '发布投票'}
         </button>

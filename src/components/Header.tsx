@@ -39,8 +39,10 @@ function NavTab({
     <Link
       href={href}
       className={
-        'relative rounded-md px-2.5 py-1.5 transition-colors ' +
-        (active ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100')
+        'relative rounded-lg px-2.5 py-1.5 transition-colors ' +
+        (active
+          ? 'bg-indigo-600 text-white shadow-sm'
+          : 'text-zinc-600 hover:bg-zinc-100')
       }
     >
       {label}

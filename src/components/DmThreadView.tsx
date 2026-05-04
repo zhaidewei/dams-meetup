@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { Phone } from 'lucide-react'
 import { sendDmAction } from '@/lib/actions/dm'
 import { DM_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
@@ -63,7 +64,7 @@ export function DmThreadView({
 
   return (
     <div className="space-y-4">
-      <header className="flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm">
+      <header className="flex items-baseline gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm">
         <span className="font-semibold text-zinc-900">{otherName}</span>
         {otherMeta && <span className="text-zinc-500">· {otherMeta}</span>}
         {other.is_vip && (
@@ -73,7 +74,7 @@ export function DmThreadView({
         )}
       </header>
 
-      <div className="min-h-[40vh] space-y-2 rounded-xl border border-zinc-200 bg-white p-3">
+      <div className="min-h-[40vh] space-y-2 rounded-2xl border border-zinc-200 bg-white p-3">
         {messages.length === 0 ? (
           <p className="py-12 text-center text-sm text-zinc-500">还没消息，发第一条。</p>
         ) : (
@@ -85,14 +86,14 @@ export function DmThreadView({
       </div>
 
       {viewerCanSend ? (
-        <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-3">
+        <div className="space-y-2 rounded-2xl border border-zinc-200 bg-white p-3">
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             maxLength={DM_MAX_CHARS}
             rows={3}
             placeholder="说点什么…"
-            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-zinc-400 focus:outline-none"
+            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-indigo-400 focus:outline-none"
           />
           <div className="flex items-center justify-between gap-2 text-xs">
             <label
@@ -118,7 +119,7 @@ export function DmThreadView({
                 type="button"
                 onClick={onSend}
                 disabled={pending || body.trim().length === 0 || remaining < 0}
-                className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
+                className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-300"
               >
                 {pending ? '发送中…' : '发送'}
               </button>
@@ -142,7 +143,7 @@ function MessageBubble({ message, mine }: { message: DmMessageRow; mine: boolean
         <div
           className={
             'inline-block whitespace-pre-wrap rounded-2xl px-3 py-2 text-[15px] leading-relaxed ' +
-            (mine ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-800')
+            (mine ? 'bg-indigo-600 text-white' : 'bg-zinc-100 text-zinc-800')
           }
         >
           {message.body}
@@ -154,7 +155,8 @@ function MessageBubble({ message, mine }: { message: DmMessageRow; mine: boolean
               (mine ? 'ml-auto' : '')
             }
           >
-            <span>📞 {message.revealed_contact}</span>
+            <Phone className="size-3" aria-hidden />
+            <span>{message.revealed_contact}</span>
             <CopyButton
               text={message.revealed_contact}
               className="rounded border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] text-amber-700 hover:bg-amber-50 active:bg-amber-100"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useOptimistic } from 'react'
+import { Heart } from 'lucide-react'
 import { toggleLikeFormAction } from '@/lib/actions/likes'
 
 type Props = {
@@ -34,7 +35,7 @@ export function LikeButton({ postId, count, liked }: Props) {
       <button
         type="submit"
         className={
-          'flex items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors ' +
+          'flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm transition-colors ' +
           (optimistic.liked
             ? 'text-rose-600 hover:bg-rose-50'
             : 'text-zinc-500 hover:bg-zinc-100')
@@ -42,7 +43,11 @@ export function LikeButton({ postId, count, liked }: Props) {
         aria-pressed={optimistic.liked}
         aria-label={optimistic.liked ? '取消点赞' : '点赞'}
       >
-        <span>{optimistic.liked ? '❤' : '♡'}</span>
+        <Heart
+          className="size-4"
+          fill={optimistic.liked ? 'currentColor' : 'none'}
+          aria-hidden
+        />
         <span>{optimistic.count}</span>
       </button>
     </form>

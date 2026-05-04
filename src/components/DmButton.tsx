@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Send } from 'lucide-react'
 import { startThreadAction } from '@/lib/actions/dm'
 
 type Props = { toUserId: string }
@@ -29,10 +30,10 @@ export function DmButton({ toUserId }: Props) {
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 disabled:opacity-50"
         aria-label="私信"
       >
-        <span>✉</span>
+        <Send className="size-4" aria-hidden />
         <span>私信</span>
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { Sparkles, ChevronRight } from 'lucide-react'
 import { getCurrentUser, touchLastSeenMe } from '@/lib/identity'
 import { Header } from '@/components/Header'
 import { PostCard } from '@/components/PostCard'
@@ -92,12 +93,13 @@ export default async function MePage() {
             )}
           </Section>
 
-          <details className="group rounded-xl border border-zinc-200 bg-white shadow-sm open:bg-zinc-50">
+          <details className="group rounded-2xl border border-zinc-200 bg-white shadow-sm open:bg-zinc-50">
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
               <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden className="text-xs text-zinc-400 transition-transform group-open:rotate-90">
-                  ▶
-                </span>
+                <ChevronRight
+                  className="size-3.5 text-zinc-400 transition-transform group-open:rotate-90"
+                  aria-hidden
+                />
                 设置
               </span>
             </summary>
@@ -132,7 +134,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-8 text-center text-sm text-zinc-500">
+    <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-8 text-center text-sm text-zinc-500">
       {text}
     </div>
   )
@@ -142,12 +144,12 @@ function MentionRow({ mention }: { mention: MentionOfMe }) {
   return (
     <Link
       href={`/feed#post-${mention.post_id}`}
-      className="block rounded-xl border border-sky-200 bg-sky-50 p-3 shadow-sm hover:border-sky-300"
+      className="block rounded-2xl border border-indigo-200 bg-indigo-50 p-3 shadow-sm transition-colors hover:border-indigo-300"
     >
       <div className="mb-1 flex items-baseline gap-2 text-xs">
-        <span aria-hidden>🤖</span>
-        <span className="font-medium text-sky-900">有人对这条帖子感兴趣，可能想找你</span>
-        <span className="ml-auto text-sky-700">{formatTime(mention.reply_created_at)}</span>
+        <Sparkles className="size-3.5 self-center text-indigo-700" aria-hidden />
+        <span className="font-medium text-indigo-900">有人对这条帖子感兴趣，可能想找你</span>
+        <span className="ml-auto text-indigo-700">{formatTime(mention.reply_created_at)}</span>
       </div>
       <p className="truncate rounded-md bg-white/60 px-2 py-1 text-xs text-zinc-700">
         {mention.post_body}
@@ -163,7 +165,7 @@ function ReplyToMeRow({ reply }: { reply: ReplyToMe }) {
   return (
     <Link
       href={`/feed#post-${reply.post_id}`}
-      className="block rounded-xl border border-zinc-200 bg-white p-3 shadow-sm hover:border-zinc-300"
+      className="block rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-zinc-300"
     >
       <div className="mb-1 flex items-baseline gap-2 text-xs">
         <span className="font-medium text-zinc-700">{name}</span>

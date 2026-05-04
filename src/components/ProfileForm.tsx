@@ -36,7 +36,7 @@ export function ProfileForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+      className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
       <h2 className="text-sm font-semibold text-zinc-900">我的身份</h2>
 
@@ -53,7 +53,7 @@ export function ProfileForm({
             name="nickname"
             defaultValue={defaultNickname ?? ''}
             placeholder="昵称"
-            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
         </Field>
         <Field label={isVip ? '公司（留空用嘉宾默认 title）' : '公司'}>
@@ -61,7 +61,7 @@ export function ProfileForm({
             name="company"
             defaultValue={defaultCompany ?? ''}
             placeholder="公司"
-            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
         </Field>
         <div className="sm:col-span-2">
@@ -70,7 +70,7 @@ export function ProfileForm({
               name="contact_handle"
               defaultValue={defaultContactHandle ?? ''}
               placeholder="例如 linkedin.com/in/your-id"
-              className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </Field>
         </div>
@@ -81,7 +81,7 @@ export function ProfileForm({
           type="checkbox"
           name="show_contact"
           defaultChecked={defaultShowContact}
-          className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-400"
+          className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-400"
         />
         新发帖默认显示我的联系方式
       </label>
@@ -93,7 +93,7 @@ export function ProfileForm({
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+          className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-400"
         >
           {isPending ? '保存中…' : '保存'}
         </button>

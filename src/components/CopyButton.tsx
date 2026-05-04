@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
 
 type Props = {
   text: string
@@ -26,9 +27,10 @@ export function CopyButton({ text, className }: Props) {
       onClick={copy}
       className={
         className ??
-        'shrink-0 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800'
+        'inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700'
       }
     >
+      {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
       {copied ? '已复制' : '复制'}
     </button>
   )

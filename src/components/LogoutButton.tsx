@@ -30,7 +30,7 @@ export function LogoutButton() {
         }
         clearLocal()
       }}
-      className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+      className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
       <h2 className="mb-1 text-sm font-semibold text-zinc-900">退出登录</h2>
       <p className="mb-3 text-xs text-zinc-500">
@@ -42,7 +42,7 @@ export function LogoutButton() {
       </p>
       <button
         type="submit"
-        className="block w-full touch-manipulation rounded-md border border-red-300 bg-white px-3 py-2 text-center text-sm text-red-600 hover:bg-red-50 active:bg-red-100"
+        className="block w-full touch-manipulation rounded-lg border border-red-300 bg-white px-3 py-2 text-center text-sm text-red-600 transition-colors hover:bg-red-50 active:bg-red-100"
       >
         退出登录
       </button>

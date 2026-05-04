@@ -11,14 +11,14 @@ type Props = {
 export function DmThreadList({ threads, viewerCanDm, viewerId }: Props) {
   if (!viewerCanDm) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-500">
+      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-500">
         到「我」设置昵称后才能开启私信
       </div>
     )
   }
   if (threads.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-500">
+      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-500">
         还没有私信。在时间线点别人帖子的「私信」按钮可发起会话。
       </div>
     )
@@ -42,7 +42,7 @@ function ThreadRow({ thread, viewerId }: { thread: DmThreadSummary; viewerId: st
   return (
     <Link
       href={`/me/dm/${thread.thread_id}`}
-      className="flex items-baseline gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm hover:border-zinc-300"
+      className="flex items-baseline gap-2 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 text-sm">
