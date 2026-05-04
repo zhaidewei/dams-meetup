@@ -5,7 +5,7 @@ import { fetchScreenData } from '@/lib/actions/screen'
 import { QRCode } from '@/components/QRCode'
 import { ScreenView } from '@/components/screen/ScreenView'
 import { EVENT_NAME } from '@/lib/constants'
-import { isSectionId, sectionLabel } from '@/lib/sections'
+import { isSectionId } from '@/lib/sections'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,11 +34,11 @@ export default async function ScreenPage({
 
   return (
     <ScreenView
+      key={section ?? 'all'}
       initialPosts={snap.posts}
       initialOnline={snap.online}
       eventName={EVENT_NAME}
       section={section}
-      sectionLabel={section ? sectionLabel(section) : null}
       qrSlot={<QRCode value={feedUrl} size={160} />}
     />
   )

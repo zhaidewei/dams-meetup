@@ -1,10 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { fetchScreenData } from '@/lib/actions/screen'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import type { SectionId } from '@/lib/sections'
+import { SECTIONS, type SectionId } from '@/lib/sections'
 import { displayName, displayMeta } from '@/lib/display'
 
 const POLL_TICK_MS = 1_000 // ui re-render cadence
@@ -20,7 +21,6 @@ type Props = {
   initialOnline: number
   eventName: string
   section: SectionId | null
-  sectionLabel: string | null
   qrSlot: React.ReactNode
 }
 
@@ -29,7 +29,6 @@ export function ScreenView({
   initialOnline,
   eventName,
   section,
-  sectionLabel,
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
@@ -106,18 +105,14 @@ export function ScreenView({
 
   return (
     <div className="flex h-svh w-screen flex-col bg-zinc-950 text-zinc-100">
-      <header className="mx-auto flex w-full max-w-[1400px] items-baseline justify-between px-10 py-6 text-zinc-300">
-        <div className="flex items-baseline gap-4">
+      <header className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-10 py-6 text-zinc-300">
+        <div className="flex items-baseline justify-between">
           <h1 className="text-3xl font-semibold tracking-tight">{eventName}</h1>
-          {sectionLabel && (
-            <span className="rounded-full bg-zinc-800 px-3 py-1 text-base font-medium text-zinc-200">
-              {sectionLabel}
-            </span>
-          )}
+          <div className="text-xl tabular-nums">
+            在线 <span className="font-semibold text-white">{online}</span> 人
+          </div>
         </div>
-        <div className="text-xl tabular-nums">
-          在线 <span className="font-semibold text-white">{online}</span> 人
-        </div>
+        <SectionSwitcher active={section} />
       </header>
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 overflow-hidden px-10">
@@ -287,6 +282,34 @@ function PostHeader({
         </span>
       )}
     </div>
+  )
+}
+
+function SectionSwitcher({ active }: { active: SectionId | null }) {
+  const base =
+    'rounded-full px-4 py-1.5 text-base font-medium transition-colors'
+  const inactive = 'bg-zinc-800/70 text-zinc-300 hover:bg-zinc-800'
+  const activeCls = 'bg-amber-500 text-zinc-950'
+  return (
+    <nav aria-label="板块筛选" className="flex flex-wrap gap-2">
+      <Link
+        href="/screen"
+        aria-current={active === null ? 'page' : undefined}
+        className={`${base} ${active === null ? activeCls : inactive}`}
+      >
+        全部
+      </Link>
+      {SECTIONS.map((s) => (
+        <Link
+          key={s.id}
+          href={`/screen?section=${s.id}`}
+          aria-current={active === s.id ? 'page' : undefined}
+          className={`${base} ${active === s.id ? activeCls : inactive}`}
+        >
+          {s.label}
+        </Link>
+      ))}
+    </nav>
   )
 }
 
