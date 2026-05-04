@@ -61,7 +61,6 @@ export async function startThreadAction(toUserId: string): Promise<StartThreadRe
 export async function sendDmAction(
   threadId: number,
   body: string,
-  reveal: boolean,
 ): Promise<DmMutationResult> {
   const viewer = await getCurrentUser()
   if (!viewer) redirect('/')
@@ -79,13 +78,13 @@ export async function sendDmAction(
   const other = await fetchThreadOtherParty(sb, threadId, viewer.id)
   if (!other) return { error: '不是这个线程的成员' }
 
-  const revealedContact = reveal && viewer.contact_handle ? viewer.contact_handle : null
-
+  // 联系方式由对方点头像看 UserCard 自取，不再随消息一次性 reveal。
+  // 历史 revealed_contact 列保留旧消息的展示，本次插入恒为 null。
   const { error: msgErr } = await sb.from('dm_messages').insert({
     thread_id: threadId,
     sender_id: viewer.id,
     body: trimmed,
-    revealed_contact: revealedContact,
+    revealed_contact: null,
   })
   if (msgErr) return { error: msgErr.message }
 

@@ -14,7 +14,6 @@ type Props = {
   threadId: number
   viewerId: string
   viewerCanSend: boolean
-  viewerHasContact: boolean
   other: PublicUserDisplay
   messages: DmMessageRow[]
 }
@@ -23,14 +22,12 @@ export function DmThreadView({
   threadId,
   viewerId,
   viewerCanSend,
-  viewerHasContact,
   other,
   messages,
 }: Props) {
   const otherName = displayName(other)
   const otherMeta = displayMeta(other)
   const [body, setBody] = useState('')
-  const [reveal, setReveal] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const tail = useRef<HTMLDivElement | null>(null)
@@ -53,13 +50,12 @@ export function DmThreadView({
       return
     }
     startTransition(async () => {
-      const res = await sendDmAction(threadId, trimmed, reveal && viewerHasContact)
+      const res = await sendDmAction(threadId, trimmed)
       if (res.error) {
         setError(res.error)
         return
       }
       setBody('')
-      setReveal(false)
       setError(null)
     })
   }
@@ -105,35 +101,18 @@ export function DmThreadView({
             placeholder="说点什么…"
             className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-indigo-400 focus:outline-none"
           />
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <label
-              className={
-                'flex items-center gap-1.5 ' +
-                (viewerHasContact ? 'text-zinc-600' : 'cursor-not-allowed text-zinc-400')
-              }
-              title={viewerHasContact ? '' : '到「我」填写联系方式后才能附上'}
+          <div className="flex items-center justify-end gap-2 text-xs">
+            <span className={remaining < 0 ? 'text-red-500' : 'text-zinc-400'}>
+              {remaining < 20 ? remaining : ''}
+            </span>
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={pending || body.trim().length === 0 || remaining < 0}
+              className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-300"
             >
-              <input
-                type="checkbox"
-                checked={reveal && viewerHasContact}
-                onChange={(e) => setReveal(e.target.checked)}
-                disabled={!viewerHasContact}
-              />
-              本次发送附上我的联系方式
-            </label>
-            <div className="flex items-center gap-2">
-              <span className={remaining < 0 ? 'text-red-500' : 'text-zinc-400'}>
-                {remaining < 20 ? remaining : ''}
-              </span>
-              <button
-                type="button"
-                onClick={onSend}
-                disabled={pending || body.trim().length === 0 || remaining < 0}
-                className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-300"
-              >
-                {pending ? '发送中…' : '发送'}
-              </button>
-            </div>
+              {pending ? '发送中…' : '发送'}
+            </button>
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>

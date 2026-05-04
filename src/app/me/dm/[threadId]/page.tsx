@@ -36,7 +36,6 @@ export default async function DmThreadPage({ params }: { params: Params }) {
 
   const unreadMe = await fetchUnreadMe(user)
   const viewerCanSend = isNonAnon(user)
-  const viewerHasContact = (user.contact_handle ?? '').trim().length > 0
 
   return (
     <>
@@ -52,7 +51,6 @@ export default async function DmThreadPage({ params }: { params: Params }) {
           threadId={threadId}
           viewerId={user.id}
           viewerCanSend={viewerCanSend}
-          viewerHasContact={viewerHasContact}
           other={detail.other}
           messages={detail.messages}
         />

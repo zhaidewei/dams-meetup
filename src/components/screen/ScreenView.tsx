@@ -27,6 +27,8 @@ type Props = {
   // 当前实际 LIVE 板块（来自 getCurrentSection — 主办方覆写 → 议程时间表）；
   // 用于顶 bar 的 LIVE pill。可能与 URL section 不一致。
   liveSection: SectionId | null
+  // 活动密码 — 作为兜底显示在 QR 旁边，扫不动码的人可以手输。
+  password: string
   qrSlot: React.ReactNode
 }
 
@@ -36,6 +38,7 @@ export function ScreenView({
   eventName,
   section,
   liveSection,
+  password,
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
@@ -122,9 +125,9 @@ export function ScreenView({
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-hidden px-10 pb-6">
         {slot.kind === 'poll' ? (
-          <PollSlot post={slot.post} now={now} qrSlot={qrSlot} />
+          <PollSlot post={slot.post} now={now} qrSlot={qrSlot} password={password} />
         ) : (
-          <TimelineSlot posts={posts} now={now} qrSlot={qrSlot} />
+          <TimelineSlot posts={posts} now={now} qrSlot={qrSlot} password={password} />
         )}
       </main>
     </div>
@@ -135,10 +138,12 @@ function TimelineSlot({
   posts,
   now,
   qrSlot,
+  password,
 }: {
   posts: FeedPost[]
   now: number
   qrSlot: React.ReactNode
+  password: string
 }) {
   // Use only text posts for the focus rotation; polls already get takeover slots.
   const textPosts = posts.filter((p) => p.type === 'text').slice(0, 12)
@@ -151,7 +156,7 @@ function TimelineSlot({
             <ArrowDown className="size-6" aria-hidden />
           </p>
         </div>
-        <QrPanel qrSlot={qrSlot} />
+        <QrPanel qrSlot={qrSlot} password={password} />
       </div>
     )
   }
@@ -180,7 +185,7 @@ function TimelineSlot({
             </div>
           )}
         </article>
-        <QrPanel qrSlot={qrSlot} />
+        <QrPanel qrSlot={qrSlot} password={password} />
       </div>
       {upNext.length > 0 && (
         <div className="grid grid-cols-4 gap-3">
@@ -201,14 +206,22 @@ function TimelineSlot({
   )
 }
 
-function QrPanel({ qrSlot }: { qrSlot: React.ReactNode }) {
+function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 rounded-2xl bg-zinc-900/60 px-8 py-6 ring-1 ring-zinc-800">
       <div className="rounded-xl bg-white p-3">{qrSlot}</div>
       <p className="text-center leading-tight">
-        <span className="block text-xl font-semibold text-white">扫码加入</span>
+        <span className="block text-xl font-semibold text-white">扫码一键加入</span>
         <span className="text-sm text-zinc-400">发帖 / 投票 / 找人</span>
       </p>
+      {password && (
+        <div className="w-full rounded-xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
+          <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
+          <p className="mt-1 select-all font-mono text-3xl font-semibold tracking-wider text-white">
+            {password}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -217,10 +230,12 @@ function PollSlot({
   post,
   now,
   qrSlot,
+  password,
 }: {
   post: FeedPost
   now: number
   qrSlot: React.ReactNode
+  password: string
 }) {
   const totalVotes = post.poll_total_votes ?? 0
   const counts = post.poll_option_counts ?? {}
@@ -280,7 +295,7 @@ function PollSlot({
         <span>{remainingMs !== null ? formatRemaining(remainingMs) : '无截止'}</span>
       </div>
     </div>
-      <QrPanel qrSlot={qrSlot} />
+      <QrPanel qrSlot={qrSlot} password={password} />
     </div>
   )
 }

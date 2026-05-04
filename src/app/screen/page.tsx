@@ -39,10 +39,13 @@ export default async function ScreenPage({
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? ''
   const proto =
     h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
-  // QR points to the feed of the same section, so attendees joining mid-talk
-  // land in the right discussion stream.
+  // QR points to /auto-login with the event password baked in: scanning is
+  // a one-tap login. Same risk model as printing the password on the slide —
+  // it's already public to attendees in the room.
   const feedPath = section ? `/feed?section=${section}` : '/feed'
-  const feedUrl = host ? `${proto}://${host}${feedPath}` : feedPath
+  const password = process.env.EVENT_PASSWORD ?? ''
+  const qrTarget = `/auto-login?p=${encodeURIComponent(password)}&next=${encodeURIComponent(feedPath)}`
+  const qrUrl = host ? `${proto}://${host}${qrTarget}` : qrTarget
 
   return (
     <>
@@ -53,7 +56,8 @@ export default async function ScreenPage({
         eventName={EVENT_NAME}
         section={section}
         liveSection={currentSection}
-        qrSlot={<QRCode value={feedUrl} size={280} />}
+        password={password}
+        qrSlot={<QRCode value={qrUrl} size={280} />}
       />
       <ScreenAdminBar currentSection={currentSection} />
     </>

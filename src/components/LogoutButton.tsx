@@ -22,7 +22,7 @@ export function LogoutButton() {
       onSubmit={(e) => {
         if (
           !window.confirm(
-            '确认退出？\n\n退出会清除本浏览器的 cookie 和本地缓存。\n只有保存了「恢复链接」才能找回当前身份。',
+            '确认退出？\n\n退出会清除本浏览器的 cookie 和本地缓存。\n只有「恢复链接」能找回当前身份；用活动密码再进只会开新身份。',
           )
         ) {
           e.preventDefault()
@@ -34,10 +34,10 @@ export function LogoutButton() {
     >
       <h2 className="mb-1 text-sm font-semibold text-zinc-900">退出登录</h2>
       <p className="mb-3 text-xs text-zinc-500">
-        退出会清除本机的身份缓存。下次进入需要用恢复链接或活动密码。
+        退出会清除本机的身份缓存。
         <br />
         <span className="text-red-600">
-          只有保存了「恢复链接」才能找回当前身份与发帖记录。请先复制保存。
+          只有「恢复链接」能找回当前身份与发帖、私信记录；用活动密码再进只会开一个新身份。请先复制保存恢复链接。
         </span>
       </p>
       <button
