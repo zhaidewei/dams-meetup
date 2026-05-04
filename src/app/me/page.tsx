@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Sparkles, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { getCurrentUser, touchLastSeenMe } from '@/lib/identity'
 import { Header } from '@/components/Header'
 import { MeIdentityBar } from '@/components/MeIdentityBar'
@@ -12,7 +12,7 @@ import { DmThreadList } from '@/components/DmThreadList'
 import { DmRealtime } from '@/components/DmRealtime'
 import { MeRealtime } from '@/components/MeRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
-import { fetchRepliesToMe, fetchMentionsOfMe, type ReplyToMe, type MentionOfMe } from '@/lib/queries/me'
+import { fetchRepliesToMe, type ReplyToMe } from '@/lib/queries/me'
 import { listMyThreads } from '@/lib/queries/dm'
 import { fetchUnreadMe } from '@/lib/queries/unread'
 import { displayName, displayMeta } from '@/lib/display'
@@ -25,10 +25,9 @@ export default async function MePage() {
   const user = await getCurrentUser()
   if (!user) redirect('/')
 
-  const [myPosts, repliesToMe, mentionsOfMe, threads, unreadMe] = await Promise.all([
+  const [myPosts, repliesToMe, threads, unreadMe] = await Promise.all([
     fetchFeed(user.id, { authorId: user.id, limit: 50 }),
     fetchRepliesToMe(user.id),
-    fetchMentionsOfMe(user.id),
     listMyThreads(user.id),
     fetchUnreadMe(user),
   ])
@@ -50,10 +49,9 @@ export default async function MePage() {
             排序按 attention：
               1. 顶部超薄身份条（看自己一眼，编辑跳到底部「设置」）
               2. 私信（双向、强 actionable）
-              3. 有人想找你（AI 撮合提及）
-              4. 收到的回复
-              5. 我发的帖子
-              6. 设置（profile + recovery + 登出）— <details> 默认收起
+              3. 收到的回复
+              4. 我发的帖子
+              5. 设置（profile + recovery + 登出）— <details> 默认收起
           */}
 
           <MeIdentityBar user={user} />
@@ -64,23 +62,6 @@ export default async function MePage() {
             unreadBadge={unreadMe.dm > 0 ? <UnreadChip n={unreadMe.dm} /> : null}
           >
             <DmThreadList threads={threads} viewerCanDm={viewerCanDm} viewerId={user.id} />
-          </Section>
-
-          <Section
-            title="有人想找你"
-            count={mentionsOfMe.length}
-            defaultOpen={mentionsOfMe.length > 0}
-          >
-            {mentionsOfMe.length === 0 ? (
-              <Empty text="还没有人通过 AI 撮合点到你" />
-            ) : (
-              <FoldableList
-                items={mentionsOfMe}
-                getKey={(m) => m.reply_id}
-                render={(m) => <MentionRow mention={m} />}
-                gapClass="space-y-2"
-              />
-            )}
           </Section>
 
           <Section title="收到的回复" count={repliesToMe.length} defaultOpen={repliesToMe.length > 0}>
@@ -230,24 +211,6 @@ function Empty({ text }: { text: string }) {
     <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-8 text-center text-sm text-zinc-500">
       {text}
     </div>
-  )
-}
-
-function MentionRow({ mention }: { mention: MentionOfMe }) {
-  return (
-    <Link
-      href={`/feed?section=${postSectionParam(mention.post_section)}#post-${mention.post_id}`}
-      className="block rounded-2xl border border-indigo-200 bg-indigo-50 p-3 shadow-sm transition-colors hover:border-indigo-300"
-    >
-      <div className="mb-1 flex items-baseline gap-2 text-xs">
-        <Sparkles className="size-3.5 self-center text-indigo-700" aria-hidden />
-        <span className="font-medium text-indigo-900">有人对这条帖子感兴趣，可能想找你</span>
-        <span className="ml-auto text-indigo-700">{formatTime(mention.reply_created_at)}</span>
-      </div>
-      <p className="truncate rounded-md bg-white/60 px-2 py-1 text-xs text-zinc-700">
-        {mention.post_body}
-      </p>
-    </Link>
   )
 }
 
