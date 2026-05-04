@@ -13,9 +13,11 @@ type ReplyAuthorMini = Pick<
   'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
 >
 
+// UserCard 渲染所需的全部字段（id + 显示名 + meta + 联系方式）。
+// AiReplyRow 把 mentioned_user 包成 UserCardTrigger，所以必须 select 全。
 export type MentionedUserMini = Pick<
   PublicUserDisplay,
-  'id' | 'nickname' | 'is_vip' | 'vip_name'
+  'id' | 'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
 >
 
 // Public reply: written by a human, visible to everyone.
@@ -62,7 +64,7 @@ export async function fetchFeed(
        replies (
          id, user_id, parent_reply_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
          author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
-         mentioned_user:users!mentioned_user_id ( id, nickname, is_vip, vip_name )
+         mentioned_user:users!mentioned_user_id ( id, nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title )
        )`,
     )
     .order('created_at', { ascending: false })

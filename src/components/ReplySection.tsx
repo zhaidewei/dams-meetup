@@ -32,11 +32,16 @@ export type ReplyDisplay = {
     vip_name: string | null
     vip_title: string | null
   } | null
+  // AiReplyRow 把它包成 UserCardTrigger，需要全量字段以便弹层渲染联系方式 / 发私信。
   mentioned_user: {
     id: string
     nickname: string | null
+    company: string | null
+    contact_handle: string | null
+    show_contact: boolean
     is_vip: boolean
     vip_name: string | null
+    vip_title: string | null
   } | null
 }
 
@@ -139,7 +144,11 @@ export function ReplySection({ postId, count, replies, viewerId, viewerCanDm }: 
             return (
               <div key={parent.id} className="space-y-2">
                 {parent.is_ai ? (
-                  <AiReplyRow reply={parent} />
+                  <AiReplyRow
+                    reply={parent}
+                    viewerId={viewerId}
+                    viewerCanDm={viewerCanDm}
+                  />
                 ) : (
                   <ReplyRow
                     reply={parent}
@@ -375,19 +384,41 @@ function ReplyBody({ body }: { body: string }) {
   )
 }
 
-function AiReplyRow({ reply }: { reply: ReplyDisplay }) {
+function AiReplyRow({
+  reply,
+  viewerId,
+  viewerCanDm,
+}: {
+  reply: ReplyDisplay
+  viewerId: string
+  viewerCanDm: boolean
+}) {
   const m = reply.mentioned_user
   const targetName = m ? displayName(m) : null
+  const isMine = m ? m.id === viewerId : false
   return (
     <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
-      <div className="mb-1 flex items-baseline gap-2 text-xs">
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
         <Sparkles className="size-3.5 self-center text-indigo-700" aria-hidden />
         <span className="font-medium text-indigo-900">AI 撮合</span>
         <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] text-indigo-800">
           仅你可见
         </span>
-        {targetName && (
-          <span className="text-indigo-700">推荐：{targetName}</span>
+        {m && targetName && (
+          <span className="inline-flex items-center gap-1 text-indigo-700">
+            推荐：
+            <UserCardTrigger
+              user={m}
+              viewerCanDm={viewerCanDm}
+              isMine={isMine}
+              className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-indigo-800"
+            >
+              <Avatar seed={m.id} user={m} size="sm" />
+              <span className="font-medium underline decoration-dotted underline-offset-2">
+                {targetName}
+              </span>
+            </UserCardTrigger>
+          </span>
         )}
       </div>
       <p className="whitespace-pre-wrap text-zinc-800">{reply.body}</p>
