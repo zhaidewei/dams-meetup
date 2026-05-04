@@ -119,6 +119,59 @@ export async function updatePostAction(
   return { error: null }
 }
 
+// 观众端 QA 提问 — 比 createPostAction 简洁很多：没有 tags / section / match_intent。
+// hostUserId 必须当下确实是 event_state.qa_host_user_id；防止活动结束后还能注水。
+export async function createQuestionAction(
+  _prev: PostFormState,
+  formData: FormData,
+): Promise<PostFormState> {
+  const user = await getCurrentUser()
+  if (!user) redirect('/')
+
+  const body = String(formData.get('body') ?? '').trim()
+  if (!body) return { error: '说点啥再发吧' }
+  if (body.length > POST_MAX_CHARS) return { error: `不能超过 ${POST_MAX_CHARS} 字` }
+
+  const sb = getServerSupabase()
+
+  const { data: state, error: stateErr } = await sb
+    .from('event_state')
+    .select('screen_mode, qa_host_user_id')
+    .eq('id', 1)
+    .maybeSingle()
+  if (stateErr) return { error: stateErr.message }
+  if (!state || state.screen_mode !== 'qa' || !state.qa_host_user_id) {
+    return { error: 'QA 已经结束了' }
+  }
+
+  // Identity updates: nickname / company optional; questions are usually
+  // posted with whatever identity the user has. Match createPostAction's
+  // pattern so users can edit-and-submit in one go.
+  const nickname = nullableStr(formData.get('nickname'))
+  const company = nullableStr(formData.get('company'))
+  const contactHandle = nullableStr(formData.get('contact_handle'))
+  const updates: Record<string, unknown> = { last_seen_at: new Date().toISOString() }
+  if (nickname !== undefined) updates.nickname = nickname
+  if (company !== undefined) updates.company = company
+  if (contactHandle !== undefined) updates.contact_handle = contactHandle
+  await sb.from('users').update(updates).eq('id', user.id)
+
+  const { error } = await sb.from('posts').insert({
+    user_id: user.id,
+    type: 'question',
+    body,
+    tags: [],
+    show_contact: false,
+    section: null,
+    question_target_user_id: state.qa_host_user_id,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/feed')
+  revalidatePath('/screen')
+  return { error: null, ok: true }
+}
+
 export async function deletePostAction(postId: number): Promise<PostMutationResult> {
   const user = await getCurrentUser()
   if (!user) redirect('/')

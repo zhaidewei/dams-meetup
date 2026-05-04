@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
+import type { ScreenQuestion } from '@/lib/queries/questions'
+import type { ScreenModeState } from '@/lib/queries/event-state'
 import { fetchScreenData } from '@/lib/actions/screen'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
@@ -19,6 +21,7 @@ const SLOT_MS = 30_000 // each poll slot
 type Props = {
   initialPosts: FeedPost[]
   initialOnline: number
+  initialMode: ScreenModeState
   eventName: string
   // 当前 URL 筛选板块；null 表示显示全部。
   section: SectionId | null
@@ -33,6 +36,7 @@ type Props = {
 export function ScreenView({
   initialPosts,
   initialOnline,
+  initialMode,
   eventName,
   section,
   liveSection,
@@ -40,7 +44,9 @@ export function ScreenView({
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
+  const [questions, setQuestions] = useState<ScreenQuestion[]>([])
   const [online, setOnline] = useState(initialOnline)
+  const [mode, setMode] = useState<ScreenModeState>(initialMode)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -57,7 +63,9 @@ export function ScreenView({
         const snap = await fetchScreenData(section)
         if (cancelled) return
         setPosts(snap.posts)
+        setQuestions(snap.questions)
         setOnline(snap.online)
+        setMode(snap.mode)
       } catch {
         // network blip — fallback interval will retry
       }
@@ -71,6 +79,10 @@ export function ScreenView({
       }, REALTIME_DEBOUNCE_MS)
     }
 
+    // First refresh after mount fills questions for the initial mode (server
+    // page already passes initialMode, but questions come from a separate fetch).
+    void refresh()
+
     const sb = getBrowserSupabase()
     const channel = sb
       .channel('screen-changes')
@@ -78,6 +90,7 @@ export function ScreenView({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'replies' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_state' }, bump)
       .subscribe()
 
     const fallback = setInterval(refresh, FALLBACK_REFRESH_MS)
@@ -100,17 +113,25 @@ export function ScreenView({
     [posts, now],
   )
 
-  // Slot dispatch: active polls cycle through takeover slots, then a
-  // 30s default skeleton slot, repeat. No active polls → always default.
-  // (QA / lottery modes will short-circuit this once screen_mode lands.)
-  const slot = activePolls.length === 0
-    ? { kind: 'default' as const }
-    : (() => {
-        const totalSlots = activePolls.length + 1
-        const idx = Math.floor(now / SLOT_MS) % totalSlots
-        if (idx === activePolls.length) return { kind: 'default' as const }
-        return { kind: 'poll' as const, post: activePolls[idx] }
-      })()
+  // Slot dispatch:
+  //   1. screen_mode='qa'      → QA layout (admin-controlled, top priority)
+  //   2. screen_mode='lottery' → Lottery layout (placeholder until #8)
+  //   3. active polls          → cycle [poll0 30s, poll1 30s, ..., default 30s]
+  //   4. default               → DefaultSlot
+  let slot: SlotState
+  if (mode.mode === 'qa') {
+    slot = { kind: 'qa' }
+  } else if (mode.mode === 'lottery') {
+    slot = { kind: 'default' } // TODO: replace with LotterySlot in task #8
+  } else if (activePolls.length === 0) {
+    slot = { kind: 'default' }
+  } else {
+    const totalSlots = activePolls.length + 1
+    const idx = Math.floor(now / SLOT_MS) % totalSlots
+    slot = idx === activePolls.length
+      ? { kind: 'default' }
+      : { kind: 'poll', post: activePolls[idx] }
+  }
 
   return (
     <div className="flex h-svh w-screen flex-col bg-zinc-950 text-zinc-100">
@@ -123,7 +144,9 @@ export function ScreenView({
       />
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-hidden px-10 pb-6">
-        {slot.kind === 'poll' ? (
+        {slot.kind === 'qa' ? (
+          <QaSlot mode={mode} questions={questions} qrSlot={qrSlot} password={password} />
+        ) : slot.kind === 'poll' ? (
           <PollSlot post={slot.post} now={now} qrSlot={qrSlot} password={password} />
         ) : (
           <DefaultSlot
@@ -137,6 +160,11 @@ export function ScreenView({
     </div>
   )
 }
+
+type SlotState =
+  | { kind: 'default' }
+  | { kind: 'qa' }
+  | { kind: 'poll'; post: FeedPost }
 
 // Default slot: skeleton view shown when no poll is taking over.
 // Layout = giant QR (left) + LIVE 板块演讲信息 + 在线人数 (right).
@@ -300,6 +328,109 @@ function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: stri
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+function QaSlot({
+  mode,
+  questions,
+  qrSlot,
+  password,
+}: {
+  mode: ScreenModeState
+  questions: ScreenQuestion[]
+  qrSlot: React.ReactNode
+  password: string
+}) {
+  const hostName = mode.qa_host_name ?? '嘉宾'
+  const top = questions.slice(0, 5)
+  const ticker = questions.slice(5, 13)
+
+  return (
+    <div className="grid h-full grid-cols-[1.1fr_1.4fr] gap-8">
+      {/* Left: 嘉宾 + QR */}
+      <div className="flex flex-col items-center justify-center gap-5 rounded-3xl bg-zinc-900/60 p-8 ring-1 ring-zinc-800">
+        <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/20 px-4 py-1.5 ring-1 ring-rose-500/40">
+          <span className="relative flex size-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
+          </span>
+          <span className="text-sm font-semibold text-rose-300">嘉宾 QA · 进行中</span>
+        </div>
+        <p className="text-center">
+          <span className="block text-5xl font-semibold leading-tight text-white">{hostName}</span>
+          {mode.qa_host_title && (
+            <span className="mt-2 block text-xl text-zinc-300">{mode.qa_host_title}</span>
+          )}
+        </p>
+        <div className="rounded-2xl bg-white p-4">{qrSlot}</div>
+        <p className="text-center text-2xl font-semibold text-white">扫码向 {hostName} 提问</p>
+        {password && (
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
+            <p className="mt-1 select-all font-mono text-2xl font-semibold tracking-[0.2em] text-white">
+              {password}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Right: 问题列表 */}
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">
+          观众提问 · 共 {questions.length} 条 · 按点赞排序
+        </p>
+        {questions.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60">
+            <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>
+          </div>
+        ) : (
+          <>
+            <ul className="flex flex-1 min-h-0 flex-col gap-3 overflow-hidden">
+              {top.map((q, i) => (
+                <li
+                  key={q.id}
+                  className="flex gap-4 rounded-2xl bg-zinc-900 px-6 py-4 ring-1 ring-zinc-800"
+                >
+                  <span className="shrink-0 text-3xl font-bold tabular-nums text-zinc-600">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="whitespace-pre-wrap text-2xl leading-snug text-white">
+                      {q.body}
+                    </p>
+                    <p className="mt-2 flex items-center gap-3 text-sm text-zinc-400">
+                      <span>{displayName(q.author)}</span>
+                      {displayMeta(q.author) && (
+                        <span className="text-zinc-500">· {displayMeta(q.author)}</span>
+                      )}
+                      <span className="ml-auto font-semibold text-rose-300">
+                        ❤ {q.like_count}
+                      </span>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {ticker.length > 0 && (
+              <div className="rounded-2xl bg-zinc-900/40 px-5 py-3 ring-1 ring-zinc-800/60">
+                <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  排队中
+                </p>
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-zinc-300">
+                  {ticker.map((q) => (
+                    <li key={q.id} className="flex items-center gap-2 truncate">
+                      <span className="shrink-0 text-xs text-rose-400">❤{q.like_count}</span>
+                      <span className="truncate">{q.body}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -59,6 +59,7 @@ export async function fetchFeed(
     .select(
       `id, user_id, type, body, tags, show_contact, section,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
+       question_target_user_id,
        created_at,
        author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
        replies (

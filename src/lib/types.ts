@@ -18,10 +18,12 @@ export type UserRow = {
 
 export type PollOption = { id: number; label: string }
 
+export type PostType = 'text' | 'poll' | 'question'
+
 export type PostRow = {
   id: number
   user_id: string
-  type: 'text' | 'poll'
+  type: PostType
   body: string
   tags: string[]
   show_contact: boolean
@@ -30,7 +32,19 @@ export type PostRow = {
   poll_multi: boolean | null
   poll_deadline: string | null
   poll_hide_results: boolean | null
+  question_target_user_id: string | null
   created_at: string
+}
+
+export type ScreenMode = 'default' | 'qa' | 'lottery'
+
+export type EventStateRow = {
+  id: number
+  current_section: 'p1' | 'p2' | 'breakout' | 'panel' | null
+  override_until: string | null
+  screen_mode: ScreenMode
+  qa_host_user_id: string | null
+  updated_at: string
 }
 
 // match_intent moved to its own table (migration 0011) so it cannot leak via

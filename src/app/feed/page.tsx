@@ -3,6 +3,7 @@ import { getCurrentUser, touchLastSeen } from '@/lib/identity'
 import { Header } from '@/components/Header'
 import { EventHero } from '@/components/EventHero'
 import { PostComposer } from '@/components/PostComposer'
+import { QuestionComposer } from '@/components/QuestionComposer'
 import { PostCard } from '@/components/PostCard'
 import { SectionTabs } from '@/components/SectionTabs'
 import { SectionContextBar } from '@/components/SectionContextBar'
@@ -11,7 +12,7 @@ import { FeedRealtime } from '@/components/FeedRealtime'
 import { DmRealtime } from '@/components/DmRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchUnreadMe } from '@/lib/queries/unread'
-import { getCurrentSection } from '@/lib/queries/event-state'
+import { getCurrentSection, getScreenModeState } from '@/lib/queries/event-state'
 import { isNonAnon } from '@/lib/dm'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
@@ -30,7 +31,10 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
 
   // 「当前板块」= 主办方覆写 → 议程时间表 → null（活动外 / 空档）。
   // 用于 (a) /feed 默认跳当前板块；(b) SectionTabs LIVE 标。
-  const liveSection = await getCurrentSection()
+  const [liveSection, modeState] = await Promise.all([
+    getCurrentSection(),
+    getScreenModeState(),
+  ])
 
   // 没传 ?section= 时跳到当前板块；活动外则用默认 p1。
   const section = isSectionId(sp.section)
@@ -60,6 +64,14 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
         <SectionContextBar section={section} />
         <div className="mt-4 space-y-4">
           <OnboardingBanner />
+          {modeState.mode === 'qa' && modeState.qa_host_name && (
+            <QuestionComposer
+              hostName={modeState.qa_host_name}
+              hostTitle={modeState.qa_host_title}
+              defaultNickname={user.nickname}
+              defaultCompany={user.company}
+            />
+          )}
           <PostComposer
             defaultNickname={user.nickname}
             defaultCompany={user.company}
