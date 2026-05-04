@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Sparkles, ChevronRight } from 'lucide-react'
 import { getCurrentUser, touchLastSeenMe } from '@/lib/identity'
 import { Header } from '@/components/Header'
+import { MeIdentityBar } from '@/components/MeIdentityBar'
 import { PostCard } from '@/components/PostCard'
 import { ProfileForm } from '@/components/ProfileForm'
 import { RecoveryLink } from '@/components/RecoveryLink'
@@ -46,54 +47,74 @@ export default async function MePage() {
           {/*
             issue #18 D — 高频 actionable 在上，低频 setup 折叠成「设置」。
             排序按 attention：
-              1. 私信（双向、强 actionable）
-              2. 有人想找你（AI 撮合提及）
-              3. 收到的回复
-              4. 我发的帖子
-              5. 设置（profile + recovery + 登出）— <details> 默认收起
+              1. 顶部超薄身份条（看自己一眼，编辑跳到底部「设置」）
+              2. 私信（双向、强 actionable）
+              3. 有人想找你（AI 撮合提及）
+              4. 收到的回复
+              5. 我发的帖子
+              6. 设置（profile + recovery + 登出）— <details> 默认收起
           */}
 
-          <Section title={`私信${unreadMe.dm > 0 ? ` · 未读 ${unreadMe.dm}` : ''}`}>
+          <MeIdentityBar user={user} />
+
+          <Section
+            title="私信"
+            count={threads.length}
+            unreadBadge={unreadMe.dm > 0 ? <UnreadChip n={unreadMe.dm} /> : null}
+          >
             <DmThreadList threads={threads} viewerCanDm={viewerCanDm} viewerId={user.id} />
           </Section>
 
-          <Section title={`有人想找你 (${mentionsOfMe.length})`}>
+          <Section
+            title="有人想找你"
+            count={mentionsOfMe.length}
+            defaultOpen={mentionsOfMe.length > 0}
+          >
             {mentionsOfMe.length === 0 ? (
               <Empty text="还没有人通过 AI 撮合点到你" />
             ) : (
-              <div className="space-y-2">
-                {mentionsOfMe.map((m) => (
-                  <MentionRow key={m.reply_id} mention={m} />
-                ))}
-              </div>
+              <FoldableList
+                items={mentionsOfMe}
+                getKey={(m) => m.reply_id}
+                render={(m) => <MentionRow mention={m} />}
+                gapClass="space-y-2"
+              />
             )}
           </Section>
 
-          <Section title={`收到的回复 (${repliesToMe.length})`}>
+          <Section title="收到的回复" count={repliesToMe.length} defaultOpen={repliesToMe.length > 0}>
             {repliesToMe.length === 0 ? (
               <Empty text="还没有人回复你的帖子" />
             ) : (
-              <div className="space-y-2">
-                {repliesToMe.map((r) => (
-                  <ReplyToMeRow key={r.id} reply={r} />
-                ))}
-              </div>
+              <FoldableList
+                items={repliesToMe}
+                getKey={(r) => r.id}
+                render={(r) => <ReplyToMeRow reply={r} />}
+                gapClass="space-y-2"
+              />
             )}
           </Section>
 
-          <Section title={`我发的帖子 (${myPosts.length})`}>
+          <Section title="我发的帖子" count={myPosts.length} defaultOpen={false}>
             {myPosts.length === 0 ? (
               <Empty text="你还没发过帖子。去 时间线 发第一条。" />
             ) : (
-              <div className="space-y-3">
-                {myPosts.map((post) => (
-                  <PostCard key={post.id} post={post} viewerId={user.id} viewerCanDm={viewerCanDm} />
-                ))}
-              </div>
+              <FoldableList
+                items={myPosts}
+                getKey={(p) => p.id}
+                render={(post) => (
+                  <PostCard post={post} viewerId={user.id} viewerCanDm={viewerCanDm} />
+                )}
+                gapClass="space-y-3"
+                limit={3}
+              />
             )}
           </Section>
 
-          <details className="group rounded-2xl border border-zinc-200 bg-white shadow-sm open:bg-zinc-50">
+          <details
+            id="settings"
+            className="group scroll-mt-20 rounded-2xl border border-zinc-200 bg-white shadow-sm open:bg-zinc-50"
+          >
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
               <span className="inline-flex items-center gap-1.5">
                 <ChevronRight
@@ -123,12 +144,83 @@ export default async function MePage() {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  count,
+  unreadBadge,
+  defaultOpen = true,
+  children,
+}: {
+  title: string
+  count?: number
+  unreadBadge?: React.ReactNode
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <section className="space-y-2">
-      <h2 className="px-1 text-sm font-semibold text-zinc-900">{title}</h2>
-      {children}
-    </section>
+    <details open={defaultOpen} className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-1 py-1.5 text-sm font-semibold text-zinc-900 hover:text-zinc-700">
+        <ChevronRight
+          className="size-3.5 text-zinc-400 transition-transform group-open:rotate-90"
+          aria-hidden
+        />
+        <span>{title}</span>
+        {typeof count === 'number' && (
+          <span className="text-xs font-normal text-zinc-500">· {count}</span>
+        )}
+        {unreadBadge}
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  )
+}
+
+function UnreadChip({ n }: { n: number }) {
+  return (
+    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-medium leading-tight text-white">
+      未读 {n > 99 ? '99+' : n}
+    </span>
+  )
+}
+
+// 列表前 N 条直出，剩下塞进折叠的 <details>。<details> 内嵌 <details> 会让外层
+// 的 group-open chevron 同时指向自己；这里里层用一个独立 ChevronDown 文字来避免
+// 选择器冲突。
+function FoldableList<T>({
+  items,
+  getKey,
+  render,
+  gapClass,
+  limit = 5,
+}: {
+  items: T[]
+  getKey: (item: T) => string | number
+  render: (item: T) => React.ReactNode
+  gapClass: string
+  limit?: number
+}) {
+  const head = items.slice(0, limit)
+  const tail = items.slice(limit)
+  return (
+    <>
+      <div className={gapClass}>
+        {head.map((item) => (
+          <div key={getKey(item)}>{render(item)}</div>
+        ))}
+      </div>
+      {tail.length > 0 && (
+        <details className="mt-2">
+          <summary className="flex cursor-pointer list-none items-center gap-1 px-1 py-1 text-xs text-indigo-600 hover:text-indigo-700">
+            <span className="underline underline-offset-2">查看其余 {tail.length} 条</span>
+          </summary>
+          <div className={`mt-2 ${gapClass}`}>
+            {tail.map((item) => (
+              <div key={getKey(item)}>{render(item)}</div>
+            ))}
+          </div>
+        </details>
+      )}
+    </>
   )
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Phone } from 'lucide-react'
+import { Avatar } from './Avatar'
 import { sendDmAction } from '@/lib/actions/dm'
 import { DM_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
@@ -64,7 +65,8 @@ export function DmThreadView({
 
   return (
     <div className="space-y-4">
-      <header className="flex items-baseline gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm">
+      <header className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm">
+        <Avatar seed={other.id} user={other} size="md" />
         <span className="font-semibold text-zinc-900">{otherName}</span>
         {otherMeta && <span className="text-zinc-500">· {otherMeta}</span>}
         {other.is_vip && (

@@ -10,6 +10,7 @@ import {
 } from '@/lib/actions/replies'
 import { REPLY_MAX_CHARS } from '@/lib/constants'
 import { displayName, displayMeta } from '@/lib/display'
+import { Avatar } from './Avatar'
 
 const initial: ReplyFormState = { error: null }
 
@@ -262,7 +263,8 @@ function ReplyRow({
 
   return (
     <div className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
-      <div className="mb-0.5 flex items-baseline gap-2 text-xs">
+      <div className="mb-0.5 flex items-center gap-2 text-xs">
+        {reply.user_id && <Avatar seed={reply.user_id} user={a} size="xs" />}
         <span className="font-medium text-zinc-700">{name}</span>
         {meta && <span className="text-zinc-500">· {meta}</span>}
         {a.is_vip && (

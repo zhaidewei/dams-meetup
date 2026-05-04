@@ -5,6 +5,7 @@ import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
 import { POST_MAX_CHARS } from '@/lib/constants'
 import { deletePostAction, updatePostAction } from '@/lib/actions/posts'
+import { Avatar } from './Avatar'
 import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
@@ -69,7 +70,8 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
 
   return (
     <article id={`post-${post.id}`} className="scroll-mt-20 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-      <header className="mb-2 flex items-baseline gap-2 text-sm">
+      <header className="mb-2 flex items-center gap-2 text-sm">
+        <Avatar seed={post.user_id} user={author} size="sm" />
         <span className="font-semibold text-zinc-900">{name}</span>
         {meta && <span className="text-zinc-500">· {meta}</span>}
         {author.is_vip && (

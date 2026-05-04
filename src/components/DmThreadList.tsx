@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { displayName, displayMeta } from '@/lib/display'
 import type { DmThreadSummary } from '@/lib/queries/dm'
+import { Avatar } from './Avatar'
 
 type Props = {
   threads: DmThreadSummary[]
@@ -42,8 +43,9 @@ function ThreadRow({ thread, viewerId }: { thread: DmThreadSummary; viewerId: st
   return (
     <Link
       href={`/me/dm/${thread.thread_id}`}
-      className="flex items-baseline gap-2 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
+      className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
     >
+      <Avatar seed={thread.other.id} user={thread.other} size="md" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 text-sm">
           <span className="font-semibold text-zinc-900">{name}</span>

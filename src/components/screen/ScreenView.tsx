@@ -1,13 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown } from 'lucide-react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { fetchScreenData } from '@/lib/actions/screen'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { SECTIONS, type SectionId } from '@/lib/sections'
+import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
 import { displayName, displayMeta } from '@/lib/display'
+import { EVENT_END_ISO } from '@/lib/constants'
+import { Avatar } from '@/components/Avatar'
 
 const POLL_TICK_MS = 1_000 // ui re-render cadence
 // Safety-net resync if the websocket drops silently — projection mode runs
@@ -21,7 +22,11 @@ type Props = {
   initialPosts: FeedPost[]
   initialOnline: number
   eventName: string
+  // 当前 URL 筛选板块；null 表示显示全部。
   section: SectionId | null
+  // 当前实际 LIVE 板块（来自 getCurrentSection — 主办方覆写 → 议程时间表）；
+  // 用于顶 bar 的 LIVE pill。可能与 URL section 不一致。
+  liveSection: SectionId | null
   qrSlot: React.ReactNode
 }
 
@@ -30,6 +35,7 @@ export function ScreenView({
   initialOnline,
   eventName,
   section,
+  liveSection,
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
@@ -106,57 +112,46 @@ export function ScreenView({
 
   return (
     <div className="flex h-svh w-screen flex-col bg-zinc-950 text-zinc-100">
-      <header className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-10 py-6 text-zinc-300">
-        <div className="flex items-baseline justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight">{eventName}</h1>
-          <div className="text-xl tabular-nums">
-            在线 <span className="font-semibold text-white">{online}</span> 人
-          </div>
-        </div>
-        <SectionSwitcher active={section} />
-      </header>
+      <ScreenTopBar
+        eventName={eventName}
+        liveSection={liveSection}
+        filterSection={section}
+        online={online}
+        now={now}
+      />
 
-      <main className="mx-auto w-full max-w-[1400px] flex-1 overflow-hidden px-10">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-hidden px-10 pb-6">
         {slot.kind === 'poll' ? (
-          <PollSlot post={slot.post} now={now} />
+          <PollSlot post={slot.post} now={now} qrSlot={qrSlot} />
         ) : (
-          <TimelineSlot posts={posts} now={now} />
+          <TimelineSlot posts={posts} now={now} qrSlot={qrSlot} />
         )}
       </main>
-
-      <footer className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-8 px-10 py-6">
-        <div className="text-sm text-zinc-500">
-          {activePolls.length > 0 ? (
-            <span>
-              进行中投票 {activePolls.length} 个 · 每 {SLOT_MS / 1000}s 切换
-            </span>
-          ) : (
-            <span>暂无进行中投票</span>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <p className="text-right text-sm leading-tight text-zinc-300">
-            扫码加入
-            <br />
-            <span className="text-zinc-500">参与发帖 / 投票</span>
-          </p>
-          <div className="rounded-md bg-white p-2">{qrSlot}</div>
-        </div>
-      </footer>
     </div>
   )
 }
 
-function TimelineSlot({ posts, now }: { posts: FeedPost[]; now: number }) {
+function TimelineSlot({
+  posts,
+  now,
+  qrSlot,
+}: {
+  posts: FeedPost[]
+  now: number
+  qrSlot: React.ReactNode
+}) {
   // Use only text posts for the focus rotation; polls already get takeover slots.
   const textPosts = posts.filter((p) => p.type === 'text').slice(0, 12)
   if (textPosts.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-zinc-500">
-        <p className="flex items-center gap-2 text-2xl">
-          还没有人发帖。扫码加入聊起来
-          <ArrowDown className="size-6" aria-hidden />
-        </p>
+      <div className="grid h-full grid-cols-[1.6fr_1fr] gap-6">
+        <div className="flex items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60 text-zinc-500">
+          <p className="flex items-center gap-2 text-2xl">
+            还没有人发帖。扫码加入聊起来
+            <ArrowDown className="size-6" aria-hidden />
+          </p>
+        </div>
+        <QrPanel qrSlot={qrSlot} />
       </div>
     )
   }
@@ -165,43 +160,68 @@ function TimelineSlot({ posts, now }: { posts: FeedPost[]; now: number }) {
   const upNext = textPosts.filter((_, i) => i !== focusIdx).slice(0, 4)
 
   return (
-    <div className="grid h-full grid-rows-[auto_1fr] gap-6">
-      <article className="rounded-2xl bg-zinc-900 px-10 py-8 ring-1 ring-zinc-800">
-        <PostHeader post={focus} large />
-        <p className="mt-4 whitespace-pre-wrap text-3xl leading-snug text-white">
-          {focus.body}
-        </p>
-        {focus.tags.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {focus.tags.map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-zinc-800 px-3 py-1 text-base text-zinc-300"
-              >
-                #{t}
-              </span>
-            ))}
-          </div>
-        )}
-      </article>
-      <div className="grid grid-cols-2 gap-3 overflow-hidden">
-        {upNext.map((p) => (
-          <article
-            key={p.id}
-            className="overflow-hidden rounded-xl bg-zinc-900/60 px-5 py-4 ring-1 ring-zinc-800"
-          >
-            <PostHeader post={p} />
-            <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-lg text-zinc-200">
-              {p.body}
-            </p>
-          </article>
-        ))}
+    <div className="grid h-full grid-rows-[1fr_auto] gap-5">
+      <div className="grid min-h-0 grid-cols-[1.6fr_1fr] gap-6">
+        <article className="overflow-hidden rounded-2xl bg-zinc-900 px-10 py-8 ring-1 ring-zinc-800">
+          <PostHeader post={focus} large />
+          <p className="mt-4 whitespace-pre-wrap text-3xl leading-snug text-white">
+            {focus.body}
+          </p>
+          {focus.tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {focus.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-zinc-800 px-3 py-1 text-base text-zinc-300"
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+        </article>
+        <QrPanel qrSlot={qrSlot} />
       </div>
+      {upNext.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          {upNext.map((p) => (
+            <article
+              key={p.id}
+              className="overflow-hidden rounded-xl bg-zinc-900/60 px-5 py-4 ring-1 ring-zinc-800"
+            >
+              <PostHeader post={p} />
+              <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-base text-zinc-200">
+                {p.body}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function PollSlot({ post, now }: { post: FeedPost; now: number }) {
+function QrPanel({ qrSlot }: { qrSlot: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl bg-zinc-900/60 px-8 py-6 ring-1 ring-zinc-800">
+      <div className="rounded-xl bg-white p-3">{qrSlot}</div>
+      <p className="text-center leading-tight">
+        <span className="block text-xl font-semibold text-white">扫码加入</span>
+        <span className="text-sm text-zinc-400">发帖 / 投票 / 找人</span>
+      </p>
+    </div>
+  )
+}
+
+function PollSlot({
+  post,
+  now,
+  qrSlot,
+}: {
+  post: FeedPost
+  now: number
+  qrSlot: React.ReactNode
+}) {
   const totalVotes = post.poll_total_votes ?? 0
   const counts = post.poll_option_counts ?? {}
   const options = post.poll_options ?? []
@@ -211,10 +231,11 @@ function PollSlot({ post, now }: { post: FeedPost; now: number }) {
     : null
 
   return (
-    <div className="grid h-full grid-rows-[auto_1fr_auto] gap-6 rounded-2xl bg-amber-500/10 px-10 py-8 ring-1 ring-amber-500/30">
+    <div className="grid h-full grid-cols-[1.6fr_1fr] gap-6">
+    <div className="grid grid-rows-[auto_1fr_auto] gap-6 rounded-2xl bg-indigo-500/10 px-10 py-8 ring-1 ring-indigo-500/30">
       <div>
         <div className="mb-2 flex items-center gap-3">
-          <span className="rounded-full bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950">
+          <span className="rounded-full bg-indigo-500 px-3 py-1 text-sm font-semibold text-white">
             投票进行中
           </span>
           <PostHeader post={post} compact />
@@ -235,7 +256,7 @@ function PollSlot({ post, now }: { post: FeedPost; now: number }) {
             >
               <div
                 aria-hidden
-                className="absolute inset-y-0 left-0 bg-amber-500/30"
+                className="absolute inset-y-0 left-0 bg-indigo-500/35"
                 style={{ width: `${pct}%` }}
               />
               <div className="relative flex items-center gap-4 px-6 py-4">
@@ -259,6 +280,8 @@ function PollSlot({ post, now }: { post: FeedPost; now: number }) {
         <span>{remainingMs !== null ? formatRemaining(remainingMs) : '无截止'}</span>
       </div>
     </div>
+      <QrPanel qrSlot={qrSlot} />
+    </div>
   )
 }
 
@@ -276,8 +299,10 @@ function PostHeader({
   const meta = displayMeta(a)
   const sizeName = large ? 'text-2xl' : compact ? 'text-base' : 'text-xl'
   const sizeMeta = large ? 'text-lg' : 'text-sm'
+  const avatarSize = large ? 'lg' : compact ? 'sm' : 'md'
   return (
-    <div className="flex items-baseline gap-2">
+    <div className="flex items-center gap-3">
+      <Avatar seed={post.user_id} user={a} size={avatarSize} onDark />
       <span className={`${sizeName} font-semibold text-white`}>{name}</span>
       {meta && <span className={`${sizeMeta} text-zinc-400`}>· {meta}</span>}
       {a.is_vip && (
@@ -289,32 +314,68 @@ function PostHeader({
   )
 }
 
-function SectionSwitcher({ active }: { active: SectionId | null }) {
-  const base =
-    'rounded-full px-4 py-1.5 text-base font-medium transition-colors'
-  const inactive = 'bg-zinc-800/70 text-zinc-300 hover:bg-zinc-800'
-  const activeCls = 'bg-indigo-500 text-white'
+function ScreenTopBar({
+  eventName,
+  liveSection,
+  filterSection,
+  online,
+  now,
+}: {
+  eventName: string
+  liveSection: SectionId | null
+  filterSection: SectionId | null
+  online: number
+  now: number
+}) {
+  const liveMeta = liveSection ? SECTION_META[liveSection] : null
+  const clock = formatClock(now)
+  const remainingMs = Date.parse(EVENT_END_ISO) - now
+  const countdown = remainingMs > 0 ? formatRemaining(remainingMs) : '活动已结束'
+
   return (
-    <nav aria-label="板块筛选" className="flex flex-wrap gap-2">
-      <Link
-        href="/screen"
-        aria-current={active === null ? 'page' : undefined}
-        className={`${base} ${active === null ? activeCls : inactive}`}
-      >
-        全部
-      </Link>
-      {SECTIONS.map((s) => (
-        <Link
-          key={s.id}
-          href={`/screen?section=${s.id}`}
-          aria-current={active === s.id ? 'page' : undefined}
-          className={`${base} ${active === s.id ? activeCls : inactive}`}
-        >
-          {s.label}
-        </Link>
-      ))}
-    </nav>
+    <header className="mx-auto flex w-full max-w-[1600px] items-center gap-6 px-10 py-5 text-zinc-300">
+      <h1 className="text-2xl font-semibold tracking-tight text-white">{eventName}</h1>
+
+      {liveSection && liveMeta ? (
+        <div className="flex items-center gap-2 rounded-full bg-rose-500/15 px-3 py-1 ring-1 ring-rose-500/30">
+          <span className="relative flex size-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
+          </span>
+          <span className="text-sm font-semibold text-rose-300">LIVE</span>
+          <span className="text-sm text-zinc-200">
+            {sectionLabel(liveSection)}
+            {liveMeta.speaker && ` · ${liveMeta.speaker}`}
+          </span>
+        </div>
+      ) : (
+        <span className="text-sm text-zinc-500">空档期 / 活动外</span>
+      )}
+
+      {filterSection && filterSection !== liveSection && (
+        <span className="rounded-full bg-zinc-800/70 px-2.5 py-1 text-xs text-zinc-400">
+          视图：仅显示 {sectionLabel(filterSection)}
+        </span>
+      )}
+
+      <div className="ml-auto flex items-center gap-6 text-base tabular-nums">
+        <span className="text-2xl font-semibold tracking-tight text-white">{clock}</span>
+        <span className="text-zinc-400">{countdown}</span>
+        <span className="text-zinc-300">
+          在线 <span className="font-semibold text-white">{online}</span> 人
+        </span>
+      </div>
+    </header>
   )
+}
+
+function formatClock(ms: number): string {
+  return new Date(ms).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Amsterdam',
+  })
 }
 
 function formatRemaining(ms: number): string {

@@ -52,7 +52,8 @@ export default async function ScreenPage({
         initialOnline={snap.online}
         eventName={EVENT_NAME}
         section={section}
-        qrSlot={<QRCode value={feedUrl} size={160} />}
+        liveSection={currentSection}
+        qrSlot={<QRCode value={feedUrl} size={280} />}
       />
       <ScreenAdminBar currentSection={currentSection} />
     </>
