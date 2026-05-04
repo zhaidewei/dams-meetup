@@ -103,6 +103,34 @@ export async function sendDmAction(
   return { error: null }
 }
 
+// Hard delete 整段对话：dm_messages / dm_notifications 都 on delete cascade，
+// 双方都将看不到这段对话。任意一方都可调用（thread 成员检查后即放行）。
+// 不可撤销 — UI 必须二次确认。删完 redirect 到 /me 让列表刷新。
+export async function deleteThreadAction(threadId: number): Promise<void> {
+  const viewer = await getCurrentUser()
+  if (!viewer) redirect('/')
+  if (!Number.isInteger(threadId) || threadId <= 0) {
+    console.error('deleteThreadAction: invalid threadId', threadId)
+    redirect('/me')
+  }
+
+  const sb = getServerSupabase()
+  const other = await fetchThreadOtherParty(sb, threadId, viewer.id)
+  if (!other) {
+    // 非成员（伪造请求 / 已删 / 数据不一致）→ 静默回 /me。
+    redirect('/me')
+  }
+
+  const { error } = await sb.from('dm_threads').delete().eq('id', threadId)
+  if (error) {
+    console.error('deleteThreadAction: delete failed', error.message)
+    redirect('/me')
+  }
+
+  revalidatePath('/me')
+  redirect('/me')
+}
+
 export async function markDmReadAction(threadId: number): Promise<DmMutationResult> {
   const viewer = await getCurrentUser()
   if (!viewer) redirect('/')

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { displayName, displayMeta } from '@/lib/display'
 import type { DmThreadSummary } from '@/lib/queries/dm'
 import { Avatar } from './Avatar'
+import { DeleteThreadButton } from './DeleteThreadButton'
 
 type Props = {
   threads: DmThreadSummary[]
@@ -41,31 +42,39 @@ function ThreadRow({ thread, viewerId }: { thread: DmThreadSummary; viewerId: st
   const previewPrefix = lastSenderIsMe ? '我：' : ''
   const preview = last?.body ?? '（还没消息）'
   return (
-    <Link
-      href={`/me/dm/${thread.thread_id}`}
-      className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
-    >
-      <Avatar seed={thread.other.id} user={thread.other} size="md" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 text-sm">
-          <span className="font-semibold text-zinc-900">{name}</span>
-          {meta && <span className="truncate text-zinc-500">· {meta}</span>}
-          {thread.other.is_vip && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
-              嘉宾
-            </span>
-          )}
+    // relative 容器：Link 占满整行，删除按钮 absolute 浮在右侧；按钮不是 Link 的
+    // 子节点，浏览器 hit test 会把按钮区域路由到按钮本身，不会触发 Link 跳转。
+    <div className="relative">
+      <Link
+        href={`/me/dm/${thread.thread_id}`}
+        className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 pr-12 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
+      >
+        <Avatar seed={thread.other.id} user={thread.other} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 text-sm">
+            <span className="font-semibold text-zinc-900">{name}</span>
+            {meta && <span className="truncate text-zinc-500">· {meta}</span>}
+            {thread.other.is_vip && (
+              <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
+                嘉宾
+              </span>
+            )}
+          </div>
+          <p className="mt-1 truncate text-xs text-zinc-600">
+            {previewPrefix}
+            {preview}
+          </p>
         </div>
-        <p className="mt-1 truncate text-xs text-zinc-600">
-          {previewPrefix}
-          {preview}
-        </p>
-      </div>
-      {thread.unread_count > 0 && (
-        <span className="shrink-0 rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-medium text-white">
-          {thread.unread_count > 99 ? '99+' : thread.unread_count}
-        </span>
-      )}
-    </Link>
+        {thread.unread_count > 0 && (
+          <span className="shrink-0 rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-medium text-white">
+            {thread.unread_count > 99 ? '99+' : thread.unread_count}
+          </span>
+        )}
+      </Link>
+      <DeleteThreadButton
+        threadId={thread.thread_id}
+        className="absolute right-2 top-1/2 -translate-y-1/2"
+      />
+    </div>
   )
 }
