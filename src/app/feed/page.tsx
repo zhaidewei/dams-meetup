@@ -5,6 +5,7 @@ import { PostComposer } from '@/components/PostComposer'
 import { PostCard } from '@/components/PostCard'
 import { SectionTabs } from '@/components/SectionTabs'
 import { SectionContextBar } from '@/components/SectionContextBar'
+import { OnboardingBanner } from '@/components/OnboardingBanner'
 import { FeedRealtime } from '@/components/FeedRealtime'
 import { DmRealtime } from '@/components/DmRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
@@ -54,6 +55,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
         <SectionTabs active={section} live={liveSection} />
         <SectionContextBar section={section} />
         <div className="mt-4 space-y-4">
+          <OnboardingBanner />
           <PostComposer
             defaultNickname={user.nickname}
             defaultCompany={user.company}
