@@ -42,19 +42,15 @@ export default async function MePage() {
       <MeRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
         <div className="space-y-4">
-          <ProfileForm
-            defaultNickname={user.nickname}
-            defaultCompany={user.company}
-            defaultContactHandle={user.contact_handle}
-            defaultShowContact={user.show_contact}
-            isVip={user.is_vip}
-            vipName={user.vip_name}
-            vipTitle={user.vip_title}
-          />
-
-          <RecoveryLink uid={user.id} token={user.recovery_token} />
-
-          <LogoutButton />
+          {/*
+            issue #18 D — 高频 actionable 在上，低频 setup 折叠成「设置」。
+            排序按 attention：
+              1. 私信（双向、强 actionable）
+              2. 有人想找你（AI 撮合提及）
+              3. 收到的回复
+              4. 我发的帖子
+              5. 设置（profile + recovery + 登出）— <details> 默认收起
+          */}
 
           <Section title={`私信${unreadMe.dm > 0 ? ` · 未读 ${unreadMe.dm}` : ''}`}>
             <DmThreadList threads={threads} viewerCanDm={viewerCanDm} viewerId={user.id} />
@@ -95,6 +91,30 @@ export default async function MePage() {
               </div>
             )}
           </Section>
+
+          <details className="group rounded-xl border border-zinc-200 bg-white shadow-sm open:bg-zinc-50">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden className="text-xs text-zinc-400 transition-transform group-open:rotate-90">
+                  ▶
+                </span>
+                设置
+              </span>
+            </summary>
+            <div className="space-y-3 border-t border-zinc-200 p-4">
+              <ProfileForm
+                defaultNickname={user.nickname}
+                defaultCompany={user.company}
+                defaultContactHandle={user.contact_handle}
+                defaultShowContact={user.show_contact}
+                isVip={user.is_vip}
+                vipName={user.vip_name}
+                vipTitle={user.vip_title}
+              />
+              <RecoveryLink uid={user.id} token={user.recovery_token} />
+              <LogoutButton />
+            </div>
+          </details>
         </div>
       </main>
     </>

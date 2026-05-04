@@ -4,10 +4,12 @@ import { Header } from '@/components/Header'
 import { PostComposer } from '@/components/PostComposer'
 import { PostCard } from '@/components/PostCard'
 import { SectionTabs } from '@/components/SectionTabs'
+import { SectionContextBar } from '@/components/SectionContextBar'
 import { FeedRealtime } from '@/components/FeedRealtime'
 import { DmRealtime } from '@/components/DmRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchUnreadMe } from '@/lib/queries/unread'
+import { getCurrentSection } from '@/lib/queries/event-state'
 import { isNonAnon } from '@/lib/dm'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
@@ -23,7 +25,15 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   if (sp.section !== undefined && !isSectionId(sp.section)) {
     redirect(`/feed?section=${DEFAULT_SECTION}`)
   }
-  const section = isSectionId(sp.section) ? sp.section : DEFAULT_SECTION
+
+  // 「当前板块」= 主办方覆写 → 议程时间表 → null（活动外 / 空档）。
+  // 用于 (a) /feed 默认跳当前板块；(b) SectionTabs LIVE 标。
+  const liveSection = await getCurrentSection()
+
+  // 没传 ?section= 时跳到当前板块；活动外则用默认 p1。
+  const section = isSectionId(sp.section)
+    ? sp.section
+    : (liveSection ?? DEFAULT_SECTION)
 
   // Mark this user as recently active (used by /screen online count).
   // Fire-and-forget; don't await on the render path.
@@ -41,7 +51,8 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       <FeedRealtime />
       <DmRealtime viewerId={user.id} />
       <main className="mx-auto w-full max-w-2xl px-4 py-4">
-        <SectionTabs active={section} />
+        <SectionTabs active={section} live={liveSection} />
+        <SectionContextBar section={section} />
         <div className="mt-4 space-y-4">
           <PostComposer
             defaultNickname={user.nickname}
