@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore, useTransition } from 'react'
+import { AtSign, Check, Copy, Link2, UserCircle2 } from 'lucide-react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
 import { POST_MAX_CHARS } from '@/lib/constants'
@@ -10,7 +11,6 @@ import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
 import { DmButton } from './DmButton'
-import { CopyButton } from './CopyButton'
 
 type Props = { post: FeedPost; viewerId: string; viewerCanDm: boolean }
 
@@ -26,7 +26,6 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
 
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(post.body)
-  const [tags, setTags] = useState(post.tags.join(' '))
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -43,7 +42,7 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
       return
     }
     startTransition(async () => {
-      const res = await updatePostAction(post.id, trimmed, tags)
+      const res = await updatePostAction(post.id, trimmed, '')
       if (res.error) {
         setError(res.error)
       } else {
@@ -57,7 +56,6 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
     setEditing(false)
     setError(null)
     setBody(post.body)
-    setTags(post.tags.join(' '))
   }
 
   function onDelete() {
@@ -117,13 +115,6 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
             rows={4}
             className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-zinc-400 focus:outline-none"
           />
-          <input
-            type="text"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="标签（空格分隔，最多 5 个）"
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none"
-          />
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span className={remaining < 0 ? 'text-red-500' : ''}>
               {remaining < 0 ? remaining : ''}
@@ -170,29 +161,8 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
         />
       )}
 
-      {!isPoll && !editing && post.tags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {post.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600"
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
-
       {!isPoll && post.show_contact && author.contact_handle && (
-        <p className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-          <span>
-            联系方式：<span className="text-zinc-800">{author.contact_handle}</span>
-          </span>
-          <CopyButton
-            text={author.contact_handle}
-            className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200"
-          />
-        </p>
+        <ContactPill text={author.contact_handle} />
       )}
 
       <div className="mt-3 flex items-center gap-1">
@@ -203,6 +173,54 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
       <ReplySection postId={post.id} count={post.reply_count} replies={post.replies} viewerId={viewerId} />
     </article>
   )
+}
+
+// 联系方式胶囊：整行可点击复制，左侧自动判断图标类型（链接 / 邮箱 / 其他）。
+function ContactPill({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const kind = contactKind(text)
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard 被浏览器拦截：不致命，保留默认 UI
+    }
+  }
+  const iconClass = 'size-3.5 shrink-0 text-zinc-500 group-hover:text-indigo-600'
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? '已复制' : '点击复制'}
+      className="group mt-3 inline-flex w-full max-w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+    >
+      {kind === 'url' && <Link2 className={iconClass} aria-hidden />}
+      {kind === 'email' && <AtSign className={iconClass} aria-hidden />}
+      {kind === 'other' && <UserCircle2 className={iconClass} aria-hidden />}
+      <span className="truncate text-left font-medium text-zinc-800">{text}</span>
+      <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-zinc-500 group-hover:text-indigo-700">
+        {copied ? (
+          <>
+            <Check className="size-3" aria-hidden />
+            已复制
+          </>
+        ) : (
+          <>
+            <Copy className="size-3" aria-hidden />
+            复制
+          </>
+        )}
+      </span>
+    </button>
+  )
+}
+
+function contactKind(s: string): 'url' | 'email' | 'other' {
+  if (/^https?:\/\//i.test(s)) return 'url'
+  if (/@.+\./.test(s)) return 'email'
+  return 'other'
 }
 
 function isPollClosed(deadline: string | null): boolean {

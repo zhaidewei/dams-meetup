@@ -13,6 +13,7 @@ export type ReplyToMe = {
   created_at: string
   post_id: number
   post_body: string
+  post_section: string | null
   replier: ReplierMini
 }
 
@@ -23,6 +24,7 @@ export type MentionOfMe = {
   reply_created_at: string
   post_id: number
   post_body: string
+  post_section: string | null
 }
 
 export async function fetchMentionsOfMe(myUserId: string): Promise<MentionOfMe[]> {
@@ -30,7 +32,7 @@ export async function fetchMentionsOfMe(myUserId: string): Promise<MentionOfMe[]
 
   const { data, error } = await sb
     .from('replies')
-    .select(`id, created_at, post_id, post:posts!post_id ( body )`)
+    .select(`id, created_at, post_id, post:posts!post_id ( body, section )`)
     .eq('is_ai', true)
     .eq('mentioned_user_id', myUserId)
     .order('created_at', { ascending: false })
@@ -42,12 +44,15 @@ export async function fetchMentionsOfMe(myUserId: string): Promise<MentionOfMe[]
   }
 
   return (data ?? []).map((row) => {
-    const post = unnestRelation(row.post as { body: string } | { body: string }[] | null)
+    const post = unnestRelation(
+      row.post as { body: string; section: string | null } | { body: string; section: string | null }[] | null,
+    )
     return {
       reply_id: row.id as number,
       reply_created_at: row.created_at as string,
       post_id: row.post_id as number,
       post_body: post?.body ?? '',
+      post_section: post?.section ?? null,
     }
   })
 }
@@ -55,7 +60,7 @@ export async function fetchMentionsOfMe(myUserId: string): Promise<MentionOfMe[]
 export async function fetchRepliesToMe(myUserId: string): Promise<ReplyToMe[]> {
   const sb = getServerSupabase()
 
-  const myPosts = await sb.from('posts').select('id, body').eq('user_id', myUserId)
+  const myPosts = await sb.from('posts').select('id, body, section').eq('user_id', myUserId)
   if (myPosts.error) {
     console.error('fetchRepliesToMe my posts error:', myPosts.error)
     return []
@@ -63,8 +68,11 @@ export async function fetchRepliesToMe(myUserId: string): Promise<ReplyToMe[]> {
   const postIds = (myPosts.data ?? []).map((r) => r.id as number)
   if (postIds.length === 0) return []
 
-  const postBodyById = new Map<number, string>(
-    (myPosts.data ?? []).map((r) => [r.id as number, r.body as string]),
+  const postById = new Map<number, { body: string; section: string | null }>(
+    (myPosts.data ?? []).map((r) => [
+      r.id as number,
+      { body: r.body as string, section: (r.section as string | null) ?? null },
+    ]),
   )
 
   const { data, error } = await sb
@@ -84,14 +92,18 @@ export async function fetchRepliesToMe(myUserId: string): Promise<ReplyToMe[]> {
     return []
   }
 
-  return (data ?? []).map((row) => ({
-    id: row.id as number,
-    body: row.body as string,
-    created_at: row.created_at as string,
-    post_id: row.post_id as number,
-    post_body: postBodyById.get(row.post_id as number) ?? '',
-    replier: unnestRelation(row.replier) as ReplierMini,
-  }))
+  return (data ?? []).map((row) => {
+    const post = postById.get(row.post_id as number)
+    return {
+      id: row.id as number,
+      body: row.body as string,
+      created_at: row.created_at as string,
+      post_id: row.post_id as number,
+      post_body: post?.body ?? '',
+      post_section: post?.section ?? null,
+      replier: unnestRelation(row.replier) as ReplierMini,
+    }
+  })
 }
 
 function unnestRelation<T>(value: T | T[]): T {

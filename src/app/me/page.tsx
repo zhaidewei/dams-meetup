@@ -17,6 +17,7 @@ import { listMyThreads } from '@/lib/queries/dm'
 import { fetchUnreadMe } from '@/lib/queries/unread'
 import { displayName, displayMeta } from '@/lib/display'
 import { isNonAnon } from '@/lib/dm'
+import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
 export const dynamic = 'force-dynamic'
 
@@ -235,7 +236,7 @@ function Empty({ text }: { text: string }) {
 function MentionRow({ mention }: { mention: MentionOfMe }) {
   return (
     <Link
-      href={`/feed#post-${mention.post_id}`}
+      href={`/feed?section=${postSectionParam(mention.post_section)}#post-${mention.post_id}`}
       className="block rounded-2xl border border-indigo-200 bg-indigo-50 p-3 shadow-sm transition-colors hover:border-indigo-300"
     >
       <div className="mb-1 flex items-baseline gap-2 text-xs">
@@ -256,7 +257,7 @@ function ReplyToMeRow({ reply }: { reply: ReplyToMe }) {
   const meta = displayMeta(a)
   return (
     <Link
-      href={`/feed#post-${reply.post_id}`}
+      href={`/feed?section=${postSectionParam(reply.post_section)}#post-${reply.post_id}`}
       className="block rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-zinc-300"
     >
       <div className="mb-1 flex items-baseline gap-2 text-xs">
@@ -275,6 +276,13 @@ function ReplyToMeRow({ reply }: { reply: ReplyToMe }) {
       </p>
     </Link>
   )
+}
+
+// 把 post.section 标准化成 /feed?section= 的有效值。null / 非法值兜底到 DEFAULT_SECTION，
+// 避免 /feed 把无 section 的链接默认跳到当前 LIVE 板块（用户实际想看的那条帖会被 section
+// 过滤掉，体验上就是「点了跳过去找不到」）。
+function postSectionParam(section: string | null): string {
+  return isSectionId(section) ? section : DEFAULT_SECTION
 }
 
 function formatTime(iso: string): string {

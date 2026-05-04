@@ -115,15 +115,9 @@ export function PostComposer({
         defaultValue=""
         onInput={(e) => setBodyLen(e.currentTarget.value.length)}
         maxLength={POST_MAX_CHARS}
-        placeholder="说点什么…  (#标签 用空格分隔)"
+        placeholder="说点什么…"
         rows={3}
         className="w-full resize-none rounded-md border-0 p-0 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0"
-      />
-
-      <input
-        name="tags"
-        placeholder="标签：求助 内推 组队 (空格分隔，最多 5 个)"
-        className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm placeholder:text-zinc-400 focus:border-zinc-400 focus:bg-white focus:outline-none"
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
