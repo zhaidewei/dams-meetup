@@ -29,6 +29,7 @@ export type ScreenModeState = {
   qa_host_user_id: string | null
   qa_host_name: string | null
   qa_host_title: string | null
+  lottery_draw_id: number | null
 }
 
 // 读 screen_mode + 可能伴随的 host 信息。一次查询即够 — /screen 顶层 fetch。
@@ -37,13 +38,19 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const { data } = await sb
     .from('event_state')
     .select(
-      'screen_mode, qa_host_user_id, host:users!qa_host_user_id ( vip_name, nickname, vip_title, company )',
+      'screen_mode, qa_host_user_id, lottery_draw_id, host:users!qa_host_user_id ( vip_name, nickname, vip_title, company )',
     )
     .eq('id', 1)
     .maybeSingle()
 
   if (!data) {
-    return { mode: 'default', qa_host_user_id: null, qa_host_name: null, qa_host_title: null }
+    return {
+      mode: 'default',
+      qa_host_user_id: null,
+      qa_host_name: null,
+      qa_host_title: null,
+      lottery_draw_id: null,
+    }
   }
 
   type HostRow = {
@@ -61,6 +68,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
     qa_host_user_id: (data.qa_host_user_id as string | null) ?? null,
     qa_host_name: host ? host.vip_name ?? host.nickname ?? null : null,
     qa_host_title: host ? host.vip_title ?? host.company ?? null : null,
+    lottery_draw_id: (data.lottery_draw_id as number | null) ?? null,
   }
 }
 

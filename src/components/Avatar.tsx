@@ -8,7 +8,7 @@ type Props = {
     is_vip: boolean
     vip_name: string | null
   }
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
   // 暗背景下使用（如 /screen），文字仍是白色但 ring 色变深。
   onDark?: boolean
 }
@@ -19,6 +19,8 @@ const SIZE_CLS: Record<NonNullable<Props['size']>, string> = {
   md: 'size-9 text-sm',
   lg: 'size-11 text-base',
   xl: 'size-16 text-2xl',
+  '2xl': 'size-32 text-5xl',
+  '3xl': 'size-56 text-8xl',
 }
 
 export function Avatar({ seed, user, size = 'md', onDark = false }: Props) {

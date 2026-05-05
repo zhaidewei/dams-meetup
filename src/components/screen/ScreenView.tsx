@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import type { ScreenQuestion } from '@/lib/queries/questions'
+import type { ScreenLotteryDraw } from '@/lib/queries/lottery'
 import type { ScreenModeState } from '@/lib/queries/event-state'
 import { fetchScreenData } from '@/lib/actions/screen'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -45,6 +46,7 @@ export function ScreenView({
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
   const [questions, setQuestions] = useState<ScreenQuestion[]>([])
+  const [lottery, setLottery] = useState<ScreenLotteryDraw | null>(null)
   const [online, setOnline] = useState(initialOnline)
   const [mode, setMode] = useState<ScreenModeState>(initialMode)
   const [now, setNow] = useState(() => Date.now())
@@ -64,6 +66,7 @@ export function ScreenView({
         if (cancelled) return
         setPosts(snap.posts)
         setQuestions(snap.questions)
+        setLottery(snap.lottery)
         setOnline(snap.online)
         setMode(snap.mode)
       } catch {
@@ -115,14 +118,14 @@ export function ScreenView({
 
   // Slot dispatch:
   //   1. screen_mode='qa'      → QA layout (admin-controlled, top priority)
-  //   2. screen_mode='lottery' → Lottery layout (placeholder until #8)
+  //   2. screen_mode='lottery' → Lottery animation + winner
   //   3. active polls          → cycle [poll0 30s, poll1 30s, ..., default 30s]
   //   4. default               → DefaultSlot
   let slot: SlotState
   if (mode.mode === 'qa') {
     slot = { kind: 'qa' }
-  } else if (mode.mode === 'lottery') {
-    slot = { kind: 'default' } // TODO: replace with LotterySlot in task #8
+  } else if (mode.mode === 'lottery' && lottery) {
+    slot = { kind: 'lottery', draw: lottery }
   } else if (activePolls.length === 0) {
     slot = { kind: 'default' }
   } else {
@@ -146,6 +149,8 @@ export function ScreenView({
       <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-hidden px-10 pb-6">
         {slot.kind === 'qa' ? (
           <QaSlot mode={mode} questions={questions} qrSlot={qrSlot} password={password} />
+        ) : slot.kind === 'lottery' ? (
+          <LotterySlot draw={slot.draw} now={now} />
         ) : slot.kind === 'poll' ? (
           <PollSlot post={slot.post} now={now} qrSlot={qrSlot} password={password} />
         ) : (
@@ -164,6 +169,7 @@ export function ScreenView({
 type SlotState =
   | { kind: 'default' }
   | { kind: 'qa' }
+  | { kind: 'lottery'; draw: ScreenLotteryDraw }
   | { kind: 'poll'; post: FeedPost }
 
 // Default slot: skeleton view shown when no poll is taking over.
@@ -327,6 +333,97 @@ function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: stri
             {password}
           </p>
         </div>
+      )}
+    </div>
+  )
+}
+
+// Lottery animation: ~5s spin then settle on the (server-determined) winner.
+// Winner identity is fixed by the server; the animation is purely visual.
+const LOTTERY_SPIN_MS = 5_000
+
+function LotterySlot({ draw, now }: { draw: ScreenLotteryDraw; now: number }) {
+  // `now` ticks every 1s from the parent; we derive phase from it (pure render).
+  const startedAt = Date.parse(draw.created_at)
+  const phase: 'spinning' | 'settled' =
+    now - startedAt >= LOTTERY_SPIN_MS ? 'settled' : 'spinning'
+
+  // Faster cadence (80–500ms) is needed for the avatar swap during spin —
+  // 1s tick is too slow. Cell rotation lives in its own effect so it can
+  // schedule itself with a decelerating timer.
+  const [cellIdx, setCellIdx] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    function tick() {
+      if (cancelled) return
+      const elapsed = Date.now() - startedAt
+      if (elapsed >= LOTTERY_SPIN_MS) return
+      setCellIdx((i) => (i + 1) % Math.max(1, draw.pool_sample.length))
+      const t = Math.max(0, Math.min(1, elapsed / LOTTERY_SPIN_MS))
+      const interval = 80 + t * 420
+      timer = setTimeout(tick, interval)
+    }
+
+    if (Date.now() - startedAt < LOTTERY_SPIN_MS) {
+      timer = setTimeout(tick, 80)
+    }
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [draw.id, startedAt, draw.pool_sample.length])
+
+  const current =
+    phase === 'settled'
+      ? draw.winner
+      : draw.pool_sample[cellIdx % Math.max(1, draw.pool_sample.length)] ?? draw.winner
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-8">
+      <div className="inline-flex items-center gap-3 rounded-full bg-amber-500/20 px-5 py-2 ring-1 ring-amber-500/40">
+        <span className="text-base font-semibold text-amber-200">
+          {phase === 'spinning' ? '抽奖中…' : '🎉 中奖！'}
+        </span>
+        <span className="text-xs text-amber-300/80">池子 {draw.pool_sample.length}+ 人</span>
+      </div>
+
+      <div
+        className={
+          'rounded-3xl p-12 ring-2 transition-all duration-500 ' +
+          (phase === 'settled'
+            ? 'scale-110 bg-amber-500/20 ring-amber-400 shadow-[0_0_120px_rgba(251,191,36,0.5)]'
+            : 'bg-zinc-900/60 ring-zinc-700')
+        }
+      >
+        <div className="flex flex-col items-center gap-6">
+          <div className={phase === 'spinning' ? 'animate-pulse' : ''}>
+            <Avatar seed={current.id} user={current} size="3xl" onDark />
+          </div>
+          <div className="text-center">
+            <p className="text-6xl font-bold leading-tight text-white">{displayName(current)}</p>
+            {displayMeta(current) && (
+              <p className="mt-3 text-2xl text-zinc-300">{displayMeta(current)}</p>
+            )}
+            {current.is_vip && (
+              <p className="mt-3">
+                <span className="rounded-full bg-amber-500/30 px-3 py-1 text-base font-semibold text-amber-200">
+                  嘉宾
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {phase === 'settled' && (
+        <p className="text-lg text-zinc-400">
+          {draw.rules.must_have_posted && '已发帖 · '}
+          {draw.rules.exclude_previous_winners && '首次中奖'}
+        </p>
       )}
     </div>
   )

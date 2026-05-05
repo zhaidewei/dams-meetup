@@ -44,7 +44,21 @@ export type EventStateRow = {
   override_until: string | null
   screen_mode: ScreenMode
   qa_host_user_id: string | null
+  lottery_draw_id: number | null
   updated_at: string
+}
+
+export type LotteryRules = {
+  must_have_posted: boolean
+  exclude_previous_winners: boolean
+}
+
+export type LotteryDrawRow = {
+  id: number
+  rules: LotteryRules
+  pool_user_ids: string[]
+  winner_user_id: string
+  created_at: string
 }
 
 // match_intent moved to its own table (migration 0011) so it cannot leak via

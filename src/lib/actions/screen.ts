@@ -3,6 +3,7 @@
 import { getServerSupabase } from '@/lib/supabase/server'
 import { fetchFeed, type FeedPost } from '@/lib/queries/posts'
 import { fetchQuestionsForHost, type ScreenQuestion } from '@/lib/queries/questions'
+import { fetchLotteryDraw, type ScreenLotteryDraw } from '@/lib/queries/lottery'
 import { getScreenModeState, type ScreenModeState } from '@/lib/queries/event-state'
 import { isSectionId, type SectionId } from '@/lib/sections'
 
@@ -14,6 +15,7 @@ const ONLINE_WINDOW_MS = 5 * 60 * 1000
 export type ScreenSnapshot = {
   posts: FeedPost[]
   questions: ScreenQuestion[]
+  lottery: ScreenLotteryDraw | null
   online: number
   mode: ScreenModeState
   serverNow: number
@@ -32,13 +34,19 @@ export async function fetchScreenData(section?: string | null): Promise<ScreenSn
     getScreenModeState(),
   ])
 
-  const questions = mode.mode === 'qa' && mode.qa_host_user_id
-    ? await fetchQuestionsForHost(mode.qa_host_user_id)
-    : []
+  const [questions, lottery] = await Promise.all([
+    mode.mode === 'qa' && mode.qa_host_user_id
+      ? fetchQuestionsForHost(mode.qa_host_user_id)
+      : Promise.resolve([] as ScreenQuestion[]),
+    mode.mode === 'lottery' && mode.lottery_draw_id
+      ? fetchLotteryDraw(mode.lottery_draw_id)
+      : Promise.resolve(null as ScreenLotteryDraw | null),
+  ])
 
   return {
     posts,
     questions,
+    lottery,
     online: onlineRes.count ?? 0,
     mode,
     serverNow: Date.now(),
