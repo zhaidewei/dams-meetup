@@ -18,6 +18,10 @@ type Props = {
   vipName: string | null
   vipTitle: string | null
   section: SectionId
+  // issue #34: 用户是否已同意把内容发给 DeepSeek 处理。
+  // false → 在 AI 撮合 box 里追加一个 checkbox，必须勾选才能发送 intent。
+  // true  → checkbox 不渲染，已是常态。
+  aiConsentGiven: boolean
 }
 
 // IMPORTANT: textareas here are intentionally uncontrolled.
@@ -45,6 +49,7 @@ export function PostComposer({
   vipName,
   vipTitle,
   section,
+  aiConsentGiven,
 }: Props) {
   const [state, formAction, isPending] = useActionState(createPostAction, initial)
   const [identityOpen, setIdentityOpen] = useState(false)
@@ -214,6 +219,19 @@ export function PostComposer({
               <span className={matchRemaining < 0 ? 'text-red-600' : ''}>{matchRemaining}</span>
             </div>
           </div>
+          {!aiConsentGiven && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-blue-300 bg-white/80 px-2.5 py-2 text-[12px] text-blue-900">
+              <input
+                type="checkbox"
+                name="ai_consent"
+                className="mt-0.5 size-4 shrink-0 accent-blue-600"
+              />
+              <span>
+                我同意把<span className="font-medium">这条需求</span>以及我在此次活动里的
+                <span className="font-medium">公开发帖</span>发给 DeepSeek API 处理（用于撮合）。同意一次后不再询问。
+              </span>
+            </label>
+          )}
         </div>
       )}
 
