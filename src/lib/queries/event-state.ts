@@ -29,10 +29,13 @@ export type ScreenModeState = {
   qa_host_user_id: string | null
   qa_host_name: string | null
   qa_host_title: string | null
+  // 本轮 QA 绑定的板块（startQa 时快照 LIVE section）；null = 不绑定。
+  qa_section: SectionId | null
   // 上一轮 QA 的 host（exit 时归档），给 /feed 塌陷区块用；
   // 当 mode='qa' 时这俩字段不应该被用（用 qa_host_* 即可）。
   last_qa_host_user_id: string | null
   last_qa_host_name: string | null
+  last_qa_section: SectionId | null
   lottery_draw_id: number | null
 }
 
@@ -42,7 +45,8 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const { data } = await sb
     .from('event_state')
     .select(
-      `screen_mode, qa_host_user_id, last_qa_host_user_id, lottery_draw_id,
+      `screen_mode, qa_host_user_id, qa_section,
+       last_qa_host_user_id, last_qa_section, lottery_draw_id,
        host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
        last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
     )
@@ -55,8 +59,10 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
       qa_host_user_id: null,
       qa_host_name: null,
       qa_host_title: null,
+      qa_section: null,
       last_qa_host_user_id: null,
       last_qa_host_name: null,
+      last_qa_section: null,
       lottery_draw_id: null,
     }
   }
@@ -74,13 +80,17 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const lastHost = Array.isArray(lastHostRel) ? lastHostRel[0] ?? null : lastHostRel ?? null
 
   const mode = (data.screen_mode as ScreenMode) ?? 'default'
+  const qaSectionRaw = data.qa_section as string | null
+  const lastQaSectionRaw = data.last_qa_section as string | null
   return {
     mode,
     qa_host_user_id: (data.qa_host_user_id as string | null) ?? null,
     qa_host_name: host ? host.vip_name ?? host.nickname ?? null : null,
     qa_host_title: host ? host.vip_title ?? host.company ?? null : null,
+    qa_section: isSectionId(qaSectionRaw) ? qaSectionRaw : null,
     last_qa_host_user_id: (data.last_qa_host_user_id as string | null) ?? null,
     last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
+    last_qa_section: isSectionId(lastQaSectionRaw) ? lastQaSectionRaw : null,
     lottery_draw_id: (data.lottery_draw_id as number | null) ?? null,
   }
 }
