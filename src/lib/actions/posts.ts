@@ -32,6 +32,14 @@ export async function createPostAction(
     return { error: `撮合需求不能超过 ${MATCH_INTENT_MAX_CHARS} 字` }
   }
   const matchIntent = matchIntentRaw.length > 0 ? matchIntentRaw : null
+  const aiConsentTicked = formData.get('ai_consent') === 'on'
+
+  // Consent gate (issue #34): match_intent only persists if the user has
+  // already consented OR is consenting on this submit via the ai_consent
+  // checkbox. No silent drops — surface a clear error so user can retry.
+  if (matchIntent && !user.ai_consent_at && !aiConsentTicked) {
+    return { error: '需要先勾选「同意把内容发给 DeepSeek 处理」才能委托 AI 撮合' }
+  }
 
   const sectionRaw = formData.get('section')
   const section = isSectionId(sectionRaw) ? sectionRaw : null
@@ -43,6 +51,12 @@ export async function createPostAction(
   if (nickname !== undefined) updates.nickname = nickname
   if (company !== undefined) updates.company = company
   if (contactHandle !== undefined) updates.contact_handle = contactHandle
+  // Grant consent inline only when actually using AI matching (matchIntent
+  // present). Ticking the checkbox without sending intent is a no-op — keeps
+  // the example behavior: 拒绝过的话再次发消息会再次询问.
+  if (matchIntent && aiConsentTicked && !user.ai_consent_at) {
+    updates.ai_consent_at = new Date().toISOString()
+  }
   await sb.from('users').update(updates).eq('id', user.id)
 
   const { data: inserted, error } = await sb

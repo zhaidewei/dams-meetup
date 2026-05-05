@@ -152,9 +152,15 @@ async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[
 }
 
 async function fetchProfiles(supabase: SupabaseClient) {
+  // issue #34: 只聚合已同意 AI 处理的用户的帖子。inner join + filter 保证
+  // 未同意者整片画像不进 prompt。candidates 路径无需重复 gate —
+  // intent 写入端（createPostAction）已经卡住未同意者。
   const { data, error } = await supabase
     .from('posts')
-    .select('user_id, body, tags, section, users:user_id (id, nickname, company, is_vip, vip_name, vip_title)')
+    .select(
+      'user_id, body, tags, section, users:user_id!inner (id, nickname, company, is_vip, vip_name, vip_title, ai_consent_at)',
+    )
+    .not('users.ai_consent_at', 'is', null)
     .order('created_at', { ascending: false })
     .limit(PROFILES_POST_LIMIT)
   if (error) throw new Error(`profiles query: ${error.message}`)

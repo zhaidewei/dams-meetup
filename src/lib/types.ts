@@ -14,6 +14,7 @@ export type UserRow = {
   created_at: string
   last_seen_at: string
   last_seen_me_at: string
+  ai_consent_at: string | null
 }
 
 export type PollOption = { id: number; label: string }

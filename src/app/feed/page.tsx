@@ -150,6 +150,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
             vipName={user.vip_name}
             vipTitle={user.vip_title}
             section={section}
+            aiConsentGiven={!!user.ai_consent_at}
           />
 
           {posts.length === 0 ? (
