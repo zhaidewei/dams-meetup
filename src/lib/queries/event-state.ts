@@ -29,6 +29,10 @@ export type ScreenModeState = {
   qa_host_user_id: string | null
   qa_host_name: string | null
   qa_host_title: string | null
+  // 上一轮 QA 的 host（exit 时归档），给 /feed 塌陷区块用；
+  // 当 mode='qa' 时这俩字段不应该被用（用 qa_host_* 即可）。
+  last_qa_host_user_id: string | null
+  last_qa_host_name: string | null
   lottery_draw_id: number | null
 }
 
@@ -38,7 +42,9 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const { data } = await sb
     .from('event_state')
     .select(
-      'screen_mode, qa_host_user_id, lottery_draw_id, host:users!qa_host_user_id ( vip_name, nickname, vip_title, company )',
+      `screen_mode, qa_host_user_id, last_qa_host_user_id, lottery_draw_id,
+       host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
+       last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
     )
     .eq('id', 1)
     .maybeSingle()
@@ -49,6 +55,8 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
       qa_host_user_id: null,
       qa_host_name: null,
       qa_host_title: null,
+      last_qa_host_user_id: null,
+      last_qa_host_name: null,
       lottery_draw_id: null,
     }
   }
@@ -59,8 +67,11 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
     vip_title: string | null
     company: string | null
   }
+  type LastHostRow = { vip_name: string | null; nickname: string | null }
   const hostRel = (data as { host?: HostRow | HostRow[] | null }).host
   const host = Array.isArray(hostRel) ? hostRel[0] ?? null : hostRel ?? null
+  const lastHostRel = (data as { last_host?: LastHostRow | LastHostRow[] | null }).last_host
+  const lastHost = Array.isArray(lastHostRel) ? lastHostRel[0] ?? null : lastHostRel ?? null
 
   const mode = (data.screen_mode as ScreenMode) ?? 'default'
   return {
@@ -68,6 +79,8 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
     qa_host_user_id: (data.qa_host_user_id as string | null) ?? null,
     qa_host_name: host ? host.vip_name ?? host.nickname ?? null : null,
     qa_host_title: host ? host.vip_title ?? host.company ?? null : null,
+    last_qa_host_user_id: (data.last_qa_host_user_id as string | null) ?? null,
+    last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
     lottery_draw_id: (data.lottery_draw_id as number | null) ?? null,
   }
 }

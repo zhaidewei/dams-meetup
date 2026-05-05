@@ -89,20 +89,29 @@ export async function startQaAction(
 }
 
 // 退出 QA / lottery，回到 default 骨架。
+// QA 结束时把当前 host 搬到 last_qa_host_user_id，给 /feed「上一轮 QA」
+// 塌陷区块用。lottery 结束不做归档（中奖人由 lottery_draws 表保留）。
 export async function exitScreenModeAction(): Promise<{ error: string | null }> {
   if (!(await readAdminCookie())) return { error: '未授权' }
 
   const sb = getServerSupabase()
-  const { error } = await sb
+  const { data: cur } = await sb
     .from('event_state')
-    .update({
-      screen_mode: 'default',
-      qa_host_user_id: null,
-      lottery_draw_id: null,
-      updated_at: new Date().toISOString(),
-    })
+    .select('screen_mode, qa_host_user_id')
     .eq('id', 1)
+    .maybeSingle()
 
+  const updates: Record<string, unknown> = {
+    screen_mode: 'default',
+    qa_host_user_id: null,
+    lottery_draw_id: null,
+    updated_at: new Date().toISOString(),
+  }
+  if (cur?.screen_mode === 'qa' && cur.qa_host_user_id) {
+    updates.last_qa_host_user_id = cur.qa_host_user_id
+  }
+
+  const { error } = await sb.from('event_state').update(updates).eq('id', 1)
   if (error) return { error: error.message }
   revalidatePath('/screen')
   revalidatePath('/feed')

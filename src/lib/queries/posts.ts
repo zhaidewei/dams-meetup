@@ -49,7 +49,13 @@ export type FeedPost = PostRow & {
 
 export async function fetchFeed(
   viewerId: string,
-  opts: { limit?: number; authorId?: string; section?: SectionId } = {},
+  opts: {
+    limit?: number
+    authorId?: string
+    section?: SectionId
+    // QA: 拉某 host 的全部 question 帖（绕过 section filter）。
+    questionTargetUserId?: string
+  } = {},
 ): Promise<FeedPost[]> {
   const sb = getServerSupabase()
   const limit = opts.limit ?? 100
@@ -59,7 +65,7 @@ export async function fetchFeed(
     .select(
       `id, user_id, type, body, tags, show_contact, section,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
-       question_target_user_id,
+       question_target_user_id, answered_at,
        created_at,
        author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
        replies (
@@ -72,7 +78,16 @@ export async function fetchFeed(
     .limit(limit)
 
   if (opts.authorId) postsQuery = postsQuery.eq('user_id', opts.authorId)
-  if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
+  if (opts.questionTargetUserId) {
+    // QA 模式：只要这个 host 的 question 帖。section/type 都不限。
+    postsQuery = postsQuery
+      .eq('type', 'question')
+      .eq('question_target_user_id', opts.questionTargetUserId)
+  } else {
+    // 常规 timeline / /me：question 帖走独立区块（/feed 的 QA 区），不进 section feed。
+    postsQuery = postsQuery.in('type', ['text', 'poll'])
+    if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
+  }
 
   const [postsRes, likesRes, votesRes] = await Promise.all([
     postsQuery,
