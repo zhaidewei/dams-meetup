@@ -77,6 +77,7 @@ export async function startQaAction(
     .update({
       screen_mode: 'qa',
       qa_host_user_id: hostUserId,
+      lottery_draw_id: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', 1)
