@@ -45,6 +45,10 @@ export type FeedPost = PostRow & {
   poll_total_votes?: number
   poll_option_counts?: Record<number, number>
   poll_my_vote_options?: number[]
+  // Author-only: the match_intent text the post author privately filled.
+  // Populated only when row.user_id === viewerId (see mapping below) so it
+  // never reaches a non-author client.
+  match_intent?: string | null
 }
 
 export async function fetchFeed(
@@ -94,6 +98,27 @@ export async function fetchFeed(
     sb.from('likes').select('post_id, user_id'),
     sb.from('poll_votes').select('post_id, user_id, option_id'),
   ])
+
+  // Pull match_intent only for the viewer's own posts (post_match_intents has
+  // no anon RLS policy; service_role here can read all). Restricting the IN
+  // list to viewer-authored ids ensures the value never reaches a non-author.
+  const myPostIds = (postsRes.data ?? [])
+    .filter((r) => r.user_id === viewerId)
+    .map((r) => r.id as number)
+  const intentByPost = new Map<number, string>()
+  if (myPostIds.length > 0) {
+    const { data: intentRows, error: intentErr } = await sb
+      .from('post_match_intents')
+      .select('post_id, intent')
+      .in('post_id', myPostIds)
+    if (intentErr) {
+      console.error('fetchFeed match_intent error:', intentErr)
+    } else {
+      for (const row of intentRows ?? []) {
+        intentByPost.set(row.post_id as number, row.intent as string)
+      }
+    }
+  }
 
   if (postsRes.error) {
     console.error('fetchFeed posts error:', postsRes.error)
@@ -172,6 +197,7 @@ export async function fetchFeed(
       reply_count: replies.length,
       like_count: likeCounts.get(row.id as number) ?? 0,
       liked_by_me: viewerLikes.has(row.id as number),
+      match_intent: isPostAuthor ? (intentByPost.get(row.id as number) ?? null) : null,
     } as FeedPost
     if (row.type === 'poll') {
       const agg = pollAgg.get(row.id as number)

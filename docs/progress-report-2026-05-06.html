@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DAMS Meetup #14 互动 App · 进度汇报（5/6）</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-faint: #a1a1aa;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --bg: #fafafa;
+    --bg-card: #ffffff;
+    --bg-soft: #f4f4f5;
+    --accent: #0c4a6e;
+    --accent-soft: #e0f2fe;
+    --done: #047857;
+    --done-soft: #d1fae5;
+    --progress: #b45309;
+    --progress-soft: #fef3c7;
+    --planned: #71717a;
+    --planned-soft: #f4f4f5;
+    --warn: #b91c1c;
+    --warn-soft: #fee2e2;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.65;
+    font-size: 15px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; }
+  header.report-head {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px; margin-bottom: 32px;
+  }
+  header.report-head h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.01em; }
+  header.report-head .meta { color: var(--text-muted); font-size: 14px; margin: 0; }
+  header.report-head .repo { margin-top: 8px; font-size: 14px; }
+  header.report-head .repo a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
+  section { margin-bottom: 36px; }
+  section > h2 {
+    font-size: 19px;
+    margin: 0 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  section > h2 .num { color: var(--text-faint); font-weight: 500; margin-right: 8px; }
+  h3 { font-size: 15px; margin: 20px 0 8px; }
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--bg-soft);
+    padding: 2px 5px; border-radius: 4px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card + .card { margin-top: 12px; }
+  .card h3 { margin-top: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  table {
+    width: 100%; border-collapse: collapse; font-size: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  th, td {
+    text-align: left; padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  th { background: var(--bg-soft); font-weight: 600; font-size: 13px; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 500; line-height: 1.6;
+    white-space: nowrap;
+  }
+  .badge-done { background: var(--done-soft); color: var(--done); }
+  .badge-progress { background: var(--progress-soft); color: var(--progress); }
+  .badge-planned { background: var(--planned-soft); color: var(--planned); }
+  .badge-warn { background: var(--warn-soft); color: var(--warn); }
+
+  .tldr {
+    background: var(--accent-soft);
+    border: 1px solid #bae6fd;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+  }
+  .tldr h2 {
+    margin: 0 0 8px; font-size: 13px; font-weight: 600;
+    color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em;
+    border: none; padding: 0;
+  }
+  .tldr ul { margin: 0; padding-left: 20px; }
+  .tldr li { margin-bottom: 4px; }
+
+  .flow {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    font-size: 14px;
+  }
+  .flow .role {
+    display: inline-block;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 12px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px; margin-bottom: 8px;
+  }
+  .flow .steps {
+    display: flex; flex-wrap: wrap; gap: 6px 0;
+    align-items: center; font-size: 13px; color: var(--text);
+  }
+  .flow .step {
+    background: var(--bg-soft); padding: 4px 8px; border-radius: 6px;
+    border: 1px solid var(--border-strong);
+  }
+  .flow .arrow { color: var(--text-faint); margin: 0 6px; }
+
+  .mermaid { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }
+
+  .question-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+  }
+  .question-card .q-title { font-weight: 600; font-size: 14px; margin: 0 0 4px; }
+  .question-card .q-body { font-size: 13.5px; color: var(--text-muted); margin: 0; }
+
+  .ascii {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    background: var(--bg-soft);
+    padding: 12px 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .doc-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-list a {
+    display: inline-block;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-card);
+    color: var(--text);
+    padding: 6px 12px; border-radius: 6px;
+    font-size: 13px; text-decoration: none;
+    font-family: ui-monospace, monospace;
+  }
+  .doc-list a:hover { background: var(--bg-soft); }
+
+  .footnote { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="report-head">
+  <h1>DAMS Meetup #14 互动 App</h1>
+  <p class="meta">技术进度汇报 · 2026-05-06 · 距活动开始 3 天 · 首版 2026-04-27 · 上一版 <a href="progress-report-2026-04-27.html" style="color: var(--text-muted);">5/3 傍晚</a></p>
+  <p class="repo">仓库：<a href="https://github.com/zhaidewei/repos/dams-meetup" target="_blank" rel="noopener">github.com/zhaidewei/dams-meetup</a> · 生产域名：<a href="https://live.nl-dams.com" target="_blank" rel="noopener">live.nl-dams.com</a></p>
+</header>
+
+<div class="tldr">
+  <h2>TL;DR · 2026-05-06</h2>
+  <ul>
+    <li><strong>生产已上线</strong> — <a href="https://live.nl-dams.com" target="_blank" rel="noopener">live.nl-dams.com</a> on Cloudflare Workers，朋友 CF 账户托管 zone <code>nl-dams.com</code>，Workers Builds 接 GitHub 自动部署</li>
+    <li><strong>AI 撮合端到端跑通</strong> — Edge Function + DeepSeek + pg_cron 全部 deploy；issue #34 加显式 consent gate（公开发帖聚合 + 私下需求两路都门票化）</li>
+    <li><strong>/screen 演化为主办方控制台</strong>（issue #18 / #19 / #27）— admin console 切 LIVE 板块、切 screen_mode（default / qa / lottery）、控 QA host、抽奖；状态机以 <code>event_state</code> 单行表为 container</li>
+    <li><strong>QA 模式 + lottery 模式落地</strong> — QA host 切换 + 已答归档（issue #29），抽奖规则配置 + 全屏揭晓（issue #16）</li>
+    <li><strong>「公共讨论区」lounge 板块</strong>（issue #32）— 无时间窗永远开放，活动外/空档默认进入</li>
+    <li><strong>UI 大改造</strong> — Lu.ma-lite 风（lucide 图标 + EventHero）+ 联系方式从帖子搬到人（点头像 UserCard popover）+ indigo → blue 主调</li>
+    <li><strong>剩余风险窗口 3 天</strong> — 仍待：实测 200 并发、VIP 密码批量导入、现场分工兜底、隐私公告 onboarding 文案</li>
+  </ul>
+</div>
+
+<div class="tldr" style="background: var(--warn-soft); border-color: #fecaca;">
+  <h2 style="color: var(--warn);">自上一版（5/3 傍晚）以来的更新</h2>
+  <ul>
+    <li><strong>5/6 · AI consent (issue #34)</strong> — <code>users.ai_consent_at</code> 一列同时管两路；inline checkbox 嵌在 PostComposer，piggyback 在 post submit；后端 <code>fetchProfiles</code> inner join 过滤未同意者</li>
+    <li><strong>5/6 · lounge 公共讨论区 (issue #32)</strong> — 第 5 个板块，无时间窗</li>
+    <li><strong>5/5 · CF 部署切朋友账户 (PR #31)</strong> — pin <code>account_id</code> + custom_domain；Workers Builds 接 GitHub 自动 build；朋友账户 role 需 <code>Workers Admin</code> + <code>Administrator Read Only</code></li>
+    <li><strong>5/4 → 5/5 · /screen 主办方控制台 (issue #19)</strong> — admin cookie 守门，侧边栏切板块 / screen_mode / QA host</li>
+    <li><strong>5/4 → 5/5 · /screen 大改版 (issue #27)</strong> — 焦点帖 + 网格 layout，max-width 1400px</li>
+    <li><strong>5/4 · QA 已答归档 (issue #29 / #37)</strong> — admin 标已答从 rotation 移除，<code>/feed</code> 折叠归档；某板块下入口缺失 bug 修复</li>
+    <li><strong>5/4 · 抽奖功能 (issue #16)</strong> — 规则配置 + 抽 + 全屏揭晓</li>
+    <li><strong>5/4 · UserCard popover</strong> — 联系方式从帖子搬到人，点头像看资料/复制/DM (issue #24)；删 <code>/me</code>「有人想找你」面板</li>
+    <li><strong>5/3 → 5/4 · UI 大改造</strong> — Lu.ma-lite 风（indigo + lucide + EventHero）；后续切 indigo → blue (PR #33)</li>
+    <li><strong>5/3 → 5/4 · issue #18 系列铺底</strong> — Header 红点合并、板块上下文条、/me 重排、onboarding 提示、PostComposer 折叠减负</li>
+    <li><strong>5/3 → 5/4 · DM 整段对话 hard delete</strong> — 任一方都可</li>
+  </ul>
+</div>
+
+<section>
+  <h2><span class="num">§1</span>项目背景</h2>
+  <div class="card">
+    <p><strong>目标场景</strong>：2026-05-09 12:45–18:00（Europe/Amsterdam），200–300 名荷兰华人数据从业者线下 meetup。</p>
+    <p><strong>核心价值</strong>：让参会者把"求助 / 组队 / 内推 / 观点 / Q&A"广播给全场 200 人，而不是只能跟身边 5 个人聊。配合 AI 撮合，主动推荐"应该跟谁聊"。</p>
+    <p><strong>边界</strong>：单场即弃，无多租户、无邮件基础设施。活动结束 7 天内可通过恢复链接登录看回顾。</p>
+    <p style="margin: 0;"><strong>已上线</strong>：自定义域名 <a href="https://live.nl-dams.com" target="_blank" rel="noopener"><code>live.nl-dams.com</code></a>，部署在朋友 Cloudflare 账户的 Workers + Supabase（数据 + Realtime + Edge Functions + pg_cron）。</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">§2</span>当前业务流</h2>
+
+  <div class="flow">
+    <span class="role">普通参会者</span>
+    <div class="steps">
+      <span class="step">扫 QR 进入</span><span class="arrow">→</span>
+      <span class="step">输活动密码</span><span class="arrow">→</span>
+      <span class="step">浏览 timeline（按 LIVE 板块或 lounge）</span><span class="arrow">→</span>
+      <span class="step">发帖（含 tags + 私下 AI 撮合委托）</span><span class="arrow">→</span>
+      <span class="step">点头像看 UserCard 复制联系方式 / DM</span><span class="arrow">→</span>
+      <span class="step">收到点赞 / 回复 / AI 推荐</span><span class="arrow">→</span>
+      <span class="step">/me 看自己状态</span>
+    </div>
+    <p class="footnote" style="margin-top: 8px;">
+      浏览器 UUID 即身份。换设备可走 <code>/me</code> 复制恢复链接 7 天内还原；首次委托 AI 撮合需勾选 consent（同意一次永不再问）。
+    </p>
+  </div>
+
+  <div class="flow">
+    <span class="role">嘉宾（VIP）</span>
+    <div class="steps">
+      <span class="step">vip-login（用户名+密码）</span><span class="arrow">→</span>
+      <span class="step">实名 + 职位自动展示</span><span class="arrow">+</span>
+      <span class="step">发起投票（单/多选 + 隐藏结果）</span><span class="arrow">+</span>
+      <span class="step">作为 QA host 接收提问</span>
+    </div>
+    <p class="footnote" style="margin-top: 8px;">
+      ~10 名嘉宾，主办方预录入用户名+密码。1 个嘉宾 token ↔ 1 个 user 行，跨设备登录共享同一身份。
+    </p>
+  </div>
+
+  <div class="flow">
+    <span class="role">主办方（admin）</span>
+    <div class="steps">
+      <span class="step">admin 密码登录</span><span class="arrow">→</span>
+      <span class="step">/screen 侧边栏控制台</span><span class="arrow">→</span>
+      <span class="step">切 LIVE 板块（lounge / p1 / p2 / breakout / panel）</span><span class="arrow">→</span>
+      <span class="step">切 screen_mode（default / qa / lottery）</span><span class="arrow">→</span>
+      <span class="step">控 QA host</span><span class="arrow">/</span>
+      <span class="step">抽奖</span>
+    </div>
+    <p class="footnote" style="margin-top: 8px;">
+      <code>event_state</code> 单行表做 state container；admin override 优先于板块时间窗自动切换。
+    </p>
+  </div>
+
+  <div class="flow">
+    <span class="role">现场主屏 / 投影</span>
+    <div class="steps">
+      <span class="step">/screen 路由</span><span class="arrow">→</span>
+      <span class="step">焦点帖 + 网格 layout</span><span class="arrow">→</span>
+      <span class="step">活动投票 / QA / 抽奖全屏接管</span><span class="arrow">→</span>
+      <span class="step">右下 QR + 在线人数</span>
+    </div>
+    <p class="footnote" style="margin-top: 8px;">
+      Realtime 触发刷新（Supabase broadcast）+ 60s 兜底 interval；max-width 1400px 防焦点散开。
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">§3</span>页面 / 模块状态</h2>
+  <table>
+    <thead>
+      <tr><th style="width: 22%;">模块</th><th style="width: 12%;">状态</th><th>说明 · 已知风险</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>/</code> 密码门</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>活动密码登录 + 恢复链接 <code>?u=&t=</code> 自动转 <code>/recover</code></td>
+      </tr>
+      <tr>
+        <td><code>/feed</code> 时间线</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>5 板块（lounge / p1 / p2 / breakout / panel）；PostComposer 含 AI 撮合折叠 + consent checkbox（首次）</td>
+      </tr>
+      <tr>
+        <td><code>/me</code> 我</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>资料编辑 / 恢复链接 / 我的帖子 / 收到的回复 / DM 入口（已删「有人想找你」面板，由头像 popover 替代）</td>
+      </tr>
+      <tr>
+        <td><code>/vip-login</code></td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>用户名+密码 ⇒ 实名嘉宾身份。明文密码（单场即弃）</td>
+      </tr>
+      <tr>
+        <td><code>/screen</code> 投影</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>焦点 + 网格 layout；Realtime 触发 + 60s 兜底；admin 侧边栏控板块 / mode / QA host / 抽奖</td>
+      </tr>
+      <tr>
+        <td><code>/agenda</code> 议程</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>Header 议程导航；4 板块时间窗 + lounge 永远开放</td>
+      </tr>
+      <tr>
+        <td><strong>主办方控制台</strong>（issue #19）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>admin cookie 守门；/screen 侧边栏一站式控制全场状态机</td>
+      </tr>
+      <tr>
+        <td>VIP 投票（poll）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>创建（单/多选/隐藏结果）+ 投票 + 改票 + 手动关闭（issue #17）</td>
+      </tr>
+      <tr>
+        <td>AI 撮合（F'' 方案）</td>
+        <td><span class="badge badge-done">DEPLOYED</span></td>
+        <td>
+          Edge Function + DeepSeek + pg_cron 5min + match_runs 日志全部上线；
+          issue #34 加显式 consent gate（<code>users.ai_consent_at</code>）。
+          <br/><strong>剩余</strong>：观测一次 success 行（需积累 ≥3 条 intent）。
+        </td>
+      </tr>
+      <tr>
+        <td>QA 模式（issue #29 / #37）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>screen_mode='qa' 接管大屏；admin 切 host；标已答归档；提问按 like 排序</td>
+      </tr>
+      <tr>
+        <td>抽奖模式（issue #16）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>规则（必须发过帖 / 排除往期得奖者）+ 抽 + 全屏揭晓</td>
+      </tr>
+      <tr>
+        <td>站内信（DM, issue #14）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>1-on-1 对话；任一方可整段 hard delete；联系方式 reveal 已删（统一走 UserCard popover）</td>
+      </tr>
+      <tr>
+        <td>UserCard popover（issue #24）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>点头像出资料 + 联系方式（如对方公开）+ 复制 + DM；联系方式从帖子搬到人</td>
+      </tr>
+      <tr>
+        <td>Realtime 实时刷新（issue #7）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>feed/me/screen 全接；<code>match_intent</code> 物理隔离到独立表 <code>post_match_intents</code> 不进 publication</td>
+      </tr>
+      <tr>
+        <td>iPhone Chrome hydration 修复</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>所有写操作走 form action progressive enhancement；<code>&lt;html suppressHydrationWarning&gt;</code></td>
+      </tr>
+      <tr>
+        <td>UI 主调（issue #25 / PR #33）</td>
+        <td><span class="badge badge-done">DONE</span></td>
+        <td>Lu.ma-lite 风（lucide + EventHero + 字母头像）；indigo → blue</td>
+      </tr>
+      <tr>
+        <td>CF Workers 部署</td>
+        <td><span class="badge badge-done">LIVE</span></td>
+        <td><a href="https://live.nl-dams.com" target="_blank" rel="noopener">live.nl-dams.com</a>；朋友 CF 账户托管 zone；Workers Builds 自动 deploy</td>
+      </tr>
+      <tr>
+        <td>测试 / 文档</td>
+        <td><span class="badge badge-done">42/42</span></td>
+        <td>vitest 全过；docs/ 五篇 + 滚动 progress.md</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="num">§4</span>架构概览</h2>
+  <div class="mermaid">
+graph LR
+  Browser["浏览器<br/>(uid + pw cookie)"] -->|HTTPS| CF["Cloudflare Workers<br/>(live.nl-dams.com)"]
+  CF -->|service_role key| Supa[("Supabase Postgres")]
+  Browser -.->|anon key 只读 Realtime| Supa
+  Cron[("pg_cron 5min")] --> Edge["Edge Function 'match'<br/>DeepSeek 撮合"]
+  Edge -->|consent gate| Supa
+  Admin["admin cookie"] --> CF
+  </div>
+
+  <div class="grid-2" style="margin-top: 16px;">
+    <div class="card">
+      <h3>关键决策</h3>
+      <ul style="margin-bottom: 0;">
+        <li><strong>无 Auth</strong>：浏览器 UUID + cookie 即身份。降低参与摩擦</li>
+        <li><strong>服务端写 + 公开 RLS 读</strong>：所有写经 Server Actions（service_role），客户端 anon key 只做 Realtime 订阅</li>
+        <li><strong>恢复链接</strong>：每个 user 行有 recovery_token，URL 形式跨设备 7 天内换回身份</li>
+        <li><strong>VIP 跨设备一致</strong>：1 vip_token ↔ 1 user 行</li>
+        <li><strong>撮合方案 F''</strong>：发帖时附暗字段，AI 以 reply 形式内联回复</li>
+        <li><strong>AI consent (issue #34)</strong>：用户首次委托 AI 时显式同意，门票化两路数据流</li>
+        <li><strong>状态机 in <code>event_state</code></strong>：单行表（id=1）做 state container，admin 通过控制台改</li>
+        <li><strong>iPhone Chrome 抗坑</strong>：所有写操作走 form action progressive enhancement</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>技术栈</h3>
+      <ul style="margin-bottom: 0;">
+        <li>Next.js 16.2.4（App Router · Server Components · Server Actions · Turbopack）</li>
+        <li>Supabase（Postgres + Realtime + Edge Functions + pg_cron）</li>
+        <li>Cloudflare Workers via @opennextjs/cloudflare</li>
+        <li>TypeScript · Tailwind v4 · Vitest · lucide-react</li>
+        <li>DeepSeek（撮合 LLM）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">§5</span>下一步规划（活动倒计时 3 天）</h2>
+
+  <table>
+    <thead>
+      <tr><th style="width: 8%;">优先级</th><th style="width: 30%;">任务</th><th style="width: 14%;">预估</th><th>关键风险 / 决策</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>P0</td>
+        <td>match Edge Function 端到端跑通验证</td>
+        <td>0.5 天</td>
+        <td>已 deploy + cron 接好；缺 ≥3 条暗需求触发；admin <code>?force=&lt;ADMIN_TOKEN&gt;</code> 也可手动触发；观测 <code>match_runs</code> 出 success 行</td>
+      </tr>
+      <tr>
+        <td>P0</td>
+        <td>200 并发压力 + 现场 WiFi 抖动测试</td>
+        <td>1 天</td>
+        <td>主要看 Realtime 200 connection 上限 / Workers cold start / Supabase pooler；移动端窄屏 UX 复盘</td>
+      </tr>
+      <tr>
+        <td>P0</td>
+        <td>VIP 密码批量导入流程</td>
+        <td>0.5 天</td>
+        <td>主办方好用 + 不出错为先；CLI 小工具或 SQL 模板</td>
+      </tr>
+      <tr>
+        <td>P1</td>
+        <td>隐私公告 / 知情同意文案</td>
+        <td>0.5 天</td>
+        <td>密码门或 onboarding 加一段说明：data 流向 DeepSeek（已 redact + consent）+ 数据保留策略；见 §7</td>
+      </tr>
+      <tr>
+        <td>P1</td>
+        <td>5/9 当天 3 个角色兜底分工</td>
+        <td>对齐</td>
+        <td>投影机操作 / 用户支持 / 监控 — 谁负责？提前演练一次</td>
+      </tr>
+      <tr>
+        <td>P1</td>
+        <td>多投票 + QA + 抽奖大屏轮播实测</td>
+        <td>0.5 天</td>
+        <td>screen_mode 切换 + 多投票 30s 轮播 + QA host 切换都未真测多场景同时跑</td>
+      </tr>
+      <tr>
+        <td>P2</td>
+        <td>onboarding 文案优化（首次进 lounge 的引导）</td>
+        <td>0.5 天</td>
+        <td>activity 当天前 30 分钟用户都在 lounge 等开场，首次体验决定留存</td>
+      </tr>
+      <tr>
+        <td>P2</td>
+        <td>主办方 admin console UX 走查</td>
+        <td>0.5 天</td>
+        <td>切板块 / 切 mode / 控 QA / 抽奖 — 主办方能不能盲操；keyboard shortcut？</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+    最坏情况：5/9 之前撮合不出推荐 → 用户该有的功能都有（DM + UserCard 联系方式），撮合 reply 不出现，不影响核心 UX。
+  </p>
+
+  <div class="card" style="margin-top: 16px; border-left: 3px solid var(--warn); background: #fffaf5;">
+    <h3 style="margin-top: 0;">⚠️ 3 天倒计时 · 仍待主办方拍板</h3>
+    <ol style="margin-bottom: 0;">
+      <li><strong>5/9 当天 3 个角色谁兜底？</strong> 投影机 / 用户支持 / 监控 — 提前演练</li>
+      <li><strong>隐私公告做不做？</strong> 现在已有 issue #34 显式 consent 兜底，但密码门或 onboarding 是否还要再加一层文案告知？</li>
+      <li><strong>VIP 名单 + 密码</strong>由谁出 + 谁灌库？格式建议 CSV，由 admin 批量导入</li>
+      <li><strong>主屏开场 / 闭场动画</strong>要不要做？现状是直接进焦点帖 layout</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">§6</span>想要你们反馈的开放问题</h2>
+
+  <p style="background: var(--bg-soft); padding: 10px 14px; border-radius: 6px; font-size: 13.5px; color: var(--text-muted); margin-bottom: 16px;">
+    💡 这一节是<strong>开放讨论</strong>（设计层面）。已实施回答的旧问题（撮合方案 / Realtime / 隐私边界）已从清单中移除。
+  </p>
+
+  <div class="question-card">
+    <p class="q-title">Q1 · 撮合 prompt 的语气和精度</p>
+    <p class="q-body">
+      AI 应该多自信？"推荐 5 人" vs "你或许可以聊聊..."？理由要不要引用对方原帖？
+      推荐质量阈值多高 — 宁可少推也别推错（保守）vs 多撒网（激进）？
+    </p>
+  </div>
+
+  <div class="question-card">
+    <p class="q-title">Q2 · 投影主屏的内容编排节奏</p>
+    <p class="q-body">
+      现在是焦点帖 + 网格 + screen_mode 接管（QA / 投票 / 抽奖）。
+      切 mode 由 admin 触发（手动），还是按板块 schedule 自动？admin 漏切 mode 会怎样？
+    </p>
+  </div>
+
+  <div class="question-card">
+    <p class="q-title">Q3 · lounge 怎么用</p>
+    <p class="q-body">
+      lounge 现在是「永远开放、活动外默认」的兜底板块。开场前 30 分钟、breakout 中间 5 分钟茶歇、活动后社交时段，
+      lounge 该承担什么角色？要不要在大屏上单独提示 lounge 在线人数？
+    </p>
+  </div>
+
+  <div class="question-card">
+    <p class="q-title">Q4 · 活动当天的运营动作</p>
+    <p class="q-body">
+      VIP 提前导入示范帖？开场 5 分钟主屏播 onboarding 教程？
+      主屏 banner 引导文案？现场是否要有志愿者帮回答 app 问题？
+    </p>
+  </div>
+
+  <div class="question-card">
+    <p class="q-title">Q5 · 数据保留策略</p>
+    <p class="q-body">
+      活动结束 7 天恢复期之后，数据怎么处理？匿名化保留作回顾页？打包给参会者？
+      还是按 GDPR 走删除？
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">§7</span>设计澄清 · AI 撮合数据流（5/6 含 consent gate）</h2>
+
+  <div class="card">
+    <p>"AI 撮合是不是用 RAG 拿所有数据？"<br/>
+    答：<strong>不是 RAG，是"胖 prompt"</strong>——把候选池一次性塞进上下文让 LLM 自己挑。详见 <a href="matching-design.md" target="_blank">matching-design.md</a>。</p>
+
+    <h3>当前数据流（已 deploy）</h3>
+    <pre class="ascii">[每 5 min pg_cron 触发 Edge Function 'match']
+  ↓
+1. fetchCandidates: 从 post_match_intents 拉未生成 AI reply 的 post
+   （写入端 createPostAction 已 gate 在 ai_consent_at 上）
+2. fetchProfiles: posts inner join users where ai_consent_at IS NOT NULL
+   聚合最近 500 条帖成"画像"
+3. buildPrompt 拼装：
+   ┌─────────────────────────────────────────┐
+   │ ## 候选帖子（含暗需求）                  │
+   │  post_id=X | user_id | 板块 | body      │
+   │  暗需求: ...                             │
+   │                                          │
+   │ ## 全场用户画像                          │
+   │  user_id | display_name · affiliation   │
+   │  - [板块][tags] body 摘要               │
+   │  ... ×N                                 │
+   └─────────────────────────────────────────┘
+  ↓
+4. callDeepSeek → JSON [{post_id, user_id, reason}]
+5. INSERT INTO replies (is_ai=true, visibility='author_only',
+                        mentioned_user_id, body=reason)
+6. UPDATE match_runs SET status='success', ...</pre>
+
+    <h3>5/6 新增 · consent gate（issue #34）</h3>
+    <table style="margin-top: 8px;">
+      <thead>
+        <tr><th>关卡</th><th>实现</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>用户公开发帖被聚合成 AI 画像</td>
+          <td><span class="badge badge-done">consent 后才进</span> <code>fetchProfiles</code> inner join + <code>not is null</code></td>
+        </tr>
+        <tr>
+          <td>用户私下需求 (<code>match_intent</code>) 发 DeepSeek</td>
+          <td><span class="badge badge-done">consent 后才写</span> <code>createPostAction</code> 写 <code>post_match_intents</code> 前 double-check</td>
+        </tr>
+        <tr>
+          <td>UI 入口</td>
+          <td><span class="badge badge-done">inline checkbox</span> 嵌在 PostComposer AI 撮合 box 里，piggyback 在 post submit；同意一次永久记住，拒绝下次再问</td>
+        </tr>
+        <tr>
+          <td>Redact 兜底</td>
+          <td><span class="badge badge-done">仍生效</span> <code>redactContacts()</code> 邮箱/URL/≥10 数字 → <code>[已隐藏]</code></td>
+        </tr>
+        <tr>
+          <td>带空格手机号 / 微信号</td>
+          <td><span class="badge badge-warn">残余风险</span> 正则无法可靠捕获，consent 文案 + UI 提示作主防线</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top: 12px;"><strong>实际发往 DeepSeek 的字段</strong>：</p>
+    <ul style="margin-bottom: 0;">
+      <li><strong>candidate 帖（≤50 条）</strong>：post_id / user_id (UUID) / 板块 / body (redacted) / tags / 暗需求 (redacted)</li>
+      <li><strong>全场画像（≤500 条聚合，<strong>仅已同意者</strong>）</strong>：user_id / display_name (昵称或嘉宾实名) / affiliation (公司或职位) / 最近 5 条帖摘要 (redacted)</li>
+      <li><strong>不发</strong>：contact_handle、recovery_token、vip 密码、replies、likes、poll_votes、私信、时间戳</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">§8</span>5/4 → 5/6 commits 流水（去重）</h2>
+
+  <p style="font-size: 13.5px; color: var(--text-muted);">
+    上一版报告以 5/3 傍晚为时点。本表覆盖 5/4 → 5/6 三天产出（合并 PR / merge commit 已与所属 feat 去重）。
+  </p>
+
+  <table>
+    <thead>
+      <tr><th style="width: 22%;">主题</th><th style="width: 14%;">commit / PR</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>AI consent (issue #34)</strong></td>
+        <td><code>11b196a</code> · PR #40 · 5/6</td>
+        <td><code>users.ai_consent_at</code> + PostComposer inline checkbox + 后端两路 gate</td>
+      </tr>
+      <tr>
+        <td><strong>lounge 公共讨论区 (issue #32)</strong></td>
+        <td><code>918cd7c</code> · PR #38 · 5/6</td>
+        <td>第 5 个板块；migration 0018 放宽 CHECK 约束；admin 旋钮自动出现</td>
+      </tr>
+      <tr>
+        <td rowspan="2"><strong>UI 主调</strong></td>
+        <td><code>2710703</code> · PR #33 · 5/5</td>
+        <td>indigo → blue + 修 DM 气泡内文居中</td>
+      </tr>
+      <tr>
+        <td><code>3d7df25</code> · 5/4</td>
+        <td>Lu.ma-lite 风（indigo + lucide + EventHero）</td>
+      </tr>
+      <tr>
+        <td><strong>CF 部署切朋友账户</strong></td>
+        <td><code>05455b7</code> + <code>eb72e6e</code> · PR #31 · 5/5</td>
+        <td>pin <code>account_id</code> + custom_domain；Workers Builds 接 GitHub</td>
+      </tr>
+      <tr>
+        <td rowspan="3"><strong>/screen 主办方控制台</strong></td>
+        <td><code>1032ee1</code> · PR #28 · 5/4</td>
+        <td>issue #27 — /screen 大改版（焦点 + 网格 + max-width 1400px）</td>
+      </tr>
+      <tr>
+        <td><code>8e17be5</code> · 5/4</td>
+        <td>issue #19 — admin console（侧边栏切板块 / mode / QA / 抽奖）</td>
+      </tr>
+      <tr>
+        <td><code>81d5af9</code> · 5/4</td>
+        <td>/screen 加 section 切换 tab + 修切换不刷新</td>
+      </tr>
+      <tr>
+        <td rowspan="2"><strong>QA 模式</strong></td>
+        <td><code>ce5c39a</code> · PR #30 · 5/4</td>
+        <td>issue #29 — QA 已答归档（admin 标记 → 从 rotation 移除 → /feed 折叠）</td>
+      </tr>
+      <tr>
+        <td><code>58b0ee7</code> · PR #39 · 5/4</td>
+        <td>issue #37 — 某板块下 QA 入口缺失修复（独立 worktree）</td>
+      </tr>
+      <tr>
+        <td><strong>抽奖模式</strong></td>
+        <td>migration 0016 · 5/4</td>
+        <td>issue #16 — 规则 + 抽 + 全屏揭晓</td>
+      </tr>
+      <tr>
+        <td rowspan="2"><strong>UserCard popover</strong></td>
+        <td><code>9f379d0</code> · 5/4</td>
+        <td>联系方式从帖子搬到人 — 点头像看资料/复制/DM</td>
+      </tr>
+      <tr>
+        <td><code>f0c40a4</code> · 5/4</td>
+        <td>issue #24 — AI 撮合推荐对象可点头像看联系方式</td>
+      </tr>
+      <tr>
+        <td><strong>DM 收尾</strong></td>
+        <td><code>e38eed1</code> + <code>a2e94cb</code> · 5/4</td>
+        <td>整段 hard delete（任一方都可）+ 删 DM 联系方式 reveal（统一走 popover）</td>
+      </tr>
+      <tr>
+        <td rowspan="3"><strong>issue #18 系列铺底</strong></td>
+        <td><code>2de27a1</code> · 5/4</td>
+        <td>E/F — onboarding 提示 + PostComposer 折叠减负</td>
+      </tr>
+      <tr>
+        <td><code>e636b13</code> · 5/4</td>
+        <td>B/C/D — 板块 LIVE 标 + 上下文条 + /me 重排</td>
+      </tr>
+      <tr>
+        <td><code>4264e88</code> · 5/4</td>
+        <td>/me 折叠 + /screen 顶 bar/AdminBar 重塑 + 字母头像</td>
+      </tr>
+      <tr>
+        <td><strong>本次会话 (5/6)</strong></td>
+        <td>本汇报 + progress.md</td>
+        <td>更新 docs/progress.md（覆盖 4/26 → 5/6 决策叙事），新建本份 5/6 快照</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+    完整 commit 信息：<code>git log --first-parent main --since="2026-05-04 00:00:00"</code>。
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">§9</span>怎么参与</h2>
+
+  <div class="card">
+    <p><strong>仓库 public，PR 直接发</strong>。先扫这几篇文档建立背景：</p>
+    <div class="doc-list">
+      <a href="https://github.com/zhaidewei/dams-meetup/blob/main/CLAUDE.md" target="_blank" rel="noopener">CLAUDE.md</a>
+      <a href="https://github.com/zhaidewei/dams-meetup/blob/main/docs/architecture.md" target="_blank" rel="noopener">docs/architecture.md</a>
+      <a href="https://github.com/zhaidewei/dams-meetup/blob/main/docs/schema.md" target="_blank" rel="noopener">docs/schema.md</a>
+      <a href="https://github.com/zhaidewei/dams-meetup/blob/main/docs/dev-setup.md" target="_blank" rel="noopener">docs/dev-setup.md</a>
+      <a href="https://github.com/zhaidewei/dams-meetup/blob/main/docs/matching-design.md" target="_blank" rel="noopener">docs/matching-design.md</a>
+      <a href="https://github.com/zhaidewei/dams-meetup/blob/main/docs/progress.md" target="_blank" rel="noopener">docs/progress.md</a>
+    </div>
+
+    <h3 style="margin-top: 18px;">本地跑起来（约 5 分钟）</h3>
+    <pre class="ascii">git clone git@github.com:zhaidewei/dams-meetup.git
+cd dams-meetup
+npm install
+# 找 dewei 拿 Supabase / 活动密码 / DeepSeek 凭据
+npm run dev      # http://localhost:3000</pre>
+    <p class="footnote">凭据走 macOS Keychain（脚本 <code>scripts/dev.sh</code> 注入）；不写 <code>.env.local</code>。Linux/Win 需自己改注入方式。</p>
+
+    <h3 style="margin-top: 18px;">参与方式</h3>
+    <ul>
+      <li><strong>架构 / 业务流挑战</strong>：直接在 GitHub 开 Issue 讨论。希望挑战的都挑战。</li>
+      <li><strong>新功能 / 改动</strong>：fork → PR。小改动直接发，大改先开 Issue 对齐。</li>
+      <li><strong>不写代码也能贡献</strong>：填上面 §6 的问题反馈、当天运营点子、prompt 设计意见。</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+<script>
+  if (window.mermaid) { window.mermaid.initialize({ startOnLoad: true, theme: 'neutral' }); }
+</script>
+</body>
+</html>

@@ -205,6 +205,15 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
+      {isMine && post.match_intent && (
+        <div className="mt-3 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
+          <div className="mb-0.5 font-medium text-violet-800">
+            你想找 · 仅你可见
+          </div>
+          <p className="whitespace-pre-wrap text-violet-900">{post.match_intent}</p>
+        </div>
+      )}
+
       {isPoll && post.poll_options && (
         <PollCard
           postId={post.id}
