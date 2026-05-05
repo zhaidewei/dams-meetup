@@ -45,10 +45,21 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // Fire-and-forget; don't await on the render path.
   void touchLastSeen(user.id)
 
-  const [posts, unreadMe] = await Promise.all([
+  const qaHostId = modeState.mode === 'qa' ? modeState.qa_host_user_id : null
+
+  const [posts, unreadMe, qaQuestionsRaw] = await Promise.all([
     fetchFeed(user.id, { section }),
     fetchUnreadMe(user),
+    qaHostId
+      ? fetchFeed(user.id, { questionTargetUserId: qaHostId, limit: 50 })
+      : Promise.resolve([]),
   ])
+  // 大屏按 like_count desc 排，这里同步保持一致 — 观众点赞会让自己关心的问题顶上去。
+  const qaQuestions = [...qaQuestionsRaw].sort((a, b) => {
+    if (b.like_count !== a.like_count) return b.like_count - a.like_count
+    return b.created_at.localeCompare(a.created_at)
+  })
+
   const viewerCanDm = isNonAnon(user)
 
   return (
@@ -65,12 +76,31 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
         <div className="mt-4 space-y-4">
           <OnboardingBanner />
           {modeState.mode === 'qa' && modeState.qa_host_name && (
-            <QuestionComposer
-              hostName={modeState.qa_host_name}
-              hostTitle={modeState.qa_host_title}
-              defaultNickname={user.nickname}
-              defaultCompany={user.company}
-            />
+            <>
+              <QuestionComposer
+                hostName={modeState.qa_host_name}
+                hostTitle={modeState.qa_host_title}
+                defaultNickname={user.nickname}
+                defaultCompany={user.company}
+              />
+              {qaQuestions.length > 0 && (
+                <section className="space-y-2">
+                  <h2 className="px-1 text-sm font-semibold text-rose-700">
+                    向「{modeState.qa_host_name}」提问 · 按点赞排序
+                  </h2>
+                  <div className="space-y-3">
+                    {qaQuestions.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        viewerId={user.id}
+                        viewerCanDm={viewerCanDm}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
           )}
           <PostComposer
             defaultNickname={user.nickname}
