@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { Check } from 'lucide-react'
 import type { FeedPost } from '@/lib/queries/posts'
 import type { ScreenQuestion } from '@/lib/queries/questions'
 import type { ScreenLotteryDraw } from '@/lib/queries/lottery'
 import type { ScreenModeState } from '@/lib/queries/event-state'
 import { fetchScreenData } from '@/lib/actions/screen'
+import { setQuestionAnsweredAction } from '@/lib/actions/posts'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
 import { displayName, displayMeta } from '@/lib/display'
@@ -148,7 +150,14 @@ export function ScreenView({
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-hidden px-10 pb-6">
         {slot.kind === 'qa' ? (
-          <QaSlot mode={mode} questions={questions} qrSlot={qrSlot} password={password} />
+          // key 包含当前 host — 切轮次时 QaSlot 整个 remount，乐观隐藏 set 自动重置。
+          <QaSlot
+            key={mode.qa_host_user_id ?? 'no-host'}
+            mode={mode}
+            questions={questions}
+            qrSlot={qrSlot}
+            password={password}
+          />
         ) : slot.kind === 'lottery' ? (
           <LotterySlot draw={slot.draw} now={now} />
         ) : slot.kind === 'poll' ? (
@@ -441,8 +450,25 @@ function QaSlot({
   password: string
 }) {
   const hostName = mode.qa_host_name ?? '嘉宾'
-  const top = questions.slice(0, 5)
-  const ticker = questions.slice(5, 13)
+  // 乐观隐藏：admin 点完「✓」后立刻从大屏移除，无需等 Realtime 回灌。
+  // 父组件用 key={qa_host_user_id} 保证切轮次时 QaSlot remount，set 自动重置。
+  const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
+  const visible = questions.filter((q) => !answeredIds.has(q.id))
+  const top = visible.slice(0, 5)
+  const ticker = visible.slice(5, 13)
+  const [, startTransition] = useTransition()
+
+  function markAnswered(id: number) {
+    setAnsweredIds((s) => new Set(s).add(id))
+    startTransition(async () => {
+      const res = await setQuestionAnsweredAction(id, true)
+      if (res?.error) {
+        // 服务器拒了；不强制 rollback，避免与 Realtime 竞态 — 下一轮
+        // refresh 重新拉到原始 unanswered 列表后会自动出现。
+        console.error('mark answered failed:', res.error)
+      }
+    })
+  }
 
   return (
     <div className="grid h-full grid-cols-[1.1fr_1.4fr] gap-8">
@@ -476,9 +502,9 @@ function QaSlot({
       {/* Right: 问题列表 */}
       <div className="flex h-full min-h-0 flex-col gap-4">
         <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">
-          观众提问 · 共 {questions.length} 条 · 按点赞排序
+          观众提问 · 共 {visible.length} 条 · 按点赞排序
         </p>
-        {questions.length === 0 ? (
+        {visible.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60">
             <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>
           </div>
@@ -488,7 +514,7 @@ function QaSlot({
               {top.map((q, i) => (
                 <li
                   key={q.id}
-                  className="flex gap-4 rounded-2xl bg-zinc-900 px-6 py-4 ring-1 ring-zinc-800"
+                  className="group flex gap-4 rounded-2xl bg-zinc-900 px-6 py-4 ring-1 ring-zinc-800"
                 >
                   <span className="shrink-0 text-3xl font-bold tabular-nums text-zinc-600">
                     {i + 1}
@@ -507,6 +533,17 @@ function QaSlot({
                       </span>
                     </p>
                   </div>
+                  {/* admin 点选「这条已答」— /screen 已 admin-only，不会泄漏给观众。
+                      hover 时显眼一点，平时低存在感避免投影时干扰观看。 */}
+                  <button
+                    type="button"
+                    onClick={() => markAnswered(q.id)}
+                    aria-label="标记已答"
+                    title="标记已答"
+                    className="shrink-0 self-start rounded-lg p-2 text-zinc-600 opacity-50 transition-all hover:bg-emerald-500/20 hover:text-emerald-300 hover:opacity-100 group-hover:opacity-100"
+                  >
+                    <Check className="size-6" aria-hidden />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -517,9 +554,18 @@ function QaSlot({
                 </p>
                 <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-zinc-300">
                   {ticker.map((q) => (
-                    <li key={q.id} className="flex items-center gap-2 truncate">
+                    <li key={q.id} className="group flex items-center gap-2 truncate">
                       <span className="shrink-0 text-xs text-rose-400">❤{q.like_count}</span>
                       <span className="truncate">{q.body}</span>
+                      <button
+                        type="button"
+                        onClick={() => markAnswered(q.id)}
+                        aria-label="标记已答"
+                        title="标记已答"
+                        className="ml-auto shrink-0 rounded p-1 text-zinc-600 opacity-0 transition-all hover:bg-emerald-500/20 hover:text-emerald-300 group-hover:opacity-100"
+                      >
+                        <Check className="size-3.5" aria-hidden />
+                      </button>
                     </li>
                   ))}
                 </ul>

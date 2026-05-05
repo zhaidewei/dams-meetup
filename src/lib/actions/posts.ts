@@ -136,13 +136,15 @@ export async function createQuestionAction(
 
   const { data: state, error: stateErr } = await sb
     .from('event_state')
-    .select('screen_mode, qa_host_user_id')
+    .select('screen_mode, qa_host_user_id, qa_section')
     .eq('id', 1)
     .maybeSingle()
   if (stateErr) return { error: stateErr.message }
   if (!state || state.screen_mode !== 'qa' || !state.qa_host_user_id) {
     return { error: 'QA 已经结束了' }
   }
+  // qa_section 是 startQa 时快照的板块；空表示不绑定（活动外启动）。
+  const questionSection = isSectionId(state.qa_section) ? state.qa_section : null
 
   // Identity updates: nickname / company optional; questions are usually
   // posted with whatever identity the user has. Match createPostAction's
@@ -162,7 +164,7 @@ export async function createQuestionAction(
     body,
     tags: [],
     show_contact: false,
-    section: null,
+    section: questionSection,
     question_target_user_id: state.qa_host_user_id,
   })
   if (error) return { error: error.message }
@@ -193,32 +195,6 @@ export async function setQuestionAnsweredAction(
 
   if (error) return { error: error.message }
   if (!data) return { error: '没找到这条提问' }
-
-  revalidatePath('/feed')
-  revalidatePath('/screen')
-  return { error: null }
-}
-
-// 批量标记当前 QA host 的所有未答问题为已答 — 切换轮次时清场。
-export async function markAllCurrentQaAnsweredAction(): Promise<PostMutationResult> {
-  if (!(await readAdminCookie())) return { error: '未授权' }
-
-  const sb = getServerSupabase()
-  const { data: state } = await sb
-    .from('event_state')
-    .select('qa_host_user_id')
-    .eq('id', 1)
-    .maybeSingle()
-  if (!state?.qa_host_user_id) return { error: '当前没有进行中的 QA' }
-
-  const { error } = await sb
-    .from('posts')
-    .update({ answered_at: new Date().toISOString() })
-    .eq('type', 'question')
-    .eq('question_target_user_id', state.qa_host_user_id)
-    .is('answered_at', null)
-
-  if (error) return { error: error.message }
 
   revalidatePath('/feed')
   revalidatePath('/screen')

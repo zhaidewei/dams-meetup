@@ -10,7 +10,6 @@ import {
   exitScreenModeAction,
   startLotteryAction,
 } from '@/lib/actions/event-state'
-import { markAllCurrentQaAnsweredAction } from '@/lib/actions/posts'
 import { SECTIONS, isSectionId, type SectionId } from '@/lib/sections'
 import type { ScreenMode } from '@/lib/types'
 import type { VipForDropdown } from '@/lib/queries/event-state'
@@ -84,15 +83,6 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
         must_have_posted: mustHavePosted,
         exclude_previous_winners: excludePreviousWinners,
       })
-      if (res.error) setError(res.error)
-    })
-  }
-
-  function markAllAnswered() {
-    if (!window.confirm('把当前 QA 所有未答问题都标为已答？大屏会清空。')) return
-    setError(null)
-    startTransition(async () => {
-      const res = await markAllCurrentQaAnsweredAction()
       if (res.error) setError(res.error)
     })
   }
@@ -203,14 +193,9 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
           ) : (
             <div className="space-y-1.5">
               {screenMode === 'qa' && (
-                <button
-                  type="button"
-                  onClick={markAllAnswered}
-                  disabled={pending}
-                  className="w-full rounded-md border border-zinc-600 bg-zinc-800 px-2 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700 disabled:opacity-50"
-                >
-                  全部标已答（清空大屏）
-                </button>
+                <p className="text-[11px] leading-relaxed text-zinc-400">
+                  问题已答 → 鼠标移到问题卡片右上角 ✓ 单条标记。
+                </p>
               )}
               <button
                 type="button"

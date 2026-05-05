@@ -5,6 +5,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { readAdminCookie } from '@/lib/identity'
 import { isSectionId, type SectionId } from '@/lib/sections'
 import { EVENT_END_ISO } from '@/lib/constants'
+import { getCurrentSection } from '@/lib/queries/event-state'
 
 // 主办方手动覆写当前板块。覆写有效期延伸到活动结束（一般主办方一场切一次就走人）。
 // 鉴权：admin cookie。
@@ -72,11 +73,16 @@ export async function startQaAction(
   if (hostErr) return { error: hostErr.message }
   if (!host || !host.is_vip) return { error: '该用户不是嘉宾' }
 
+  // 把当前 LIVE section 快照成 qa_section，绑定本轮 QA。
+  // 没有 LIVE section（活动外 / 空档期）时为 null — /feed 退化为「所有 section 下都显示」。
+  const qaSection = await getCurrentSection()
+
   const { error } = await sb
     .from('event_state')
     .update({
       screen_mode: 'qa',
       qa_host_user_id: hostUserId,
+      qa_section: qaSection,
       lottery_draw_id: null,
       updated_at: new Date().toISOString(),
     })
@@ -89,7 +95,7 @@ export async function startQaAction(
 }
 
 // 退出 QA / lottery，回到 default 骨架。
-// QA 结束时把当前 host 搬到 last_qa_host_user_id，给 /feed「上一轮 QA」
+// QA 结束时把当前 host + section 搬到 last_qa_*，给 /feed「上一轮 QA」
 // 塌陷区块用。lottery 结束不做归档（中奖人由 lottery_draws 表保留）。
 export async function exitScreenModeAction(): Promise<{ error: string | null }> {
   if (!(await readAdminCookie())) return { error: '未授权' }
@@ -97,18 +103,20 @@ export async function exitScreenModeAction(): Promise<{ error: string | null }> 
   const sb = getServerSupabase()
   const { data: cur } = await sb
     .from('event_state')
-    .select('screen_mode, qa_host_user_id')
+    .select('screen_mode, qa_host_user_id, qa_section')
     .eq('id', 1)
     .maybeSingle()
 
   const updates: Record<string, unknown> = {
     screen_mode: 'default',
     qa_host_user_id: null,
+    qa_section: null,
     lottery_draw_id: null,
     updated_at: new Date().toISOString(),
   }
   if (cur?.screen_mode === 'qa' && cur.qa_host_user_id) {
     updates.last_qa_host_user_id = cur.qa_host_user_id
+    updates.last_qa_section = cur.qa_section ?? null
   }
 
   const { error } = await sb.from('event_state').update(updates).eq('id', 1)
@@ -191,6 +199,7 @@ export async function startLotteryAction(
     .update({
       screen_mode: 'lottery',
       qa_host_user_id: null,
+      qa_section: null,
       lottery_draw_id: draw.id,
       updated_at: new Date().toISOString(),
     })
