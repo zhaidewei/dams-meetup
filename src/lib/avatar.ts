@@ -14,7 +14,7 @@ type AvatarUser = {
 }
 
 const PALETTE = [
-  'bg-indigo-500',
+  'bg-blue-500',
   'bg-emerald-500',
   'bg-rose-500',
   'bg-amber-500',

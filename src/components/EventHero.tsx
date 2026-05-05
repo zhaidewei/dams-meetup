@@ -32,10 +32,10 @@ export function EventHero({ liveSection }: Props) {
   const liveMeta = liveSection ? SECTION_META[liveSection] : null
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-white p-4 shadow-sm">
+    <section className="relative overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-600">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600">
             DAMS
           </p>
           <h1 className="text-base font-semibold text-zinc-900">{EVENT_NAME}</h1>
@@ -51,7 +51,7 @@ export function EventHero({ liveSection }: Props) {
       {liveSection && liveMeta ? (
         <Link
           href={`/feed?section=${liveSection}`}
-          className="mt-3 flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm text-zinc-700 ring-1 ring-indigo-100 transition-colors hover:bg-white"
+          className="mt-3 flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm text-zinc-700 ring-1 ring-blue-100 transition-colors hover:bg-white"
         >
           <span className="relative flex size-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />

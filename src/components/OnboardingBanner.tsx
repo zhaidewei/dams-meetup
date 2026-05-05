@@ -37,22 +37,22 @@ export function OnboardingBanner() {
   if (!mounted || !open) return null
 
   return (
-    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-indigo-900">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-blue-900">
           <Hand className="size-4" aria-hidden />
           第一次来？三件事
         </h3>
         <button
           type="button"
           onClick={dismiss}
-          className="-mr-1 rounded p-1 text-indigo-700 hover:bg-indigo-100"
+          className="-mr-1 rounded p-1 text-blue-700 hover:bg-blue-100"
           aria-label="关闭"
         >
           <X className="size-3.5" aria-hidden />
         </button>
       </div>
-      <ul className="space-y-1.5 text-sm text-indigo-900">
+      <ul className="space-y-1.5 text-sm text-blue-900">
         <li>
           <span className="font-medium">默认匿名</span>
           ：发帖不显示你是谁。想让人认出你 → 点「编辑身份」填昵称 / 公司 / 联系方式。
@@ -60,7 +60,7 @@ export function OnboardingBanner() {
         <li>
           <span className="font-medium">AI 撮合</span>
           ：发帖时可以暗中委托「想找 Booking 的同学聊内推」之类，结果只回到你自己的「我」tab。
-          <span className="text-indigo-700"> 想让对方找到你 → 先填昵称 + 联系方式。</span>
+          <span className="text-blue-700"> 想让对方找到你 → 先填昵称 + 联系方式。</span>
         </li>
         <li>
           <span className="font-medium">嘉宾发投票</span>
@@ -71,7 +71,7 @@ export function OnboardingBanner() {
         <button
           type="button"
           onClick={dismiss}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
         >
           知道了，不再提示
         </button>

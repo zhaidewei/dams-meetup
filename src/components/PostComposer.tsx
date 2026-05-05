@@ -160,8 +160,8 @@ export function PostComposer({
       )}
 
       {matchOpen && (
-        <div className="space-y-1.5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
-          <div className="flex items-baseline justify-between text-xs text-indigo-900">
+        <div className="space-y-1.5 rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+          <div className="flex items-baseline justify-between text-xs text-blue-900">
             <span className="flex items-center gap-1.5 font-medium">
               <Sparkles className="size-3.5" aria-hidden />
               委托 AI 撮合（私下，仅你可见）
@@ -169,7 +169,7 @@ export function PostComposer({
             <button
               type="button"
               onClick={() => setMatchOpen(false)}
-              className="rounded p-1 text-indigo-700 hover:bg-indigo-100"
+              className="rounded p-1 text-blue-700 hover:bg-blue-100"
               aria-label="收起 AI 撮合"
             >
               <X className="size-3.5" aria-hidden />
@@ -200,11 +200,11 @@ export function PostComposer({
             maxLength={MATCH_INTENT_MAX_CHARS}
             placeholder="比如：想找 Booking 的同学聊内推 / 想找会 dbt 的人 / 想找做 PM 的同行聊聊"
             rows={2}
-            className="w-full resize-none rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-indigo-400 focus:outline-none"
+            className="w-full resize-none rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-blue-400 focus:outline-none"
           />
-          <div className="space-y-1 text-[11px] text-indigo-700">
+          <div className="space-y-1 text-[11px] text-blue-700">
             <p>这条不进时间线，结果以回帖形式仅你可见。</p>
-            <p className="flex items-start gap-1 text-indigo-800">
+            <p className="flex items-start gap-1 text-blue-800">
               <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />
               <span>
                 内容会发往 DeepSeek API。请勿在此填邮箱 / 电话 / 微信号；系统已做基础过滤但不能保证 100% 拦截。
@@ -225,8 +225,8 @@ export function PostComposer({
           className={
             'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ' +
             (matchOpen
-              ? 'border-indigo-400 bg-indigo-100 text-indigo-900'
-              : 'border-zinc-200 bg-white text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800')
+              ? 'border-blue-400 bg-blue-100 text-blue-900'
+              : 'border-zinc-200 bg-white text-zinc-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-800')
           }
         >
           <Sparkles className="size-3.5" aria-hidden />
@@ -235,7 +235,7 @@ export function PostComposer({
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-400"
+          className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:bg-zinc-400"
         >
           {isPending ? '发送中…' : '发帖'}
         </button>

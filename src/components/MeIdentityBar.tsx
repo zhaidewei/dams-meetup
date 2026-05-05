@@ -30,7 +30,7 @@ export function MeIdentityBar({ user }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-white p-3 shadow-sm">
+    <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white p-3 shadow-sm">
       <Avatar seed={user.id} user={user} size="md" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 text-sm">
@@ -49,7 +49,7 @@ export function MeIdentityBar({ user }: Props) {
       <button
         type="button"
         onClick={openSettings}
-        className="shrink-0 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+        className="shrink-0 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
       >
         编辑
       </button>

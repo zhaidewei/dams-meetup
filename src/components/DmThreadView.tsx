@@ -101,7 +101,7 @@ export function DmThreadView({
             maxLength={DM_MAX_CHARS}
             rows={3}
             placeholder="说点什么…"
-            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-indigo-400 focus:outline-none"
+            className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-blue-400 focus:outline-none"
           />
           <div className="flex items-center justify-end gap-2 text-xs">
             <span className={remaining < 0 ? 'text-red-500' : 'text-zinc-400'}>
@@ -111,7 +111,7 @@ export function DmThreadView({
               type="button"
               onClick={onSend}
               disabled={pending || body.trim().length === 0 || remaining < 0}
-              className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-300"
+              className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:bg-zinc-300"
             >
               {pending ? '发送中…' : '发送'}
             </button>
@@ -130,22 +130,17 @@ export function DmThreadView({
 function MessageBubble({ message, mine }: { message: DmMessageRow; mine: boolean }) {
   return (
     <div className={mine ? 'flex justify-end' : 'flex justify-start'}>
-      <div className={'max-w-[80%] space-y-1 ' + (mine ? 'text-right' : 'text-left')}>
+      <div className={'flex max-w-[80%] flex-col space-y-1 ' + (mine ? 'items-end' : 'items-start')}>
         <div
           className={
-            'inline-block whitespace-pre-wrap rounded-2xl px-3 py-2 text-[15px] leading-relaxed ' +
-            (mine ? 'bg-indigo-600 text-white' : 'bg-zinc-100 text-zinc-800')
+            'whitespace-pre-wrap rounded-2xl px-3 py-2 text-[15px] leading-relaxed ' +
+            (mine ? 'bg-blue-600 text-white' : 'bg-zinc-100 text-zinc-800')
           }
         >
           {message.body}
         </div>
         {message.revealed_contact && (
-          <div
-            className={
-              'inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800 ' +
-              (mine ? 'ml-auto' : '')
-            }
-          >
+          <div className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
             <Phone className="size-3" aria-hidden />
             <span>{message.revealed_contact}</span>
             <CopyButton

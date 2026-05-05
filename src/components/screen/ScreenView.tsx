@@ -265,10 +265,10 @@ function PollSlot({
 
   return (
     <div className="grid h-full grid-cols-[1.6fr_1fr] gap-6">
-    <div className="grid grid-rows-[auto_1fr_auto] gap-6 rounded-2xl bg-indigo-500/10 px-10 py-8 ring-1 ring-indigo-500/30">
+    <div className="grid grid-rows-[auto_1fr_auto] gap-6 rounded-2xl bg-blue-500/10 px-10 py-8 ring-1 ring-blue-500/30">
       <div>
         <div className="mb-2 flex items-center gap-3">
-          <span className="rounded-full bg-indigo-500 px-3 py-1 text-sm font-semibold text-white">
+          <span className="rounded-full bg-blue-500 px-3 py-1 text-sm font-semibold text-white">
             投票进行中
           </span>
           <PostHeader post={post} />
@@ -289,7 +289,7 @@ function PollSlot({
             >
               <div
                 aria-hidden
-                className="absolute inset-y-0 left-0 bg-indigo-500/35"
+                className="absolute inset-y-0 left-0 bg-blue-500/35"
                 style={{ width: `${pct}%` }}
               />
               <div className="relative flex items-center gap-4 px-6 py-4">

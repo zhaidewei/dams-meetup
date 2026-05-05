@@ -115,7 +115,7 @@ export function PollComposer({
           <input
             type="checkbox"
             name="multi"
-            className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-400"
+            className="size-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-400"
           />
           多选
         </label>
@@ -123,7 +123,7 @@ export function PollComposer({
           <input
             type="checkbox"
             name="hide_results"
-            className="size-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-400"
+            className="size-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-400"
           />
           投票前隐藏结果
         </label>

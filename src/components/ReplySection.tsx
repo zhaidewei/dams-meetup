@@ -178,14 +178,14 @@ export function ReplySection({ postId, count, replies, viewerId, viewerCanDm }: 
             <input type="hidden" name="post_id" value={postId} />
             <input type="hidden" name="parent_reply_id" value={replyingTo?.id ?? ''} />
             {replyingTo && (
-              <div className="flex items-center justify-between rounded-md bg-indigo-50 px-2 py-1 text-xs text-indigo-800">
+              <div className="flex items-center justify-between rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-800">
                 <span>
                   正在回复 <span className="font-medium">@{replyingTo.name}</span>
                 </span>
                 <button
                   type="button"
                   onClick={onCancelReplyingTo}
-                  className="rounded p-1 text-indigo-700 hover:bg-indigo-100"
+                  className="rounded p-1 text-blue-700 hover:bg-blue-100"
                   aria-label="取消回复对象"
                 >
                   <X className="size-3" aria-hidden />
@@ -207,7 +207,7 @@ export function ReplySection({ postId, count, replies, viewerId, viewerCanDm }: 
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-400"
+                className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:bg-zinc-400"
               >
                 {isPending ? '发送中…' : '回复'}
               </button>
@@ -377,7 +377,7 @@ function ReplyBody({ body }: { body: string }) {
   if (!m) return <p className="whitespace-pre-wrap text-zinc-800">{body}</p>
   return (
     <p className="whitespace-pre-wrap text-zinc-800">
-      <span className="font-medium text-indigo-700">{m[1]}</span>
+      <span className="font-medium text-blue-700">{m[1]}</span>
       {m[2]}
       {m[3]}
     </p>
@@ -397,21 +397,21 @@ function AiReplyRow({
   const targetName = m ? displayName(m) : null
   const isMine = m ? m.id === viewerId : false
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
+    <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
       <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-        <Sparkles className="size-3.5 self-center text-indigo-700" aria-hidden />
-        <span className="font-medium text-indigo-900">AI 撮合</span>
-        <span className="rounded-full bg-indigo-100 px-1.5 py-px text-[10px] text-indigo-800">
+        <Sparkles className="size-3.5 self-center text-blue-700" aria-hidden />
+        <span className="font-medium text-blue-900">AI 撮合</span>
+        <span className="rounded-full bg-blue-100 px-1.5 py-px text-[10px] text-blue-800">
           仅你可见
         </span>
         {m && targetName && (
-          <span className="inline-flex items-center gap-1 text-indigo-700">
+          <span className="inline-flex items-center gap-1 text-blue-700">
             推荐：
             <UserCardTrigger
               user={m}
               viewerCanDm={viewerCanDm}
               isMine={isMine}
-              className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-indigo-800"
+              className="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 text-blue-800"
             >
               <Avatar seed={m.id} user={m} size="sm" />
               <span className="font-medium underline decoration-dotted underline-offset-2">
