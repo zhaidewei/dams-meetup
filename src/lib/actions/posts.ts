@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/identity'
+import { getCurrentUser, readAdminCookie } from '@/lib/identity'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import { isSectionId } from '@/lib/sections'
@@ -170,6 +170,59 @@ export async function createQuestionAction(
   revalidatePath('/feed')
   revalidatePath('/screen')
   return { error: null, ok: true }
+}
+
+// =====================================================================
+// QA: 标记问题已答 (issue #29) — admin 专属
+// =====================================================================
+export async function setQuestionAnsweredAction(
+  postId: number,
+  answered: boolean,
+): Promise<PostMutationResult> {
+  if (!(await readAdminCookie())) return { error: '未授权' }
+  if (!Number.isInteger(postId) || postId <= 0) return { error: '帖子 id 不对' }
+
+  const sb = getServerSupabase()
+  const { data, error } = await sb
+    .from('posts')
+    .update({ answered_at: answered ? new Date().toISOString() : null })
+    .eq('id', postId)
+    .eq('type', 'question')
+    .select('id')
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!data) return { error: '没找到这条提问' }
+
+  revalidatePath('/feed')
+  revalidatePath('/screen')
+  return { error: null }
+}
+
+// 批量标记当前 QA host 的所有未答问题为已答 — 切换轮次时清场。
+export async function markAllCurrentQaAnsweredAction(): Promise<PostMutationResult> {
+  if (!(await readAdminCookie())) return { error: '未授权' }
+
+  const sb = getServerSupabase()
+  const { data: state } = await sb
+    .from('event_state')
+    .select('qa_host_user_id')
+    .eq('id', 1)
+    .maybeSingle()
+  if (!state?.qa_host_user_id) return { error: '当前没有进行中的 QA' }
+
+  const { error } = await sb
+    .from('posts')
+    .update({ answered_at: new Date().toISOString() })
+    .eq('type', 'question')
+    .eq('question_target_user_id', state.qa_host_user_id)
+    .is('answered_at', null)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/feed')
+  revalidatePath('/screen')
+  return { error: null }
 }
 
 export async function deletePostAction(postId: number): Promise<PostMutationResult> {

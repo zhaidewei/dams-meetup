@@ -33,6 +33,7 @@ export type PostRow = {
   poll_deadline: string | null
   poll_hide_results: boolean | null
   question_target_user_id: string | null
+  answered_at: string | null
   created_at: string
 }
 
@@ -44,6 +45,7 @@ export type EventStateRow = {
   override_until: string | null
   screen_mode: ScreenMode
   qa_host_user_id: string | null
+  last_qa_host_user_id: string | null
   lottery_draw_id: number | null
   updated_at: string
 }

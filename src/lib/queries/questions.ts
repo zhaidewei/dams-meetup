@@ -35,6 +35,8 @@ export async function fetchQuestionsForHost(
       )
       .eq('type', 'question')
       .eq('question_target_user_id', hostUserId)
+      // 大屏只显示未答问题 — admin 在 /feed 标已答后立刻让出位置
+      .is('answered_at', null)
       .order('created_at', { ascending: false })
       .limit(100),
     sb.from('likes').select('post_id'),

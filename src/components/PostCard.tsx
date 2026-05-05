@@ -4,21 +4,31 @@ import { useState, useSyncExternalStore, useTransition } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
 import { POST_MAX_CHARS } from '@/lib/constants'
-import { deletePostAction, updatePostAction } from '@/lib/actions/posts'
+import {
+  deletePostAction,
+  setQuestionAnsweredAction,
+  updatePostAction,
+} from '@/lib/actions/posts'
 import { Avatar } from './Avatar'
 import { LikeButton } from './LikeButton'
 import { PollCard } from './PollCard'
 import { ReplySection } from './ReplySection'
 import { UserCardTrigger } from './UserCard'
 
-type Props = { post: FeedPost; viewerId: string; viewerCanDm: boolean }
+type Props = {
+  post: FeedPost
+  viewerId: string
+  viewerCanDm: boolean
+  viewerIsAdmin?: boolean
+}
 
-export function PostCard({ post, viewerId, viewerCanDm }: Props) {
+export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }: Props) {
   const author = post.author
   const name = displayName(author)
   const meta = displayMeta(author)
   const isPoll = post.type === 'poll'
   const isQuestion = post.type === 'question'
+  const isAnswered = isQuestion && !!post.answered_at
   const isMine = post.user_id === viewerId
 
   const [editing, setEditing] = useState(false)
@@ -63,14 +73,24 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
     })
   }
 
+  function onToggleAnswered() {
+    setError(null)
+    startTransition(async () => {
+      const res = await setQuestionAnsweredAction(post.id, !isAnswered)
+      if (res.error) setError(res.error)
+    })
+  }
+
   return (
     <article
       id={`post-${post.id}`}
       className={
         'scroll-mt-20 rounded-2xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ' +
-        (isQuestion
-          ? 'border-rose-200 border-l-4 border-l-rose-400 bg-rose-50/40'
-          : 'border-zinc-200')
+        (isAnswered
+          ? 'border-zinc-200 border-l-4 border-l-zinc-300 bg-zinc-50/60 opacity-70'
+          : isQuestion
+            ? 'border-rose-200 border-l-4 border-l-rose-400 bg-rose-50/40'
+            : 'border-zinc-200')
       }
     >
       <header className="mb-2 flex items-center gap-2 text-sm">
@@ -94,12 +114,33 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
             投票
           </span>
         )}
-        {isQuestion && (
+        {isQuestion && !isAnswered && (
           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700">
             提问
           </span>
         )}
+        {isAnswered && (
+          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+            已答 ✓
+          </span>
+        )}
         <span className="ml-auto text-xs text-zinc-400"><RelativeTime iso={post.created_at} /></span>
+        {viewerIsAdmin && isQuestion && (
+          <button
+            type="button"
+            onClick={onToggleAnswered}
+            disabled={pending}
+            className={
+              'rounded px-1.5 py-0.5 text-xs disabled:opacity-50 ' +
+              (isAnswered
+                ? 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800'
+                : 'text-rose-600 hover:bg-rose-100 hover:text-rose-800')
+            }
+            title="主办方专用：标记问题是否已被嘉宾回答"
+          >
+            {isAnswered ? '取消已答' : '标已答'}
+          </button>
+        )}
         {isMine && !editing && (
           <div className="flex items-center gap-1">
             {!isPoll && !isQuestion && (
