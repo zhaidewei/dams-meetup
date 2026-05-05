@@ -36,6 +36,7 @@ const events = []
 async function cleanup() {
   if (postId) {
     await srv.from('post_match_intents').delete().eq('post_id', postId)
+    await srv.from('poll_votes').delete().eq('post_id', postId)
     await srv.from('likes').delete().eq('post_id', postId)
     await srv.from('replies').delete().eq('post_id', postId)
     await srv.from('posts').delete().eq('id', postId)
@@ -84,9 +85,20 @@ async function main() {
 
   console.log('Inserting test data into posts / likes / replies / poll_votes …')
 
+  // Use type='poll' so we can also test poll_votes broadcast in the same run
+  // (issue #36: 改投后 /screen 没刷新 — 需要确认 poll_votes Realtime 没断)。
   const p = await srv
     .from('posts')
-    .insert({ user_id: userId, type: 'text', body: 'diag-test' })
+    .insert({
+      user_id: userId,
+      type: 'poll',
+      body: 'diag-test',
+      section: 'lounge',
+      poll_options: [{ id: 1, label: 'A' }, { id: 2, label: 'B' }],
+      poll_multi: false,
+      poll_deadline: '2030-01-01T00:00:00Z',
+      poll_hide_results: false,
+    })
     .select('id')
     .single()
   if (p.error) {
@@ -109,6 +121,16 @@ async function main() {
       .from('replies')
       .insert({ post_id: postId, user_id: userId, body: 'diag-reply' })
     console.log('  replies insert', replyRes.error ? 'FAIL: ' + replyRes.error.message : 'ok')
+
+    // poll_votes：模拟"投票 → 改投"完整链路（INSERT + DELETE + INSERT）
+    const voteIns = await srv.from('poll_votes').insert({ user_id: userId, post_id: postId, option_id: 1 })
+    console.log('  poll_votes insert (initial)', voteIns.error ? 'FAIL: ' + voteIns.error.message : 'ok')
+
+    const voteDel = await srv.from('poll_votes').delete().eq('post_id', postId).eq('user_id', userId)
+    console.log('  poll_votes delete (revote step 1)', voteDel.error ? 'FAIL: ' + voteDel.error.message : 'ok')
+
+    const voteIns2 = await srv.from('poll_votes').insert({ user_id: userId, post_id: postId, option_id: 2 })
+    console.log('  poll_votes insert (revote step 2)', voteIns2.error ? 'FAIL: ' + voteIns2.error.message : 'ok')
   }
 
   console.log(`Listening for ${RUN_MS / 1000}s… any incoming broadcast will be logged above.`)
