@@ -15,7 +15,12 @@ import { Avatar } from '@/components/Avatar'
 const POLL_TICK_MS = 1_000 // ui re-render cadence
 // Safety-net resync if the websocket drops silently — projection mode runs
 // unattended for hours. Realtime events are the primary trigger.
-const FALLBACK_REFRESH_MS = 60_000
+//
+// 15s 的依据（issue #36）：投票实时计数 — 改投后大屏在 30s 一格的轮播里，
+// 即使 Realtime 偶尔丢一次 broadcast，最坏情况下用户也只能等 60s 才看到更
+// 新过的票数 → 给人"改投失效"的错觉。15s 的兜底 + Realtime 主路 + 500ms
+// debounce 一起，把最坏延迟从 60s 压到 15s，刷新成本对 Supabase 可以忽略。
+const FALLBACK_REFRESH_MS = 15_000
 const REALTIME_DEBOUNCE_MS = 500
 const SLOT_MS = 30_000 // each poll slot
 
