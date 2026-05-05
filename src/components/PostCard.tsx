@@ -18,6 +18,7 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
   const name = displayName(author)
   const meta = displayMeta(author)
   const isPoll = post.type === 'poll'
+  const isQuestion = post.type === 'question'
   const isMine = post.user_id === viewerId
 
   const [editing, setEditing] = useState(false)
@@ -63,7 +64,15 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
   }
 
   return (
-    <article id={`post-${post.id}`} className="scroll-mt-20 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+    <article
+      id={`post-${post.id}`}
+      className={
+        'scroll-mt-20 rounded-2xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ' +
+        (isQuestion
+          ? 'border-rose-200 border-l-4 border-l-rose-400 bg-rose-50/40'
+          : 'border-zinc-200')
+      }
+    >
       <header className="mb-2 flex items-center gap-2 text-sm">
         <UserCardTrigger
           user={{ id: post.user_id, ...author }}
@@ -85,10 +94,15 @@ export function PostCard({ post, viewerId, viewerCanDm }: Props) {
             投票
           </span>
         )}
+        {isQuestion && (
+          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700">
+            提问
+          </span>
+        )}
         <span className="ml-auto text-xs text-zinc-400"><RelativeTime iso={post.created_at} /></span>
         {isMine && !editing && (
           <div className="flex items-center gap-1">
-            {!isPoll && (
+            {!isPoll && !isQuestion && (
               <button
                 type="button"
                 onClick={() => setEditing(true)}
