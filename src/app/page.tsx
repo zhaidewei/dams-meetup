@@ -34,16 +34,16 @@ export default async function HomePage({
   const recoveryFailed = sp.error === 'recovery'
 
   return (
-    <main className="flex min-h-svh flex-col items-center bg-gradient-to-b from-indigo-50 via-white to-white px-6 py-12">
+    <main className="flex min-h-svh flex-col items-center bg-gradient-to-b from-blue-50 via-white to-white px-6 py-12">
       <div className="w-full max-w-2xl space-y-10">
         <header className="space-y-2 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">
             {EVENT_ORGANIZER}
           </p>
           <h1 className="text-2xl font-semibold text-zinc-900">{EVENT_NAME}</h1>
         </header>
 
-        <div className="mx-auto w-full max-w-sm space-y-6 rounded-2xl border border-indigo-100 bg-white/80 p-6 shadow-sm backdrop-blur">
+        <div className="mx-auto w-full max-w-sm space-y-6 rounded-2xl border border-blue-100 bg-white/80 p-6 shadow-sm backdrop-blur">
           <form action={loginAction} className="space-y-4">
             <div>
               <label htmlFor="password" className="block text-sm text-zinc-700 mb-1.5">
@@ -56,7 +56,7 @@ export default async function HomePage({
                 required
                 autoFocus
                 autoComplete="off"
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {showError && <p className="mt-2 text-sm text-red-600">密码不对</p>}
               {recoveryFailed && (
@@ -68,7 +68,7 @@ export default async function HomePage({
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
             >
               进入
             </button>
@@ -80,7 +80,7 @@ export default async function HomePage({
 
           <p className="text-center text-xs text-zinc-500">
             嘉宾请走
-            <a href="/vip-login" className="ml-1 text-indigo-600 underline underline-offset-2 hover:text-indigo-700">
+            <a href="/vip-login" className="ml-1 text-blue-600 underline underline-offset-2 hover:text-blue-700">
               嘉宾登录
             </a>
           </p>

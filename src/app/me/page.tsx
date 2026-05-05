@@ -192,7 +192,7 @@ function FoldableList<T>({
       </div>
       {tail.length > 0 && (
         <details className="mt-2">
-          <summary className="flex cursor-pointer list-none items-center gap-1 px-1 py-1 text-xs text-indigo-600 hover:text-indigo-700">
+          <summary className="flex cursor-pointer list-none items-center gap-1 px-1 py-1 text-xs text-blue-600 hover:text-blue-700">
             <span className="underline underline-offset-2">查看其余 {tail.length} 条</span>
           </summary>
           <div className={`mt-2 ${gapClass}`}>

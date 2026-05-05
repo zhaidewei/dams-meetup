@@ -63,7 +63,7 @@ export function PollCard({
             <label
               key={opt.id}
               className={
-                'relative block w-full cursor-pointer overflow-hidden rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition-colors has-[:checked]:border-indigo-500 has-[:checked]:ring-1 has-[:checked]:ring-indigo-300' +
+                'relative block w-full cursor-pointer overflow-hidden rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition-colors has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-300' +
                 (closed ? ' cursor-default' : '')
               }
             >
@@ -72,7 +72,7 @@ export function PollCard({
                   aria-hidden
                   className={
                     'pointer-events-none absolute inset-y-0 left-0 ' +
-                    (isMine ? 'bg-indigo-500/15' : 'bg-zinc-200/60')
+                    (isMine ? 'bg-blue-500/15' : 'bg-zinc-200/60')
                   }
                   style={{ width: `${pct}%` }}
                 />
@@ -89,7 +89,7 @@ export function PollCard({
                 <span
                   aria-hidden
                   className={
-                    'inline-flex size-4 shrink-0 items-center justify-center border border-zinc-300 bg-white peer-checked:border-indigo-600 peer-checked:bg-indigo-600 ' +
+                    'inline-flex size-4 shrink-0 items-center justify-center border border-zinc-300 bg-white peer-checked:border-blue-600 peer-checked:bg-blue-600 ' +
                     (multi ? 'rounded-sm' : 'rounded-full')
                   }
                 />
@@ -118,7 +118,7 @@ export function PollCard({
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-zinc-300"
+            className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:bg-zinc-300"
           >
             {isPending ? '提交中…' : hasVoted ? '改投' : '投票'}
           </button>

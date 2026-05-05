@@ -246,7 +246,7 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
                   className={
                     'rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ' +
                     (active
-                      ? 'bg-indigo-500 text-white'
+                      ? 'bg-blue-500 text-white'
                       : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700')
                   }
                 >
@@ -277,7 +277,7 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
               className={
                 'rounded-md px-2 py-1.5 text-xs font-medium transition-colors ' +
                 (filterSection === null
-                  ? 'bg-indigo-500 text-white'
+                  ? 'bg-blue-500 text-white'
                   : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700')
               }
             >
@@ -293,7 +293,7 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
                   className={
                     'rounded-md px-2 py-1.5 text-xs font-medium transition-colors ' +
                     (active
-                      ? 'bg-indigo-500 text-white'
+                      ? 'bg-blue-500 text-white'
                       : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700')
                   }
                 >

@@ -41,7 +41,7 @@ function NavTab({
       className={
         'relative rounded-lg px-2.5 py-1.5 transition-colors ' +
         (active
-          ? 'bg-indigo-600 text-white shadow-sm'
+          ? 'bg-blue-600 text-white shadow-sm'
           : 'text-zinc-600 hover:bg-zinc-100')
       }
     >

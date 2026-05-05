@@ -47,7 +47,7 @@ function ThreadRow({ thread, viewerId }: { thread: DmThreadSummary; viewerId: st
     <div className="relative">
       <Link
         href={`/me/dm/${thread.thread_id}`}
-        className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 pr-12 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
+        className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 pr-12 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50/30"
       >
         <Avatar seed={thread.other.id} user={thread.other} size="md" />
         <div className="min-w-0 flex-1">

@@ -154,7 +154,7 @@ function UserCardDialog({
             type="button"
             onClick={onDm}
             disabled={pending}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:bg-zinc-400"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:bg-zinc-400"
           >
             <Send className="size-4" aria-hidden />
             {pending ? '打开中…' : '发私信'}
@@ -178,19 +178,19 @@ function ContactPill({ text }: { text: string }) {
       // clipboard 被浏览器拦截：不致命
     }
   }
-  const iconClass = 'size-3.5 shrink-0 text-zinc-500 group-hover:text-indigo-600'
+  const iconClass = 'size-3.5 shrink-0 text-zinc-500 group-hover:text-blue-600'
   return (
     <button
       type="button"
       onClick={copy}
       title={copied ? '已复制' : '点击复制'}
-      className="group mt-4 inline-flex w-full max-w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+      className="group mt-4 inline-flex w-full max-w-full items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 transition-colors hover:border-blue-300 hover:bg-blue-50"
     >
       {kind === 'url' && <Link2 className={iconClass} aria-hidden />}
       {kind === 'email' && <AtSign className={iconClass} aria-hidden />}
       {kind === 'other' && <UserCircle2 className={iconClass} aria-hidden />}
       <span className="truncate text-left font-medium text-zinc-800">{text}</span>
-      <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-zinc-500 group-hover:text-indigo-700">
+      <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[11px] text-zinc-500 group-hover:text-blue-700">
         {copied ? (
           <>
             <Check className="size-3" aria-hidden />

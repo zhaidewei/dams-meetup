@@ -26,7 +26,7 @@ export function SectionTabs({ active, live }: Props) {
                 className={
                   'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ' +
                   (isActive
-                    ? 'bg-indigo-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200')
                 }
               >
