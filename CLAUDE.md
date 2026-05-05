@@ -67,7 +67,7 @@ NEXT_PUBLIC_EVENT_ORGANIZER=DAMS
 ```
 
 ## Deployment target
-- Production URL: `meet.zhaidewei.com` (CNAME to CF Workers)
+- Production URL: `live.nl-dams.com` (custom domain on friend's CF account, zone `nl-dams.com`)
 - Adapter: `@opennextjs/cloudflare`
 - Storage: Supabase only (Postgres + Realtime); no R2/D1 needed
 
@@ -149,10 +149,11 @@ Then point Claude at this file: it contains all the architectural decisions and 
    - ✅ slice 3: Edge Function + DeepSeek + pg_cron + match_runs 日志（commit f1bc1ca + 部署 2026-05-03 傍晚）
 3. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
 4. ~~Supabase Realtime 接线~~ — **DONE**（issue #7，2026-05-03）
-5. CF Workers 部署收尾 — adapter + GitHub Actions PR gate 已加（commit 88cfbd3）；剩 env vars 灌入 + 自定义域名 `meet.zhaidewei.com`
+5. ~~CF Workers 部署收尾~~ — **DONE**（2026-05-05）— 部署到朋友 CF 账户 (`f1dc30bb93206c310ab2b840baceb857`) 的 `live.nl-dams.com`；本地 deploy + runtime secrets push + Workers Builds 接 GitHub repo 全部跑通
 6. **端到端验证 match function 真跑通** — 部署完成但还没观测到 match_runs 表里有 success 行；至少塞 ≥3 条暗需求 mock 数据后等下一次 cron（5min），或 admin force token 手动触发，验证 DeepSeek 调用+ AI reply 写回
 
 ### Recently shipped
+- 2026-05-05: **CF 部署切到朋友账户 `live.nl-dams.com` (PR #31)** — wrangler.jsonc pin `account_id` + custom_domain route；本地首次 deploy → runtime secrets push → Workers Builds 接 `zhaidewei/dams-meetup` repo 自动 build & deploy。朋友 CF 账户给的 role：`Workers Admin` + `Administrator Read Only`（后者补 Account Settings Read，否则 Workers Builds connect 会报权限错）。Build env vars (NEXT_PUBLIC_*) 必须在朋友 dashboard 单独配，不走 `scripts/deploy.sh` 的 Keychain 注入路径。
 - 2026-05-03 傍晚: **issue #17 — 投票手动关闭 + DeepSeek 数据声明 + redact 兜底** — `closePollAction` 把 `poll_deadline` 提前到 now()（复用既有字段，无新状态列），PollCard 给作者显示「立即截止」按钮；`prompt.ts` 加 `redactContacts()`（邮箱/URL/≥10 数字串 → `[已隐藏]`），UI 显式声明数据流向 DeepSeek。`docs/matching-design.md` §8 完整字段清单。
 - 2026-05-03 傍晚: **issue #15 — 联系方式一键复制** — PostCard / DmThreadView 展示对方联系方式时附复制按钮（复用 RecoveryLink 同款 CopyButton）。
 - 2026-05-03: **Supabase Realtime 接线 (issue #7)** — `/feed` 双标签实测自动同步通过。`FeedRealtime` 客户端订阅 posts/replies/likes/poll_votes，500ms debounce 后 `router.refresh()`；`ScreenView` 同样改成 Realtime 触发 + 60s 兜底 interval。`match_intent` 整列搬到独立表 `post_match_intents`（migration 0011），物理隔离、不进 publication，不依赖 Realtime 内部行为。途中踩了两个坑：(a) PG 15 列白名单 publication Supabase Realtime 不支持，(b) `ALTER PUBLICATION` 后必须 Dashboard toggle 才能让 Realtime 重载 — 都记到 Known quirks。
