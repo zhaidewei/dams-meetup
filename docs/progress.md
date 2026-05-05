@@ -7,6 +7,82 @@
 
 ---
 
+## 2026-05-06 · AI 撮合显式同意 (issue #34, PR #40)
+
+公开发帖被聚合成 AI 画像 + 私下需求被发 DeepSeek，两路都没有显式同意。issue 例子明确「首次询问，同意一次后不再问，拒绝则下次再问」。
+
+最小方案：`users.ai_consent_at` **一列覆盖两路** —— 委托 AI 找人 = 必然贡献画像才能被反向推荐，拆两个 toggle 徒增认知。Inline checkbox 嵌在 PostComposer 已经会展开的 AI box 里，不另开 dialog（避开 iPhone Chrome hydration 雷区）。同意 piggyback 在 post submit 上 —— 用户填 intent + 勾 checkbox + 发帖一气呵成。未勾 + 填了 intent 报错（不静默丢用户输入，避免「以为发了其实没发」）。后端两路都 gate：`createPostAction` 写 intent 前 double-check，edge function `fetchProfiles` inner join 过滤未同意者。
+
+---
+
+## 2026-05-06 · 公共讨论区 lounge (issue #32, PR #38)
+
+之前所有帖子必须挂在某会议板块（p1 / p2 / breakout / panel），活动开始前和空档期没有承载。新增 `lounge`：无时间窗、永远开放、UI 排第一位、活动外/空档默认进入。Migration 0018 放宽 `posts.section` 和 `event_state.current_section` 的 CHECK 约束，admin 大屏旋钮自动多一个 lounge 选项。
+
+---
+
+## 2026-05-05 · CF 部署切到朋友账户 live.nl-dams.com (PR #31)
+
+为了用 zone `nl-dams.com`，从自己 CF 账户切到朋友账户。`wrangler.jsonc` pin `account_id` + custom_domain route。流程：本地首次 deploy → runtime secrets push 到 Workers → Workers Builds 接 `zhaidewei/dams-meetup` repo 自动 build & deploy。
+
+朋友 CF 账户给的 role：`Workers Admin` + `Administrator Read Only`。后者补的是 Account Settings Read 权限 —— 没有它 Workers Builds 在 connect repo 时报权限错（这个错误信息很模糊，排查耗时）。Build env vars (NEXT_PUBLIC_*) 得在朋友 dashboard 单独配，**不走** `scripts/deploy.sh` 的 Keychain 注入路径（Builds 跑在 CF 端无 Keychain 访问）。
+
+---
+
+## 2026-04-30 → 2026-05-05 · /screen 主办方控制台 + 多板块 (issue #18 / #19 / #27 / #29 / #37)
+
+`/screen` 从「自动滚动 timeline」演化为「主办方控制中枢」。关键决策：
+
+- **admin console (issue #19)** 用一个 admin cookie 守门（密码门级，简单粗暴）。主办方在大屏侧边栏切 LIVE 板块、切 `screen_mode`（`default` / `qa` / `lottery`）、控 QA host、抽奖。
+- **状态机**：板块时间窗（自动）+ admin override（手动）+ screen_mode 切换。`event_state` 单行表（id=1）做 state container，简洁过头但够用。
+- **screen_mode = 'qa'** (issue #29 + migration 0015 / 0017)：QA 入口 banner + 题目按 like 排序滚动，admin 标已答 → 从 rotation 移除，`/feed` 改进折叠态归档；issue #37（PR #39，独立 worktree）修了某板块下 QA 入口没出现的 bug。
+- **screen_mode = 'lottery'** (migration 0016)：admin 配规则 → 抽 → 大屏全屏揭晓。
+- **issue #27 /screen 大改版**：焦点帖 + 网格 layout，max-width 1400px 防焦点散开。
+- **issue #18 系列**铺底 UX：Header 红点合并未读、板块上下文条、/me 重排、onboarding 提示、PostComposer 折叠减负（首屏只有 textarea + 发帖按钮，AI 撮合 / 编辑身份都折叠）。
+
+---
+
+## 2026-04-29 → 2026-05-04 · UI 整改两轮 + UserCard popover
+
+第一轮：Lu.ma-lite 风（indigo + lucide + EventHero）。第二轮（PR #33）：indigo → blue + 修 DM 气泡内文居中。
+
+更重要的交互决策：**联系方式从帖子搬到人**（commits 9f379d0 / f0c40a4 / 5e701dc）—— 之前每条帖子都带「显示联系方式」toggle，导致信息冗余、隐私心智模型混乱（用户搞不清「我这条帖子勾了 vs 我整体公开了」）。改成**点头像出 UserCard popover**，里面有姓名 / 公司 / 联系方式（如果对方公开）+ 复制 / DM 按钮。AI 撮合推荐对象也走同一个 popover (issue #24)。
+
+同时删了 `/me`「有人想找你」面板（063185a）—— 已被「点头像看谁找过你」覆盖，留着是冗余路径。
+
+---
+
+## 2026-05-03 · DM (PR #14) + 后续删 reveal
+
+加 1:1 DM 页 (issue #14)：`dm_threads` + `dm_messages` 两表（migration 0012），partner uid 用 `user_low / user_high` 排序避免重复 thread。后来 UserCard popover 上线后，发现「在 DM 里 reveal 联系方式」按钮和 popover 的展示路径重叠 → 删掉 reveal 入口，统一走 popover。同时支持「整段对话 hard delete」（任一方都可，e38eed1）。
+
+---
+
+## 2026-05-03 · Realtime 接线 + iPhone Chrome 雷区 (issue #7)
+
+`/feed` 双标签自动同步通过：`FeedRealtime` 客户端订阅 posts/replies/likes/poll_votes，500ms debounce 后 `router.refresh()`。`ScreenView` 改成 Realtime 触发 + 60s 兜底 interval。
+
+途中两个隐形坑（已写进 CLAUDE.md Known quirks）：
+
+1. **PG 15 列白名单 publication 在 Supabase Realtime 里被静默丢弃**：`add table foo (col1, col2)` 语法 pg 层正确但订阅永远收不到 broadcast。结论：要隐藏字段就把字段搬到独立表。`match_intent` 因此从 `posts` 整列搬到 `post_match_intents`（migration 0011），物理隔离不进 publication。
+2. **`ALTER PUBLICATION` 后必须 Dashboard toggle**：纯 SQL 改 publication 不会让 Realtime 重新加载内部状态，旧状态一直 cache，订阅永远收不到。改完必须去 Dashboard → Database → Publications → toggle 表（关再开）。
+
+iPhone Chrome / iOS hydration 双坑（d6f2a60）：Chrome iOS 自动注入 `__gcrremoteframetoken` / `__gcruniqueid` → React 19 root-level hydration mismatch → abort 整 tree → onClick / useState / useOptimistic 全失效。修复：`<html suppressHydrationWarning>` + 所有写操作走 React 19 form action（progressive enhancement 是天然兜底）。**生产仍依赖 form action 写法，不能 revert**。LAN dev 还要 `next.config.ts` 加 `allowedDevOrigins`（改完必须重启 dev server）。
+
+---
+
+## 2026-04-26 → 2026-05-03 · AI 撮合 slice 2 + slice 3 上线
+
+slice 2（92e7146）：mock SQL insert 几条 AI reply 验 UI 链路 —— `ReplySection` 的 `AiReplyRow` + /me 通知都通了。
+
+slice 3（f1bc1ca + 2026-05-03 傍晚部署）：Supabase Edge Function `match` + DeepSeek call + pg_cron 每 5min 触发 + `match_runs` 日志表（migration 0008 / 0009）。`fetchCandidates` 拉未处理的 `post_match_intents`，`fetchProfiles` 聚合最近 500 条 posts 成画像，`buildPrompt` 拼装文本 prompt，DeepSeek 返回 `[post_id, user_id, reason]` 数组，写回 `replies` 表（`is_ai=true`, `visibility='author_only'`）。`MIN_INTENT_THRESHOLD=3` cron 跳过避空跑；admin URL `?force=<ADMIN_TOKEN>` 跳阈值。
+
+issue #17 的 hardening：`prompt.ts` 加 `redactContacts()`（邮箱 / URL / ≥10 数字串 → `[已隐藏]`），UI 加 DeepSeek 数据流向声明。`closePollAction` 把 `poll_deadline` 提前到 `now()` 复用既有字段，不引入新状态列。
+
+issue #15：联系方式胶囊化 + 一键复制按钮（58de5fc）。
+
+---
+
 ## 2026-04-25 · F'' 撮合 slice 1（schema + 前端管道）
 
 按 `matching-design.md` §6 checklist 推进 F''。本 slice 不接 LLM — 只把 schema 和 UI 管道铺好，AI reply 槽位渲染但暂时为空。
