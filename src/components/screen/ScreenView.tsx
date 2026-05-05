@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown } from 'lucide-react'
 import type { FeedPost } from '@/lib/queries/posts'
+import type { ScreenQuestion } from '@/lib/queries/questions'
+import type { ScreenLotteryDraw } from '@/lib/queries/lottery'
+import type { ScreenModeState } from '@/lib/queries/event-state'
 import { fetchScreenData } from '@/lib/actions/screen'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
@@ -15,12 +17,12 @@ const POLL_TICK_MS = 1_000 // ui re-render cadence
 // unattended for hours. Realtime events are the primary trigger.
 const FALLBACK_REFRESH_MS = 60_000
 const REALTIME_DEBOUNCE_MS = 500
-const SLOT_MS = 30_000 // each poll/timeline slot
-const TIMELINE_FOCUS_MS = 8_000 // each timeline post highlight duration
+const SLOT_MS = 30_000 // each poll slot
 
 type Props = {
   initialPosts: FeedPost[]
   initialOnline: number
+  initialMode: ScreenModeState
   eventName: string
   // 当前 URL 筛选板块；null 表示显示全部。
   section: SectionId | null
@@ -35,6 +37,7 @@ type Props = {
 export function ScreenView({
   initialPosts,
   initialOnline,
+  initialMode,
   eventName,
   section,
   liveSection,
@@ -42,7 +45,10 @@ export function ScreenView({
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
+  const [questions, setQuestions] = useState<ScreenQuestion[]>([])
+  const [lottery, setLottery] = useState<ScreenLotteryDraw | null>(null)
   const [online, setOnline] = useState(initialOnline)
+  const [mode, setMode] = useState<ScreenModeState>(initialMode)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -59,7 +65,10 @@ export function ScreenView({
         const snap = await fetchScreenData(section)
         if (cancelled) return
         setPosts(snap.posts)
+        setQuestions(snap.questions)
+        setLottery(snap.lottery)
         setOnline(snap.online)
+        setMode(snap.mode)
       } catch {
         // network blip — fallback interval will retry
       }
@@ -73,6 +82,10 @@ export function ScreenView({
       }, REALTIME_DEBOUNCE_MS)
     }
 
+    // First refresh after mount fills questions for the initial mode (server
+    // page already passes initialMode, but questions come from a separate fetch).
+    void refresh()
+
     const sb = getBrowserSupabase()
     const channel = sb
       .channel('screen-changes')
@@ -80,6 +93,7 @@ export function ScreenView({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'replies' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_state' }, bump)
       .subscribe()
 
     const fallback = setInterval(refresh, FALLBACK_REFRESH_MS)
@@ -102,16 +116,25 @@ export function ScreenView({
     [posts, now],
   )
 
-  // Cycle: [poll0 30s, poll1 30s, ..., timeline 30s], repeat.
-  // If no active polls → always timeline.
-  const slot = activePolls.length === 0
-    ? { kind: 'timeline' as const }
-    : (() => {
-        const totalSlots = activePolls.length + 1
-        const idx = Math.floor(now / SLOT_MS) % totalSlots
-        if (idx === activePolls.length) return { kind: 'timeline' as const }
-        return { kind: 'poll' as const, post: activePolls[idx] }
-      })()
+  // Slot dispatch:
+  //   1. screen_mode='qa'      → QA layout (admin-controlled, top priority)
+  //   2. screen_mode='lottery' → Lottery animation + winner
+  //   3. active polls          → cycle [poll0 30s, poll1 30s, ..., default 30s]
+  //   4. default               → DefaultSlot
+  let slot: SlotState
+  if (mode.mode === 'qa') {
+    slot = { kind: 'qa' }
+  } else if (mode.mode === 'lottery' && lottery) {
+    slot = { kind: 'lottery', draw: lottery }
+  } else if (activePolls.length === 0) {
+    slot = { kind: 'default' }
+  } else {
+    const totalSlots = activePolls.length + 1
+    const idx = Math.floor(now / SLOT_MS) % totalSlots
+    slot = idx === activePolls.length
+      ? { kind: 'default' }
+      : { kind: 'poll', post: activePolls[idx] }
+  }
 
   return (
     <div className="flex h-svh w-screen flex-col bg-zinc-950 text-zinc-100">
@@ -124,104 +147,99 @@ export function ScreenView({
       />
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 overflow-hidden px-10 pb-6">
-        {slot.kind === 'poll' ? (
+        {slot.kind === 'qa' ? (
+          <QaSlot mode={mode} questions={questions} qrSlot={qrSlot} password={password} />
+        ) : slot.kind === 'lottery' ? (
+          <LotterySlot draw={slot.draw} now={now} />
+        ) : slot.kind === 'poll' ? (
           <PollSlot post={slot.post} now={now} qrSlot={qrSlot} password={password} />
         ) : (
-          <TimelineSlot posts={posts} now={now} qrSlot={qrSlot} password={password} />
+          <DefaultSlot
+            liveSection={liveSection}
+            online={online}
+            qrSlot={qrSlot}
+            password={password}
+          />
         )}
       </main>
     </div>
   )
 }
 
-function TimelineSlot({
-  posts,
-  now,
+type SlotState =
+  | { kind: 'default' }
+  | { kind: 'qa' }
+  | { kind: 'lottery'; draw: ScreenLotteryDraw }
+  | { kind: 'poll'; post: FeedPost }
+
+// Default slot: skeleton view shown when no poll is taking over.
+// Layout = giant QR (left) + LIVE 板块演讲信息 + 在线人数 (right).
+// 不再轮播热帖 — 主位留给当下正在发生的事（投票 / QA / 抽奖）。
+function DefaultSlot({
+  liveSection,
+  online,
   qrSlot,
   password,
 }: {
-  posts: FeedPost[]
-  now: number
+  liveSection: SectionId | null
+  online: number
   qrSlot: React.ReactNode
   password: string
 }) {
-  // Use only text posts for the focus rotation; polls already get takeover slots.
-  const textPosts = posts.filter((p) => p.type === 'text').slice(0, 12)
-  if (textPosts.length === 0) {
-    return (
-      <div className="grid h-full grid-cols-[1.6fr_1fr] gap-6">
-        <div className="flex items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60 text-zinc-500">
-          <p className="flex items-center gap-2 text-2xl">
-            还没有人发帖。扫码加入聊起来
-            <ArrowDown className="size-6" aria-hidden />
-          </p>
-        </div>
-        <QrPanel qrSlot={qrSlot} password={password} />
-      </div>
-    )
-  }
-  const focusIdx = Math.floor(now / TIMELINE_FOCUS_MS) % textPosts.length
-  const focus = textPosts[focusIdx]
-  const upNext = textPosts.filter((_, i) => i !== focusIdx).slice(0, 4)
-
+  const liveMeta = liveSection ? SECTION_META[liveSection] : null
   return (
-    <div className="grid h-full grid-rows-[1fr_auto] gap-5">
-      <div className="grid min-h-0 grid-cols-[1.6fr_1fr] gap-6">
-        <article className="overflow-hidden rounded-2xl bg-zinc-900 px-10 py-8 ring-1 ring-zinc-800">
-          <PostHeader post={focus} large />
-          <p className="mt-4 whitespace-pre-wrap text-3xl leading-snug text-white">
-            {focus.body}
-          </p>
-          {focus.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {focus.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-zinc-800 px-3 py-1 text-base text-zinc-300"
-                >
-                  #{t}
-                </span>
-              ))}
+    <div className="grid h-full grid-cols-[1fr_1fr] items-stretch gap-8">
+      <div className="flex flex-col items-center justify-center gap-6 rounded-3xl bg-zinc-900/50 p-8 ring-1 ring-zinc-800">
+        <div className="rounded-2xl bg-white p-5">{qrSlot}</div>
+        <div className="text-center leading-tight">
+          <p className="text-3xl font-semibold text-white">扫码一键加入</p>
+          <p className="mt-1 text-base text-zinc-400">发帖 · 投票 · 找人</p>
+        </div>
+        {password && (
+          <div className="w-full max-w-md rounded-2xl bg-zinc-800/80 px-6 py-4 text-center ring-1 ring-zinc-700">
+            <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">扫不动？手输密码</p>
+            <p className="mt-1.5 select-all font-mono text-4xl font-semibold tracking-[0.18em] text-white">
+              {password}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col justify-center gap-8 rounded-3xl bg-zinc-900/30 p-10 ring-1 ring-zinc-800/60">
+        {liveSection && liveMeta ? (
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-rose-500/20 px-3 py-1 ring-1 ring-rose-500/40">
+              <span className="relative flex size-2 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
+              </span>
+              <span className="text-sm font-semibold text-rose-300">现在 LIVE</span>
+              <span className="text-sm text-zinc-200">{sectionLabel(liveSection)}</span>
             </div>
-          )}
-        </article>
-        <QrPanel qrSlot={qrSlot} password={password} />
-      </div>
-      {upNext.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
-          {upNext.map((p) => (
-            <article
-              key={p.id}
-              className="overflow-hidden rounded-xl bg-zinc-900/60 px-5 py-4 ring-1 ring-zinc-800"
-            >
-              <PostHeader post={p} />
-              <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-base text-zinc-200">
-                {p.body}
+            <p className="text-4xl font-semibold leading-tight text-white">
+              {liveMeta.topic}
+            </p>
+            {liveMeta.speaker && (
+              <p className="mt-3 text-2xl text-zinc-200">
+                {liveMeta.speaker}
+                {liveMeta.affiliation && (
+                  <span className="ml-2 text-xl text-zinc-400">· {liveMeta.affiliation}</span>
+                )}
               </p>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+            )}
+          </div>
+        ) : (
+          <div>
+            <p className="text-3xl font-semibold text-zinc-300">空档期</p>
+            <p className="mt-2 text-lg text-zinc-500">下一个板块即将开始</p>
+          </div>
+        )}
 
-function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl bg-zinc-900/60 px-8 py-6 ring-1 ring-zinc-800">
-      <div className="rounded-xl bg-white p-3">{qrSlot}</div>
-      <p className="text-center leading-tight">
-        <span className="block text-xl font-semibold text-white">扫码一键加入</span>
-        <span className="text-sm text-zinc-400">发帖 / 投票 / 找人</span>
-      </p>
-      {password && (
-        <div className="w-full rounded-xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
-          <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
-          <p className="mt-1 select-all font-mono text-3xl font-semibold tracking-wider text-white">
-            {password}
-          </p>
+        <div className="rounded-2xl bg-zinc-900/60 px-6 py-5 ring-1 ring-zinc-800">
+          <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">在线人数</p>
+          <p className="mt-1 text-6xl font-semibold tabular-nums text-white">{online}</p>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -253,7 +271,7 @@ function PollSlot({
           <span className="rounded-full bg-indigo-500 px-3 py-1 text-sm font-semibold text-white">
             投票进行中
           </span>
-          <PostHeader post={post} compact />
+          <PostHeader post={post} />
         </div>
         <p className="whitespace-pre-wrap text-4xl font-semibold leading-tight text-white">
           {post.body}
@@ -300,26 +318,229 @@ function PollSlot({
   )
 }
 
-function PostHeader({
-  post,
-  large,
-  compact,
+function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl bg-zinc-900/60 px-8 py-6 ring-1 ring-zinc-800">
+      <div className="rounded-xl bg-white p-3">{qrSlot}</div>
+      <p className="text-center leading-tight">
+        <span className="block text-xl font-semibold text-white">扫码一键加入</span>
+        <span className="text-sm text-zinc-400">发帖 / 投票 / 找人</span>
+      </p>
+      {password && (
+        <div className="w-full rounded-xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
+          <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
+          <p className="mt-1 select-all font-mono text-3xl font-semibold tracking-wider text-white">
+            {password}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Lottery animation: ~5s spin then settle on the (server-determined) winner.
+// Winner identity is fixed by the server; the animation is purely visual.
+const LOTTERY_SPIN_MS = 5_000
+
+function LotterySlot({ draw, now }: { draw: ScreenLotteryDraw; now: number }) {
+  // `now` ticks every 1s from the parent; we derive phase from it (pure render).
+  const startedAt = Date.parse(draw.created_at)
+  const phase: 'spinning' | 'settled' =
+    now - startedAt >= LOTTERY_SPIN_MS ? 'settled' : 'spinning'
+
+  // Faster cadence (80–500ms) is needed for the avatar swap during spin —
+  // 1s tick is too slow. Cell rotation lives in its own effect so it can
+  // schedule itself with a decelerating timer.
+  const [cellIdx, setCellIdx] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    function tick() {
+      if (cancelled) return
+      const elapsed = Date.now() - startedAt
+      if (elapsed >= LOTTERY_SPIN_MS) return
+      setCellIdx((i) => (i + 1) % Math.max(1, draw.pool_sample.length))
+      const t = Math.max(0, Math.min(1, elapsed / LOTTERY_SPIN_MS))
+      const interval = 80 + t * 420
+      timer = setTimeout(tick, interval)
+    }
+
+    if (Date.now() - startedAt < LOTTERY_SPIN_MS) {
+      timer = setTimeout(tick, 80)
+    }
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [draw.id, startedAt, draw.pool_sample.length])
+
+  const current =
+    phase === 'settled'
+      ? draw.winner
+      : draw.pool_sample[cellIdx % Math.max(1, draw.pool_sample.length)] ?? draw.winner
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-8">
+      <div className="inline-flex items-center gap-3 rounded-full bg-amber-500/20 px-5 py-2 ring-1 ring-amber-500/40">
+        <span className="text-base font-semibold text-amber-200">
+          {phase === 'spinning' ? '抽奖中…' : '🎉 中奖！'}
+        </span>
+        <span className="text-xs text-amber-300/80">池子 {draw.pool_sample.length}+ 人</span>
+      </div>
+
+      <div
+        className={
+          'rounded-3xl p-12 ring-2 transition-all duration-500 ' +
+          (phase === 'settled'
+            ? 'scale-110 bg-amber-500/20 ring-amber-400 shadow-[0_0_120px_rgba(251,191,36,0.5)]'
+            : 'bg-zinc-900/60 ring-zinc-700')
+        }
+      >
+        <div className="flex flex-col items-center gap-6">
+          <div className={phase === 'spinning' ? 'animate-pulse' : ''}>
+            <Avatar seed={current.id} user={current} size="3xl" onDark />
+          </div>
+          <div className="text-center">
+            <p className="text-6xl font-bold leading-tight text-white">{displayName(current)}</p>
+            {displayMeta(current) && (
+              <p className="mt-3 text-2xl text-zinc-300">{displayMeta(current)}</p>
+            )}
+            {current.is_vip && (
+              <p className="mt-3">
+                <span className="rounded-full bg-amber-500/30 px-3 py-1 text-base font-semibold text-amber-200">
+                  嘉宾
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {phase === 'settled' && (
+        <p className="text-lg text-zinc-400">
+          {draw.rules.must_have_posted && '已发帖 · '}
+          {draw.rules.exclude_previous_winners && '首次中奖'}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function QaSlot({
+  mode,
+  questions,
+  qrSlot,
+  password,
 }: {
-  post: FeedPost
-  large?: boolean
-  compact?: boolean
+  mode: ScreenModeState
+  questions: ScreenQuestion[]
+  qrSlot: React.ReactNode
+  password: string
 }) {
+  const hostName = mode.qa_host_name ?? '嘉宾'
+  const top = questions.slice(0, 5)
+  const ticker = questions.slice(5, 13)
+
+  return (
+    <div className="grid h-full grid-cols-[1.1fr_1.4fr] gap-8">
+      {/* Left: 嘉宾 + QR */}
+      <div className="flex flex-col items-center justify-center gap-5 rounded-3xl bg-zinc-900/60 p-8 ring-1 ring-zinc-800">
+        <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/20 px-4 py-1.5 ring-1 ring-rose-500/40">
+          <span className="relative flex size-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
+          </span>
+          <span className="text-sm font-semibold text-rose-300">嘉宾 QA · 进行中</span>
+        </div>
+        <p className="text-center">
+          <span className="block text-5xl font-semibold leading-tight text-white">{hostName}</span>
+          {mode.qa_host_title && (
+            <span className="mt-2 block text-xl text-zinc-300">{mode.qa_host_title}</span>
+          )}
+        </p>
+        <div className="rounded-2xl bg-white p-4">{qrSlot}</div>
+        <p className="text-center text-2xl font-semibold text-white">扫码向 {hostName} 提问</p>
+        {password && (
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
+            <p className="mt-1 select-all font-mono text-2xl font-semibold tracking-[0.2em] text-white">
+              {password}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Right: 问题列表 */}
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">
+          观众提问 · 共 {questions.length} 条 · 按点赞排序
+        </p>
+        {questions.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60">
+            <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>
+          </div>
+        ) : (
+          <>
+            <ul className="flex flex-1 min-h-0 flex-col gap-3 overflow-hidden">
+              {top.map((q, i) => (
+                <li
+                  key={q.id}
+                  className="flex gap-4 rounded-2xl bg-zinc-900 px-6 py-4 ring-1 ring-zinc-800"
+                >
+                  <span className="shrink-0 text-3xl font-bold tabular-nums text-zinc-600">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="whitespace-pre-wrap text-2xl leading-snug text-white">
+                      {q.body}
+                    </p>
+                    <p className="mt-2 flex items-center gap-3 text-sm text-zinc-400">
+                      <span>{displayName(q.author)}</span>
+                      {displayMeta(q.author) && (
+                        <span className="text-zinc-500">· {displayMeta(q.author)}</span>
+                      )}
+                      <span className="ml-auto font-semibold text-rose-300">
+                        ❤ {q.like_count}
+                      </span>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {ticker.length > 0 && (
+              <div className="rounded-2xl bg-zinc-900/40 px-5 py-3 ring-1 ring-zinc-800/60">
+                <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  排队中
+                </p>
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-zinc-300">
+                  {ticker.map((q) => (
+                    <li key={q.id} className="flex items-center gap-2 truncate">
+                      <span className="shrink-0 text-xs text-rose-400">❤{q.like_count}</span>
+                      <span className="truncate">{q.body}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PostHeader({ post }: { post: FeedPost }) {
   const a = post.author
   const name = displayName(a)
   const meta = displayMeta(a)
-  const sizeName = large ? 'text-2xl' : compact ? 'text-base' : 'text-xl'
-  const sizeMeta = large ? 'text-lg' : 'text-sm'
-  const avatarSize = large ? 'lg' : compact ? 'sm' : 'md'
   return (
     <div className="flex items-center gap-3">
-      <Avatar seed={post.user_id} user={a} size={avatarSize} onDark />
-      <span className={`${sizeName} font-semibold text-white`}>{name}</span>
-      {meta && <span className={`${sizeMeta} text-zinc-400`}>· {meta}</span>}
+      <Avatar seed={post.user_id} user={a} size="sm" onDark />
+      <span className="text-base font-semibold text-white">{name}</span>
+      {meta && <span className="text-sm text-zinc-400">· {meta}</span>}
       {a.is_vip && (
         <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-300">
           嘉宾

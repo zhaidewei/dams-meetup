@@ -2,7 +2,11 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { readAdminCookie, setAdminCookie } from '@/lib/identity'
 import { fetchScreenData } from '@/lib/actions/screen'
-import { getCurrentSection } from '@/lib/queries/event-state'
+import {
+  getCurrentSection,
+  getScreenModeState,
+  listVipUsers,
+} from '@/lib/queries/event-state'
 import { QRCode } from '@/components/QRCode'
 import { ScreenView } from '@/components/screen/ScreenView'
 import { ScreenAdminBar } from '@/components/screen/ScreenAdminBar'
@@ -30,10 +34,12 @@ export default async function ScreenPage({
 
   const section = isSectionId(sp.section) ? sp.section : null
 
-  const [snap, h, currentSection] = await Promise.all([
+  const [snap, h, currentSection, modeState, vips] = await Promise.all([
     fetchScreenData(section),
     headers(),
     getCurrentSection(),
+    getScreenModeState(),
+    listVipUsers(),
   ])
 
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? ''
@@ -53,13 +59,19 @@ export default async function ScreenPage({
         key={section ?? 'all'}
         initialPosts={snap.posts}
         initialOnline={snap.online}
+        initialMode={modeState}
         eventName={EVENT_NAME}
         section={section}
         liveSection={currentSection}
         password={password}
         qrSlot={<QRCode value={qrUrl} size={280} />}
       />
-      <ScreenAdminBar currentSection={currentSection} />
+      <ScreenAdminBar
+        currentSection={currentSection}
+        screenMode={modeState.mode}
+        qaHostUserId={modeState.qa_host_user_id}
+        vips={vips}
+      />
     </>
   )
 }

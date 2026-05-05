@@ -6,16 +6,24 @@ import { Settings, X } from 'lucide-react'
 import {
   setCurrentSectionAction,
   clearCurrentSectionAction,
+  startQaAction,
+  exitScreenModeAction,
+  startLotteryAction,
 } from '@/lib/actions/event-state'
 import { SECTIONS, isSectionId, type SectionId } from '@/lib/sections'
+import type { ScreenMode } from '@/lib/types'
+import type { VipForDropdown } from '@/lib/queries/event-state'
 
 type Props = {
   currentSection: SectionId | null
+  screenMode: ScreenMode
+  qaHostUserId: string | null
+  vips: VipForDropdown[]
 }
 
 // /screen 右下角浮动控制条 — 只主办方（admin cookie 已 set）能看到。
 // 投影时如果是镜像屏，控制条会被一起投出去，所以默认折叠成一个小图标。
-export function ScreenAdminBar({ currentSection }: Props) {
+export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const filterRaw = searchParams.get('section')
@@ -24,6 +32,9 @@ export function ScreenAdminBar({ currentSection }: Props) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [pendingHostId, setPendingHostId] = useState<string>(qaHostUserId ?? vips[0]?.user_id ?? '')
+  const [mustHavePosted, setMustHavePosted] = useState(false)
+  const [excludePreviousWinners, setExcludePreviousWinners] = useState(true)
 
   function pickSection(id: SectionId) {
     setError(null)
@@ -43,6 +54,37 @@ export function ScreenAdminBar({ currentSection }: Props) {
 
   function setFilter(id: SectionId | null) {
     router.push(id ? `/screen?section=${id}` : '/screen')
+  }
+
+  function startQa() {
+    if (!pendingHostId) {
+      setError('请先选择嘉宾')
+      return
+    }
+    setError(null)
+    startTransition(async () => {
+      const res = await startQaAction(pendingHostId)
+      if (res.error) setError(res.error)
+    })
+  }
+
+  function exitMode() {
+    setError(null)
+    startTransition(async () => {
+      const res = await exitScreenModeAction()
+      if (res.error) setError(res.error)
+    })
+  }
+
+  function startLottery() {
+    setError(null)
+    startTransition(async () => {
+      const res = await startLotteryAction({
+        must_have_posted: mustHavePosted,
+        exclude_previous_winners: excludePreviousWinners,
+      })
+      if (res.error) setError(res.error)
+    })
   }
 
   if (!open) {
@@ -73,6 +115,93 @@ export function ScreenAdminBar({ currentSection }: Props) {
       </div>
 
       <div className="space-y-3">
+        {/* 0. 大屏模式 — QA / 抽奖 / 默认骨架。优先级最高放最上面，活动期间常用 */}
+        <fieldset>
+          <legend className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+            大屏模式
+          </legend>
+          <p className="mb-1.5 text-xs">
+            <span className="text-zinc-100">
+              当前：
+              {screenMode === 'qa'
+                ? `QA · ${vips.find((v) => v.user_id === qaHostUserId)?.name ?? '?'}`
+                : screenMode === 'lottery'
+                  ? '抽奖'
+                  : '默认骨架'}
+            </span>
+          </p>
+          {screenMode === 'default' ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] text-zinc-400">
+                  嘉宾 QA — 选目标嘉宾后开始
+                </label>
+                <select
+                  value={pendingHostId}
+                  onChange={(e) => setPendingHostId(e.target.value)}
+                  disabled={pending || vips.length === 0}
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 disabled:opacity-50"
+                >
+                  {vips.length === 0 && <option value="">（暂无 VIP 已登录）</option>}
+                  {vips.map((v) => (
+                    <option key={v.user_id} value={v.user_id}>
+                      {v.name}
+                      {v.title ? ` · ${v.title}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={startQa}
+                  disabled={pending || !pendingHostId}
+                  className="w-full rounded-md bg-rose-500 px-2 py-1.5 text-xs font-medium text-white hover:bg-rose-400 disabled:opacity-50"
+                >
+                  开始 QA
+                </button>
+              </div>
+
+              <div className="space-y-1.5 border-t border-zinc-800 pt-2">
+                <label className="block text-[11px] text-zinc-400">抽奖 — 池子取在线 5 分钟内</label>
+                <label className="flex items-center gap-2 text-xs text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={mustHavePosted}
+                    onChange={(e) => setMustHavePosted(e.target.checked)}
+                    className="size-3.5 rounded border-zinc-600 bg-zinc-800"
+                  />
+                  必须发过帖才能被抽
+                </label>
+                <label className="flex items-center gap-2 text-xs text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={excludePreviousWinners}
+                    onChange={(e) => setExcludePreviousWinners(e.target.checked)}
+                    className="size-3.5 rounded border-zinc-600 bg-zinc-800"
+                  />
+                  排除上轮中奖者
+                </label>
+                <button
+                  type="button"
+                  onClick={startLottery}
+                  disabled={pending}
+                  className="w-full rounded-md bg-amber-500 px-2 py-1.5 text-xs font-medium text-white hover:bg-amber-400 disabled:opacity-50"
+                >
+                  开始抽奖
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={exitMode}
+              disabled={pending}
+              className="w-full rounded-md bg-zinc-700 px-2 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-600 disabled:opacity-50"
+            >
+              {screenMode === 'qa' ? '结束 QA' : '结束抽奖'}（回默认骨架）
+            </button>
+          )}
+        </fieldset>
+
         {/* 1. 设置当前 LIVE 板块 — 影响 /feed 的 LIVE 红标 + EventHero */}
         <fieldset>
           <legend className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
