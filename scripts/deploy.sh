@@ -32,5 +32,5 @@ export NEXT_PUBLIC_EVENT_ORGANIZER="DAMS"
 echo "→ Building Worker bundle"
 npx opennextjs-cloudflare build
 
-echo "→ Deploying to meet.zhaidewei.com"
+echo "→ Deploying to live.nl-dams.com"
 exec npx opennextjs-cloudflare deploy
