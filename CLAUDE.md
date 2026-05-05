@@ -153,6 +153,7 @@ Then point Claude at this file: it contains all the architectural decisions and 
 6. **端到端验证 match function 真跑通** — 部署完成但还没观测到 match_runs 表里有 success 行；至少塞 ≥3 条暗需求 mock 数据后等下一次 cron（5min），或 admin force token 手动触发，验证 DeepSeek 调用+ AI reply 写回
 
 ### Recently shipped
+- 2026-05-06: **issue #32 — 新增「公共讨论区」板块 lounge** — `lounge` 加到 `SECTIONS` 第一位，无 `SECTION_WINDOWS` 项（永远开放、`sectionByClock` 永不命中、admin 显式覆写才能成 LIVE）。`DEFAULT_SECTION` 由 `p1` → `lounge`，活动外/空档期 /feed 默认跳 lounge。migration 0018 放宽 `posts.section` 与 `event_state.current_section` 的 CHECK 约束。admin 大屏「当前 LIVE 板块」「视图筛选」两个旋钮自动出现 lounge 选项，"全部" 自然包含 lounge 帖。
 - 2026-05-05: **CF 部署切到朋友账户 `live.nl-dams.com` (PR #31)** — wrangler.jsonc pin `account_id` + custom_domain route；本地首次 deploy → runtime secrets push → Workers Builds 接 `zhaidewei/dams-meetup` repo 自动 build & deploy。朋友 CF 账户给的 role：`Workers Admin` + `Administrator Read Only`（后者补 Account Settings Read，否则 Workers Builds connect 会报权限错）。Build env vars (NEXT_PUBLIC_*) 必须在朋友 dashboard 单独配，不走 `scripts/deploy.sh` 的 Keychain 注入路径。
 - 2026-05-03 傍晚: **issue #17 — 投票手动关闭 + DeepSeek 数据声明 + redact 兜底** — `closePollAction` 把 `poll_deadline` 提前到 now()（复用既有字段，无新状态列），PollCard 给作者显示「立即截止」按钮；`prompt.ts` 加 `redactContacts()`（邮箱/URL/≥10 数字串 → `[已隐藏]`），UI 显式声明数据流向 DeepSeek。`docs/matching-design.md` §8 完整字段清单。
 - 2026-05-03 傍晚: **issue #15 — 联系方式一键复制** — PostCard / DmThreadView 展示对方联系方式时附复制按钮（复用 RecoveryLink 同款 CopyButton）。

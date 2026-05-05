@@ -1,7 +1,9 @@
-// 4 event sections — splits the timeline into separate discussion streams.
-// Backend stores `posts.section` (text, nullable). Constraint in 0005.
+// Event sections — splits the timeline into separate discussion streams.
+// Backend stores `posts.section` (text, nullable). Constraint in 0005 + 0018.
+// `lounge` 是脱离会议议程的公共讨论区，没有时间窗，永远开放；放第一位。
 
 export const SECTIONS = [
+  { id: 'lounge', label: '公共讨论区' },
   { id: 'p1', label: '演讲 1' },
   { id: 'p2', label: '演讲 2' },
   { id: 'breakout', label: '分组交流' },
@@ -10,7 +12,7 @@ export const SECTIONS = [
 
 export type SectionId = (typeof SECTIONS)[number]['id']
 
-export const DEFAULT_SECTION: SectionId = 'p1'
+export const DEFAULT_SECTION: SectionId = 'lounge'
 
 const SECTION_IDS = SECTIONS.map((s) => s.id) as readonly string[]
 
@@ -48,6 +50,11 @@ export type SectionMeta = {
 }
 
 export const SECTION_META: Record<SectionId, SectionMeta> = {
+  lounge: {
+    topic: '不限主题，自由发帖、求助、组队、招聘',
+    speaker: null,
+    affiliation: null,
+  },
   p1: {
     topic: '和 AI 搭档：合作、摩擦与重新定义工作',
     speaker: '刘爵铭',
