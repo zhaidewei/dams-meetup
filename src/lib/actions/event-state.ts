@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { readAdminCookie } from '@/lib/identity'
-import { isSectionId, type SectionId } from '@/lib/sections'
+import { DEFAULT_SECTION, isSectionId, type SectionId } from '@/lib/sections'
 import { EVENT_END_ISO } from '@/lib/constants'
 import { getCurrentSection } from '@/lib/queries/event-state'
 
@@ -74,8 +74,9 @@ export async function startQaAction(
   if (!host || !host.is_vip) return { error: '该用户不是嘉宾' }
 
   // 把当前 LIVE section 快照成 qa_section，绑定本轮 QA。
-  // 没有 LIVE section（活动外 / 空档期）时为 null — /feed 退化为「所有 section 下都显示」。
-  const qaSection = await getCurrentSection()
+  // 没有 LIVE section（活动外 / 空档期）时归到公共讨论区 lounge，避免 QA 区块在所有
+  // section 下都出现。
+  const qaSection = (await getCurrentSection()) ?? DEFAULT_SECTION
 
   const { error } = await sb
     .from('event_state')

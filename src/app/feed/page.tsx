@@ -45,17 +45,16 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // Fire-and-forget; don't await on the render path.
   void touchLastSeen(user.id)
 
-  // QA 与 section 绑定（issue #37）：只在当前查看的 section 与 qa_section 匹配时
-  // 渲染 QA UI。qa_section 为 null（活动外/空档期启动）时退化为「所有 section 下都显示」。
-  const qaSectionMatches =
-    modeState.qa_section === null || modeState.qa_section === section
+  // QA 与 section 严格绑定（issue #37）：只在当前查看的 section 与 qa_section 匹配时
+  // 渲染 QA UI。startQa 时若没有 LIVE section，会落到 DEFAULT_SECTION (lounge)；
+  // 历史脏数据中可能有 null，这里同样兜底到 lounge，避免在所有 section 下都显示。
+  const qaSection = modeState.qa_section ?? DEFAULT_SECTION
   const qaHostId =
-    modeState.mode === 'qa' && qaSectionMatches ? modeState.qa_host_user_id : null
+    modeState.mode === 'qa' && qaSection === section ? modeState.qa_host_user_id : null
   // 上一轮 QA：只有 mode=default 且 section 匹配时显示塌陷区块。
-  const lastQaSectionMatches =
-    modeState.last_qa_section === null || modeState.last_qa_section === section
+  const lastQaSection = modeState.last_qa_section ?? DEFAULT_SECTION
   const lastQaHostId =
-    modeState.mode === 'default' && lastQaSectionMatches
+    modeState.mode === 'default' && lastQaSection === section
       ? modeState.last_qa_host_user_id
       : null
 

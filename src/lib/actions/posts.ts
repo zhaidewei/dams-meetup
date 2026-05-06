@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser, readAdminCookie } from '@/lib/identity'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
-import { isSectionId } from '@/lib/sections'
+import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 import { parseTags } from '@/lib/tags'
 
 export type PostFormState = { error: string | null; ok?: boolean }
@@ -157,8 +157,9 @@ export async function createQuestionAction(
   if (!state || state.screen_mode !== 'qa' || !state.qa_host_user_id) {
     return { error: 'QA 已经结束了' }
   }
-  // qa_section 是 startQa 时快照的板块；空表示不绑定（活动外启动）。
-  const questionSection = isSectionId(state.qa_section) ? state.qa_section : null
+  // qa_section 是 startQa 时快照的板块；活动外启动会落到 DEFAULT_SECTION (lounge)，
+  // 兜底脏数据也归到 lounge，保证 question 帖永远有归属。
+  const questionSection = isSectionId(state.qa_section) ? state.qa_section : DEFAULT_SECTION
 
   // Identity updates: nickname / company optional; questions are usually
   // posted with whatever identity the user has. Match createPostAction's
