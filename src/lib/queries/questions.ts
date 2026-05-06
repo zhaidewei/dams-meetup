@@ -24,12 +24,11 @@ export async function fetchQuestionsForHost(
 ): Promise<ScreenQuestion[]> {
   const sb = getServerSupabase()
 
-  // 先拿 posts（按时间倒序限 100 防爆），再按 IN (post_ids) 聚合 likes。
-  // 早期版本对 likes 全表扫，会被 Realtime 写入的高广播率打爆 DB。
+  // like_count 由 0020 trigger 维护到 posts 列上，单 query 拿全部数据。
   const postsRes = await sb
     .from('posts')
     .select(
-      `id, user_id, body, created_at,
+      `id, user_id, body, created_at, like_count,
        author:users!user_id ( nickname, company, is_vip, vip_name, vip_title )`,
     )
     .eq('type', 'question')
@@ -43,17 +42,6 @@ export async function fetchQuestionsForHost(
     return []
   }
 
-  const postIds = postsRes.data.map((r) => r.id as number)
-  const likesRes = postIds.length
-    ? await sb.from('likes').select('post_id').in('post_id', postIds)
-    : { data: [] as Array<{ post_id: number }>, error: null }
-
-  const likeCounts = new Map<number, number>()
-  for (const l of likesRes.data ?? []) {
-    const pid = l.post_id as number
-    likeCounts.set(pid, (likeCounts.get(pid) ?? 0) + 1)
-  }
-
   const items: ScreenQuestion[] = postsRes.data.map((row) => {
     const a = row.author as QuestionAuthor | QuestionAuthor[] | null
     const author = Array.isArray(a) ? a[0] : (a as QuestionAuthor)
@@ -62,7 +50,7 @@ export async function fetchQuestionsForHost(
       user_id: row.user_id as string,
       body: row.body as string,
       created_at: row.created_at as string,
-      like_count: likeCounts.get(row.id as number) ?? 0,
+      like_count: (row.like_count as number) ?? 0,
       author,
     }
   })

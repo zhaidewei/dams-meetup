@@ -73,7 +73,7 @@ export async function fetchFeed(
       `id, user_id, type, body, tags, show_contact, section,
        poll_options, poll_multi, poll_deadline, poll_hide_results,
        question_target_user_id, answered_at,
-       created_at,
+       created_at, like_count,
        author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
        replies (
          id, user_id, parent_reply_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
@@ -97,11 +97,9 @@ export async function fetchFeed(
     if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
   }
 
-  // Two-step fetch: posts first to learn which IDs we need, then aggregates
-  // scoped by IN (post_ids). Earlier version did one parallel fetch that pulled
-  // ALL rows from likes / poll_votes — under Realtime broadcast amplification
-  // (every write triggers every connected client to re-render the feed), this
-  // grew quadratically with activity and dominated p95 even at 50 users.
+  // 两步取数：先 posts 拿到 ids，再用 IN(post_ids) 限定后续聚合 / viewer 状态
+  // 查询。like_count 已经由 0020 trigger 维护到 posts 列上，这里不再聚合 likes
+  // 行；保留的 likes 查询只取 viewer 自己的（liked_by_me），行数 ≤ posts。
   const postsRes = await postsQuery
   if (postsRes.error) {
     console.error('fetchFeed posts error:', postsRes.error)
@@ -113,9 +111,9 @@ export async function fetchFeed(
   const myPostIds = postRows.filter((r) => r.user_id === viewerId).map((r) => r.id as number)
 
   const empty = { data: [] as never[], error: null }
-  const [likesRes, votesRes, intentRes] = await Promise.all([
+  const [likedByMeRes, votesRes, intentRes] = await Promise.all([
     postIds.length
-      ? sb.from('likes').select('post_id, user_id').in('post_id', postIds)
+      ? sb.from('likes').select('post_id').eq('user_id', viewerId).in('post_id', postIds)
       : empty,
     pollIds.length
       ? sb.from('poll_votes').select('post_id, user_id, option_id').in('post_id', pollIds)
@@ -125,7 +123,7 @@ export async function fetchFeed(
       : empty,
   ])
 
-  if (likesRes.error) console.error('fetchFeed likes error:', likesRes.error)
+  if (likedByMeRes.error) console.error('fetchFeed likes error:', likedByMeRes.error)
   if (votesRes.error) console.error('fetchFeed poll_votes error:', votesRes.error)
   if (intentRes.error) console.error('fetchFeed match_intent error:', intentRes.error)
 
@@ -134,12 +132,9 @@ export async function fetchFeed(
     intentByPost.set(row.post_id as number, row.intent as string)
   }
 
-  const likeCounts = new Map<number, number>()
   const viewerLikes = new Set<number>()
-  for (const l of likesRes.data ?? []) {
-    const pid = l.post_id as number
-    likeCounts.set(pid, (likeCounts.get(pid) ?? 0) + 1)
-    if (l.user_id === viewerId) viewerLikes.add(pid)
+  for (const l of likedByMeRes.data ?? []) {
+    viewerLikes.add(l.post_id as number)
   }
 
   // post_id → { option_id → count, total, myOptions[] }
@@ -198,7 +193,8 @@ export async function fetchFeed(
       author,
       replies,
       reply_count: replies.length,
-      like_count: likeCounts.get(row.id as number) ?? 0,
+      // posts.like_count 由 0020 trigger 在 likes INSERT/DELETE 时维护
+      like_count: (row.like_count as number) ?? 0,
       liked_by_me: viewerLikes.has(row.id as number),
       match_intent: isPostAuthor ? (intentByPost.get(row.id as number) ?? null) : null,
     } as FeedPost
