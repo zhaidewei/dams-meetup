@@ -5,6 +5,7 @@ import { EventHero } from '@/components/EventHero'
 import { PostComposer } from '@/components/PostComposer'
 import { QuestionComposer } from '@/components/QuestionComposer'
 import { PostCard } from '@/components/PostCard'
+import { InfiniteFeed } from '@/components/InfiniteFeed'
 import { SectionTabs } from '@/components/SectionTabs'
 import { SectionContextBar } from '@/components/SectionContextBar'
 import { OnboardingBanner } from '@/components/OnboardingBanner'
@@ -17,6 +18,12 @@ import { isNonAnon } from '@/lib/dm'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
 export const dynamic = 'force-dynamic'
+
+// SSR 首屏只拉最新 20 条；用户主动「加载更早」时由 InfiniteFeed 客户端组件
+// 通过 server action 拉历史。理由：CF Workers Free 10ms CPU/req 是硬上限，
+// SSR 100 条 + replies join 在 seeded 数据下会触发 5xx；20 条把 SSR cost
+// 砍到 1/5。
+const FEED_PAGE_SIZE = 20
 
 type SearchParams = Promise<{ section?: string }>
 
@@ -60,7 +67,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
 
   const [posts, unreadMe, qaQuestionsRaw, lastQaQuestionsRaw, viewerIsAdmin] =
     await Promise.all([
-      fetchFeed(user.id, { section }),
+      fetchFeed(user.id, { section, limit: FEED_PAGE_SIZE }),
       fetchUnreadMe(user),
       qaHostId
         ? fetchFeed(user.id, { questionTargetUserId: qaHostId, limit: 50 })
@@ -161,23 +168,14 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
             aiConsentGiven={!!user.ai_consent_at}
           />
 
-          {posts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-12 text-center text-sm text-zinc-500">
-              这个板块还没有人发帖。第一条由你来。
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  viewerId={user.id}
-                  viewerCanDm={viewerCanDm}
-                  viewerIsAdmin={viewerIsAdmin}
-                />
-              ))}
-            </div>
-          )}
+          <InfiniteFeed
+            initial={posts}
+            pageSize={FEED_PAGE_SIZE}
+            section={section}
+            viewerId={user.id}
+            viewerCanDm={viewerCanDm}
+            viewerIsAdmin={viewerIsAdmin}
+          />
         </div>
       </main>
     </>

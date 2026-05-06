@@ -59,6 +59,9 @@ export async function fetchFeed(
     section?: SectionId
     // QA: 拉某 host 的全部 question 帖（绕过 section filter）。
     questionTargetUserId?: string
+    // Cursor 分页：只拿 created_at 严格早于此 ISO timestamp 的帖。
+    // 配合 limit 实现下拉加载历史；不传则取最新 N 条。
+    before?: string
   } = {},
 ): Promise<FeedPost[]> {
   const sb = getServerSupabase()
@@ -81,6 +84,7 @@ export async function fetchFeed(
     .order('created_at', { ascending: false })
     .limit(limit)
 
+  if (opts.before) postsQuery = postsQuery.lt('created_at', opts.before)
   if (opts.authorId) postsQuery = postsQuery.eq('user_id', opts.authorId)
   if (opts.questionTargetUserId) {
     // QA 模式：只要这个 host 的 question 帖。section/type 都不限。
