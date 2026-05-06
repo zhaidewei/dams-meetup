@@ -101,8 +101,9 @@
 
 <div class="tldr">
 <strong>结论 (TL;DR)：</strong>
-配置升级 + 代码优化后，<strong>200 并发用户下 p50 = 4.3s, p95 = 9.9s, 0 个 5xx, 0 个 net error</strong>。
-按真实活动场景（用户分批到场、写入更稀疏）外推，250 人在线<strong>能扛</strong>。
+配置升级 + 代码优化后，<strong>100 并发用户下 p50 = 1.4s / p95 = 1.9s / 0 个 5xx</strong>，
+<strong>200 并发用户下 p50 = 4.3s / p95 = 9.9s / 0 个 5xx</strong>。
+真实活动同时在线预计 100-150 人，落在曲线甜区。
 最终配置：CF Workers Paid + Supabase Pro + SMALL compute，活动 6 小时合计成本约 <strong>$5.5</strong>（含月费摊销）。
 </div>
 
@@ -173,7 +174,7 @@ N 个用户的总负载 ≈ <strong>O(N²)</strong>。这是要测的核心曲�
       <td><span class="pill pill-warn">未稳态</span></td>
     </tr>
     <tr>
-      <td>④ <strong>稳态 (final)</strong></td>
+      <td>④ 稳态 200 用户</td>
       <td>同 ③，Workers 部署 + Supabase resize 完全生效后</td>
       <td>200 (4×50)</td>
       <td class="num good">8802</td>
@@ -183,9 +184,34 @@ N 个用户的总负载 ≈ <strong>O(N²)</strong>。这是要测的核心曲�
       <td class="num good">11.2s</td>
       <td><span class="pill pill-good">通过</span></td>
     </tr>
+    <tr>
+      <td>⑤ <strong>稳态 100 用户</strong>（活动实际预期负载）</td>
+      <td>同 ④</td>
+      <td>100 (4×25)</td>
+      <td class="num good">4399</td>
+      <td class="num good">0</td>
+      <td class="num good">1.4s</td>
+      <td class="num good">1.9s</td>
+      <td class="num good">2.1s</td>
+      <td><span class="pill pill-good">优秀</span></td>
+    </tr>
   </tbody>
 </table>
 <p class="legend">所有 p50/p95/p99 单位毫秒；feed_ok = 成功的 /feed HTTP 响应总数；测试时长 180s + 60s rampup。</p>
+
+<h3>2.1 扩展性曲线</h3>
+<p>同一稳态配置下（CF Paid + Supabase SMALL + A+B+B' 优化），用户数对延迟的影响：</p>
+<table>
+  <thead>
+    <tr><th>用户数</th><th class="num">p50</th><th class="num">p95</th><th class="num">max</th><th>增长系数</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>100</td><td class="num">1.4s</td><td class="num">1.9s</td><td class="num">2.7s</td><td>—</td></tr>
+    <tr><td>200</td><td class="num">4.3s</td><td class="num">9.9s</td><td class="num">12.7s</td><td>p50 ×3.1（用户数 ×2）</td></tr>
+  </tbody>
+</table>
+<p>100 → 200 增长系数明显超线性（×3.1 vs 用户 ×2），说明 200 用户处已开始进入连接池饱和区。
+<strong>真实活动预计同时在线 100-150</strong>（250 注册 ×约 60% 同时打开 + 用户分批到场），落在曲线甜区，<strong>p50 估算 1.5-2.5s</strong>。</p>
 
 <h2>3. 优化清单</h2>
 
