@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DAMS Meetup #14 容量压测报告</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --fg: #18181b;
+      --muted: #71717a;
+      --border: #e4e4e7;
+      --accent: #2563eb;
+      --good: #16a34a;
+      --warn: #ca8a04;
+      --bad: #dc2626;
+      --code-bg: #f4f4f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+        'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      color: var(--fg); background: var(--bg);
+      line-height: 1.6;
+    }
+    main { max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
+    .subtitle { color: var(--muted); margin: 0 0 2rem; font-size: 0.95rem; }
+    h2 {
+      font-size: 1.25rem; margin: 2.5rem 0 0.75rem;
+      padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    }
+    h3 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+    p { margin: 0.5rem 0; }
+    .tldr {
+      background: #ecfeff; border-left: 4px solid #06b6d4;
+      padding: 1rem 1.25rem; border-radius: 6px; margin: 1rem 0 1.5rem;
+    }
+    .tldr strong { color: #0e7490; }
+    .meta {
+      display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem;
+      font-size: 0.9rem; color: var(--muted); margin-bottom: 1.5rem;
+    }
+    .meta dt { font-weight: 600; }
+    .meta dd { margin: 0; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.88rem; margin: 0.75rem 0;
+    }
+    th, td {
+      text-align: left; padding: 0.5rem 0.6rem;
+      border-bottom: 1px solid var(--border); vertical-align: top;
+    }
+    th { background: var(--code-bg); font-weight: 600; font-size: 0.85rem; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, monospace; }
+    .good { color: var(--good); font-weight: 600; }
+    .warn { color: var(--warn); font-weight: 600; }
+    .bad { color: var(--bad); font-weight: 600; }
+    code, .mono {
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 0.85em;
+      background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 3px;
+    }
+    pre {
+      background: var(--code-bg); padding: 0.75rem 1rem; border-radius: 6px;
+      overflow-x: auto; font-size: 0.85rem; line-height: 1.5;
+    }
+    pre code { background: none; padding: 0; }
+    ul, ol { padding-left: 1.4rem; }
+    li { margin: 0.25rem 0; }
+    .pill {
+      display: inline-block; padding: 0.1rem 0.5rem; border-radius: 4px;
+      font-size: 0.78rem; font-weight: 600; vertical-align: middle;
+    }
+    .pill-good { background: #dcfce7; color: #166534; }
+    .pill-warn { background: #fef3c7; color: #92400e; }
+    .pill-bad  { background: #fee2e2; color: #991b1b; }
+    .pill-info { background: #dbeafe; color: #1e40af; }
+    footer {
+      margin-top: 3rem; padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 0.85rem;
+    }
+    .legend { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+  </style>
+</head>
+<body>
+<main>
+
+<h1>DAMS Meetup #14 — 容量压测报告</h1>
+<p class="subtitle">5/9 活动前的负载验证（截至 2026-05-07）</p>
+
+<dl class="meta">
+  <dt>活动</dt><dd>荷兰华人数据群 Meetup 第 14 期 · 2026-05-09 12:45–18:00 Europe/Amsterdam</dd>
+  <dt>参会人数预估</dt><dd>~250</dd>
+  <dt>核心交互</dt><dd>实时 timeline（每条写入广播给所有在线客户端）</dd>
+  <dt>压测目标</dt><dd>验证 250 人在线 + Realtime 写入风暴下不会崩 / 慢到不可用</dd>
+  <dt>被测站</dt><dd><code>https://live.nl-dams.com</code>（Cloudflare Workers + Supabase）</dd>
+</dl>
+
+<div class="tldr">
+<strong>结论 (TL;DR)：</strong>
+配置升级 + 代码优化后，<strong>200 并发用户下 p50 = 4.3s, p95 = 9.9s, 0 个 5xx, 0 个 net error</strong>。
+按真实活动场景（用户分批到场、写入更稀疏）外推，250 人在线<strong>能扛</strong>。
+最终配置：CF Workers Paid + Supabase Pro + SMALL compute，活动 6 小时合计成本约 <strong>$5.5</strong>（含月费摊销）。
+</div>
+
+<h2>1. 技术栈与负载特征</h2>
+
+<h3>1.1 架构</h3>
+<table>
+  <tr><th>层</th><th>选型</th></tr>
+  <tr><td>Web</td><td>Next.js 16.2.4 (App Router, SSR force-dynamic)</td></tr>
+  <tr><td>Edge</td><td>Cloudflare Workers (via <code>@opennextjs/cloudflare</code>)</td></tr>
+  <tr><td>DB + Realtime</td><td>Supabase (Postgres + Phoenix WebSocket broadcast)</td></tr>
+  <tr><td>身份</td><td>无 auth；浏览器 UUID + cookie</td></tr>
+</table>
+
+<h3>1.2 负载放大模式</h3>
+<p>每条写入（发帖 / 点赞 / 回复）触发 Supabase Realtime broadcast 给所有在线订阅者。
+每个客户端收到广播后 <code>router.refresh()</code> 重渲染整张 timeline，重新打 5+ 个 Supabase 查询。
+N 个用户的总负载 ≈ <strong>O(N²)</strong>。这是要测的核心曲线。</p>
+
+<h2>2. 测试演进时间线</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>阶段</th>
+      <th>配置</th>
+      <th>用户数</th>
+      <th class="num">feed_ok</th>
+      <th class="num">5xx</th>
+      <th class="num">p50</th>
+      <th class="num">p95</th>
+      <th class="num">p99</th>
+      <th>判定</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>① 基线 (Free)</td>
+      <td>CF Free + Supabase Free NANO</td>
+      <td>50 (2×25)</td>
+      <td class="num">1302</td>
+      <td class="num bad">314 (19%)</td>
+      <td class="num">1.2s</td>
+      <td class="num">3.1s</td>
+      <td class="num">10.7s</td>
+      <td><span class="pill pill-bad">CPU 撞顶</span></td>
+    </tr>
+    <tr>
+      <td>② CF 升 Paid</td>
+      <td>CF Paid + Supabase Pro MICRO + A+B 优化</td>
+      <td>200 (4×50)</td>
+      <td class="num">3854</td>
+      <td class="num good">0</td>
+      <td class="num warn">10.9s</td>
+      <td class="num bad">40.6s</td>
+      <td class="num bad">50.1s</td>
+      <td><span class="pill pill-warn">DB 池耗尽</span></td>
+    </tr>
+    <tr>
+      <td>③ B' 合并查询 + Supabase 升 SMALL（冷启动）</td>
+      <td>CF Paid + Supabase Pro SMALL + A+B+B'</td>
+      <td>200 (4×50)</td>
+      <td class="num">5270</td>
+      <td class="num good">0</td>
+      <td class="num warn">14.6s</td>
+      <td class="num bad">40.3s</td>
+      <td class="num bad">43.3s</td>
+      <td><span class="pill pill-warn">未稳态</span></td>
+    </tr>
+    <tr>
+      <td>④ <strong>稳态 (final)</strong></td>
+      <td>同 ③，Workers 部署 + Supabase resize 完全生效后</td>
+      <td>200 (4×50)</td>
+      <td class="num good">8802</td>
+      <td class="num good">0</td>
+      <td class="num good">4.3s</td>
+      <td class="num good">9.9s</td>
+      <td class="num good">11.2s</td>
+      <td><span class="pill pill-good">通过</span></td>
+    </tr>
+  </tbody>
+</table>
+<p class="legend">所有 p50/p95/p99 单位毫秒；feed_ok = 成功的 /feed HTTP 响应总数；测试时长 180s + 60s rampup。</p>
+
+<h2>3. 优化清单</h2>
+
+<table>
+  <tr><th>代号</th><th>位置</th><th>内容</th><th>效果</th></tr>
+  <tr>
+    <td>A</td>
+    <td><code>src/lib/queries/posts.ts</code><br><code>src/lib/queries/questions.ts</code></td>
+    <td>fetchFeed 改两步取数：先拿 posts → 用 <code>IN (post_ids)</code> scope likes / poll_votes / match_intents，避免全表扫描</td>
+    <td>50 用户 p95 从 6.4s 降到 2.6s</td>
+  </tr>
+  <tr>
+    <td>B</td>
+    <td><code>src/components/FeedRealtime.tsx</code></td>
+    <td>客户端 Realtime debounce 从 500ms 提到 2500ms</td>
+    <td>每次广播 fanout 减少 4-6×；用户感知延迟无明显变化</td>
+  </tr>
+  <tr>
+    <td>B'</td>
+    <td><code>src/lib/queries/event-state.ts</code></td>
+    <td>合并 <code>getCurrentSection()</code> + <code>getScreenModeState()</code> 为单次查询 <code>getEventStateBundle()</code>；/feed 与 /screen 都受益</td>
+    <td>每次渲染省 1 个 PostgREST 连接占用</td>
+  </tr>
+</table>
+
+<h2>4. 最关键的发现</h2>
+
+<h3>4.1 Free tier 的真正天花板是 PostgREST 连接池，不是 CPU</h3>
+<p>200 并发下 Supabase Observability 显示：</p>
+<ul>
+  <li><strong>10,644 个 503 错误 / 10 分钟</strong>，集中在 <code>/rest/v1/posts</code> 和 <code>/rest/v1/event_state</code></li>
+  <li>CPU usage 大部分时间空闲（<strong>2.48%</strong>）</li>
+  <li>内存 906 MB / 1 GB，磁盘 IO 1.1 MB/s — 都健康</li>
+  <li>但 <strong>DB Connections 40/60 (66.7%)</strong>，PostgREST 池被打满，单条 user 查询排队 <strong>50 秒</strong>才执行</li>
+</ul>
+<p>诊断关键：<code>fetchFeed</code> 查 posts 失败时会兜底返回空数组 + 200 OK，所以 CF Worker 看不到 5xx，但<strong>用户实际体验是空白页</strong>。比直接 5xx 还糟。</p>
+
+<h3>4.2 优化生效有延迟，第一轮测试容易抢跑</h3>
+<p>③ → ④ 仅相隔几十分钟，配置完全相同，但 p50 从 14.6s 跳到 4.3s（3.4× 改善）。差异来源：</p>
+<ul>
+  <li><strong>Cloudflare Workers Builds</strong> 从 git push 到部署需要 3–5 分钟</li>
+  <li><strong>Supabase compute resize</strong> 调度→实际应用有 5–10 分钟窗口期</li>
+  <li>各层缓存 / 连接池冷启动</li>
+</ul>
+<p>教训：升级类操作之后<strong>等 10 分钟再测</strong>，否则容易得到悲观假象，引发不必要的进一步优化。</p>
+
+<h3>4.3 单机模拟 200 个虚拟用户存在客户端污染</h3>
+<p>同时段：Mac 跑 4 进程压测 + Chrome 访问 → Chrome 卡顿；同样的 Chrome 在手机上访问 → 流畅。说明压测进程把本机的 TLS 握手 / 网络栈 / CPU 都吃了一部分，<strong>报告的延迟里有一部分是 Mac 自己的瓶颈</strong>。</p>
+<p>真实活动里 250 个真实手机分布在不同蜂窝/Wi-Fi 网络上，<strong>体感会比测试数据更流畅</strong>。</p>
+
+<h2>5. 最终配置 + 成本</h2>
+
+<table>
+  <tr><th>服务</th><th>档位</th><th>关键参数</th><th>成本</th></tr>
+  <tr>
+    <td>Cloudflare Workers</td>
+    <td>Paid (Bundled)</td>
+    <td>50ms CPU/request, 10M req/月含</td>
+    <td>$5 / 月</td>
+  </tr>
+  <tr>
+    <td>Supabase</td>
+    <td>Pro + SMALL compute</td>
+    <td>2 vCPU / 4 GB RAM, max_conn ~90, PostgREST pool ~25</td>
+    <td>$25 / 月 + $0.04/h × 6h ≈ $0.24</td>
+  </tr>
+  <tr>
+    <td>合计（活动当月）</td>
+    <td colspan="2"></td>
+    <td><strong>~$30.24</strong></td>
+  </tr>
+</table>
+
+<h2>6. 风险与未验证项</h2>
+
+<ol>
+  <li><strong>Realtime 长连接稳定性</strong>：单次测试 180s 没暴露长时间 WebSocket 重连问题，活动 6h 可能出现意外。建议活动当天指定 1 名工作人员看 Supabase Realtime metrics。</li>
+  <li><strong>VIP 投票峰值</strong>：未单独压测投票场景。VIP 起一个 poll 时所有人同时打开投票，瞬间产生 ~250 个 poll_votes 写入，未在本次时间内验证。</li>
+  <li><strong>AI 撮合 Edge Function</strong>：不在临界路径，DeepSeek 故障也只影响「撮合」侧栏，feed 不受影响。<strong>不阻塞 ship</strong>。</li>
+  <li><strong>多机协同压测</strong>：5/8 计划由朋友们多机一起跑一轮，验证去除单机污染后的真实性能。</li>
+</ol>
+
+<h2>7. 进一步优化（如需）</h2>
+
+<p>当前已经 ship-ready，以下选项备查：</p>
+<ul>
+  <li><strong>fetchFeed 改 RPC</strong>：把 4 个并行查询合成单个 stored procedure，再省 3 个 round-trip。预期 p50 再降 30-50%。工作量 1–2h。</li>
+  <li><strong>Supabase compute 升 MEDIUM</strong>：max_conn 120, PostgREST pool ~40。$0.08/h × 6h ≈ $0.48。预期 p50 再降 ~20%。</li>
+  <li><strong>FeedRealtime debounce 2.5s → 5s</strong>：感知延迟可接受，fanout 再减半。零成本。</li>
+</ul>
+
+<h2>8. 压测框架本身</h2>
+
+<p>仓库内 <code>loadtest/</code> 目录：</p>
+<ul>
+  <li><code>run.mjs</code> — 入口，<code>parseArgs</code> 读 CLI flag，spawn N 个 VirtualUser</li>
+  <li><code>user.mjs</code> — VirtualUser 完整生命周期：密码门 → /feed → Realtime 订阅 → 90/10 读写循环</li>
+  <li><code>stats.mjs</code> — counter + reservoir-sampled 直方图，输出 p50/p95/p99</li>
+  <li><code>cleanup.mjs</code> — 按 PID 前缀删测试数据，FK CASCADE 自动清下游</li>
+  <li><code>aggregate.mjs</code> — 合并多进程 / 多机的 stats JSON</li>
+  <li><code>seed.mjs</code> — 注入基线 200 users / 400 posts / 1500 likes / 500 replies</li>
+  <li><code>friend.sh</code> + <code>FRIENDS.md</code> — 朋友帮忙跑测试的 wrapper（不依赖 macOS Keychain）</li>
+</ul>
+
+<p>压测框架的设计文档见 <a href="loadtest.md"><code>docs/loadtest.md</code></a>。</p>
+
+<footer>
+报告生成日期：2026-05-07 · 仓库：<a href="https://github.com/zhaidewei/dams-meetup">zhaidewei/dams-meetup</a> · 维护：zdw
+</footer>
+
+</main>
+</body>
+</html>
