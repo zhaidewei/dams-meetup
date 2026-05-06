@@ -2,11 +2,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { readAdminCookie, setAdminCookie } from '@/lib/identity'
 import { fetchScreenData } from '@/lib/actions/screen'
-import {
-  getCurrentSection,
-  getScreenModeState,
-  listVipUsers,
-} from '@/lib/queries/event-state'
+import { getEventStateBundle, listVipUsers } from '@/lib/queries/event-state'
 import { QRCode } from '@/components/QRCode'
 import { ScreenView } from '@/components/screen/ScreenView'
 import { ScreenAdminBar } from '@/components/screen/ScreenAdminBar'
@@ -34,13 +30,13 @@ export default async function ScreenPage({
 
   const section = isSectionId(sp.section) ? sp.section : null
 
-  const [snap, h, currentSection, modeState, vips] = await Promise.all([
+  const [snap, h, eventState, vips] = await Promise.all([
     fetchScreenData(section),
     headers(),
-    getCurrentSection(),
-    getScreenModeState(),
+    getEventStateBundle(),
     listVipUsers(),
   ])
+  const { liveSection: currentSection, modeState } = eventState
 
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? ''
   const proto =

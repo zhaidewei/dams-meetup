@@ -13,7 +13,7 @@ import { FeedRealtime } from '@/components/FeedRealtime'
 import { DmRealtime } from '@/components/DmRealtime'
 import { fetchFeed } from '@/lib/queries/posts'
 import { fetchUnreadMe } from '@/lib/queries/unread'
-import { getCurrentSection, getScreenModeState } from '@/lib/queries/event-state'
+import { getEventStateBundle } from '@/lib/queries/event-state'
 import { isNonAnon } from '@/lib/dm'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 
@@ -38,10 +38,9 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
 
   // 「当前板块」= 主办方覆写 → 议程时间表 → null（活动外 / 空档）。
   // 用于 (a) /feed 默认跳当前板块；(b) SectionTabs LIVE 标。
-  const [liveSection, modeState] = await Promise.all([
-    getCurrentSection(),
-    getScreenModeState(),
-  ])
+  // event_state 一行查两组字段 — 5/9 实测 PostgREST 池在 200 并发下被
+  // 重复 round-trip 打爆，合并查询省一次 DB 连接。
+  const { liveSection, modeState } = await getEventStateBundle()
 
   // 没传 ?section= 时跳到当前板块；活动外则用默认 p1。
   const section = isSectionId(sp.section)
