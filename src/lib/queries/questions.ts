@@ -24,28 +24,29 @@ export async function fetchQuestionsForHost(
 ): Promise<ScreenQuestion[]> {
   const sb = getServerSupabase()
 
-  // 一次拿 question posts + 各帖 like 计数。Supabase 不支持 group-by aggregate 直接
-  // 选最高，所以分两次：先拿 posts（按时间倒序限 100 防爆），再聚合 likes。
-  const [postsRes, likesRes] = await Promise.all([
-    sb
-      .from('posts')
-      .select(
-        `id, user_id, body, created_at,
-         author:users!user_id ( nickname, company, is_vip, vip_name, vip_title )`,
-      )
-      .eq('type', 'question')
-      .eq('question_target_user_id', hostUserId)
-      // 大屏只显示未答问题 — admin 在 /feed 标已答后立刻让出位置
-      .is('answered_at', null)
-      .order('created_at', { ascending: false })
-      .limit(100),
-    sb.from('likes').select('post_id'),
-  ])
+  // 先拿 posts（按时间倒序限 100 防爆），再按 IN (post_ids) 聚合 likes。
+  // 早期版本对 likes 全表扫，会被 Realtime 写入的高广播率打爆 DB。
+  const postsRes = await sb
+    .from('posts')
+    .select(
+      `id, user_id, body, created_at,
+       author:users!user_id ( nickname, company, is_vip, vip_name, vip_title )`,
+    )
+    .eq('type', 'question')
+    .eq('question_target_user_id', hostUserId)
+    .is('answered_at', null)
+    .order('created_at', { ascending: false })
+    .limit(100)
 
   if (postsRes.error || !postsRes.data) {
     if (postsRes.error) console.error('fetchQuestionsForHost posts error:', postsRes.error)
     return []
   }
+
+  const postIds = postsRes.data.map((r) => r.id as number)
+  const likesRes = postIds.length
+    ? await sb.from('likes').select('post_id').in('post_id', postIds)
+    : { data: [] as Array<{ post_id: number }>, error: null }
 
   const likeCounts = new Map<number, number>()
   for (const l of likesRes.data ?? []) {

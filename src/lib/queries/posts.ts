@@ -93,42 +93,41 @@ export async function fetchFeed(
     if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
   }
 
-  const [postsRes, likesRes, votesRes] = await Promise.all([
-    postsQuery,
-    sb.from('likes').select('post_id, user_id'),
-    sb.from('poll_votes').select('post_id, user_id, option_id'),
-  ])
-
-  // Pull match_intent only for the viewer's own posts (post_match_intents has
-  // no anon RLS policy; service_role here can read all). Restricting the IN
-  // list to viewer-authored ids ensures the value never reaches a non-author.
-  const myPostIds = (postsRes.data ?? [])
-    .filter((r) => r.user_id === viewerId)
-    .map((r) => r.id as number)
-  const intentByPost = new Map<number, string>()
-  if (myPostIds.length > 0) {
-    const { data: intentRows, error: intentErr } = await sb
-      .from('post_match_intents')
-      .select('post_id, intent')
-      .in('post_id', myPostIds)
-    if (intentErr) {
-      console.error('fetchFeed match_intent error:', intentErr)
-    } else {
-      for (const row of intentRows ?? []) {
-        intentByPost.set(row.post_id as number, row.intent as string)
-      }
-    }
-  }
-
+  // Two-step fetch: posts first to learn which IDs we need, then aggregates
+  // scoped by IN (post_ids). Earlier version did one parallel fetch that pulled
+  // ALL rows from likes / poll_votes — under Realtime broadcast amplification
+  // (every write triggers every connected client to re-render the feed), this
+  // grew quadratically with activity and dominated p95 even at 50 users.
+  const postsRes = await postsQuery
   if (postsRes.error) {
     console.error('fetchFeed posts error:', postsRes.error)
     return []
   }
-  if (likesRes.error) {
-    console.error('fetchFeed likes error:', likesRes.error)
-  }
-  if (votesRes.error) {
-    console.error('fetchFeed poll_votes error:', votesRes.error)
+  const postRows = postsRes.data ?? []
+  const postIds = postRows.map((r) => r.id as number)
+  const pollIds = postRows.filter((r) => r.type === 'poll').map((r) => r.id as number)
+  const myPostIds = postRows.filter((r) => r.user_id === viewerId).map((r) => r.id as number)
+
+  const empty = { data: [] as never[], error: null }
+  const [likesRes, votesRes, intentRes] = await Promise.all([
+    postIds.length
+      ? sb.from('likes').select('post_id, user_id').in('post_id', postIds)
+      : empty,
+    pollIds.length
+      ? sb.from('poll_votes').select('post_id, user_id, option_id').in('post_id', pollIds)
+      : empty,
+    myPostIds.length
+      ? sb.from('post_match_intents').select('post_id, intent').in('post_id', myPostIds)
+      : empty,
+  ])
+
+  if (likesRes.error) console.error('fetchFeed likes error:', likesRes.error)
+  if (votesRes.error) console.error('fetchFeed poll_votes error:', votesRes.error)
+  if (intentRes.error) console.error('fetchFeed match_intent error:', intentRes.error)
+
+  const intentByPost = new Map<number, string>()
+  for (const row of intentRes.data ?? []) {
+    intentByPost.set(row.post_id as number, row.intent as string)
   }
 
   const likeCounts = new Map<number, number>()

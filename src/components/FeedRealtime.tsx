@@ -4,7 +4,11 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 
-const DEBOUNCE_MS = 500
+// 2.5s debounce: under 250 concurrent users, write rate can exceed 2/s; a
+// 500ms debounce barely coalesced anything and made every refresh hit DB
+// repeatedly. 2.5s loses near-zero perceived responsiveness but cuts refresh
+// fanout 4-6×.
+const DEBOUNCE_MS = 2500
 
 // Subscribes to posts / replies / likes changes via Supabase Realtime and
 // triggers a server refetch when something happens. One channel per mount.
