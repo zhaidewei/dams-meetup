@@ -28,15 +28,10 @@ const FEED_PAGE_SIZE = 20
 type SearchParams = Promise<{ section?: string }>
 
 export default async function FeedPage({ searchParams }: { searchParams: SearchParams }) {
-  // 三件事互相不依赖：cookie 解析 + users 行查询、searchParams、event_state 查询。
-  // 5/8 压测发现 240 并发下每个 RTT ~1s，串起来吃整 4s p50；并行这一段砍 1 个 RTT。
-  const [user, sp, eventState] = await Promise.all([
-    getCurrentUser(),
-    searchParams,
-    getEventStateBundle(),
-  ])
+  const user = await getCurrentUser()
   if (!user) redirect('/')
 
+  const sp = await searchParams
   if (sp.section !== undefined && !isSectionId(sp.section)) {
     redirect(`/feed?section=${DEFAULT_SECTION}`)
   }
@@ -45,7 +40,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // 用于 (a) /feed 默认跳当前板块；(b) SectionTabs LIVE 标。
   // event_state 一行查两组字段 — 5/9 实测 PostgREST 池在 200 并发下被
   // 重复 round-trip 打爆，合并查询省一次 DB 连接。
-  const { liveSection, modeState } = eventState
+  const { liveSection, modeState } = await getEventStateBundle()
 
   // 没传 ?section= 时跳到当前板块；活动外则用默认 p1。
   const section = isSectionId(sp.section)
