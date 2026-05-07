@@ -143,4 +143,9 @@ if (!argv['no-cleanup']) {
   console.log('\n--no-cleanup set: leaving LOADTEST-* rows in DB. Run with cleanup later.')
 }
 
+// 显式 exit：supabase-js / @supabase/realtime-js 内部有 keepalive timer
+// 和 socket 不肯释放，导致 Node event loop 不空、进程挂着不退（要 Ctrl+C）。
+// 朋友机用户首次跑会困惑。cleanup 跑完直接走人。
+process.exit(0)
+
 function elapsed() { return ((Date.now() - startedAt) / 1000).toFixed(0) }
