@@ -67,6 +67,12 @@ export async function fetchFeed(
   const sb = getServerSupabase()
   const limit = opts.limit ?? 100
 
+  // 一次查询：把 likes/poll_votes/post_match_intents 一起 embed 进 posts，
+  // 让 PostgREST 在 PG 层做 lateral join，省掉之前 await postsQuery →
+  // Promise.all([likes, votes, intents]) 的第二个 RTT。viewer 的 likes 用
+  // embedded filter (.eq likes.user_id) 限制；poll_votes 取全部用于聚合；
+  // post_match_intents 拉全部，map 阶段按 isPostAuthor 过滤后才 attach 到
+  // 返回对象，安全语义不变。
   let postsQuery = sb
     .from('posts')
     .select(
@@ -79,8 +85,12 @@ export async function fetchFeed(
          id, user_id, parent_reply_id, body, created_at, updated_at, is_ai, visibility, mentioned_user_id,
          author:users!user_id ( nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title ),
          mentioned_user:users!mentioned_user_id ( id, nickname, company, contact_handle, show_contact, is_vip, vip_name, vip_title )
-       )`,
+       ),
+       likes ( user_id ),
+       poll_votes ( user_id, option_id ),
+       post_match_intents ( intent )`,
     )
+    .eq('likes.user_id', viewerId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -97,62 +107,10 @@ export async function fetchFeed(
     if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
   }
 
-  // 两步取数：先 posts 拿到 ids，再用 IN(post_ids) 限定后续聚合 / viewer 状态
-  // 查询。like_count 已经由 0020 trigger 维护到 posts 列上，这里不再聚合 likes
-  // 行；保留的 likes 查询只取 viewer 自己的（liked_by_me），行数 ≤ posts。
   const postsRes = await postsQuery
   if (postsRes.error) {
     console.error('fetchFeed posts error:', postsRes.error)
     return []
-  }
-  const postRows = postsRes.data ?? []
-  const postIds = postRows.map((r) => r.id as number)
-  const pollIds = postRows.filter((r) => r.type === 'poll').map((r) => r.id as number)
-  const myPostIds = postRows.filter((r) => r.user_id === viewerId).map((r) => r.id as number)
-
-  const empty = { data: [] as never[], error: null }
-  const [likedByMeRes, votesRes, intentRes] = await Promise.all([
-    postIds.length
-      ? sb.from('likes').select('post_id').eq('user_id', viewerId).in('post_id', postIds)
-      : empty,
-    pollIds.length
-      ? sb.from('poll_votes').select('post_id, user_id, option_id').in('post_id', pollIds)
-      : empty,
-    myPostIds.length
-      ? sb.from('post_match_intents').select('post_id, intent').in('post_id', myPostIds)
-      : empty,
-  ])
-
-  if (likedByMeRes.error) console.error('fetchFeed likes error:', likedByMeRes.error)
-  if (votesRes.error) console.error('fetchFeed poll_votes error:', votesRes.error)
-  if (intentRes.error) console.error('fetchFeed match_intent error:', intentRes.error)
-
-  const intentByPost = new Map<number, string>()
-  for (const row of intentRes.data ?? []) {
-    intentByPost.set(row.post_id as number, row.intent as string)
-  }
-
-  const viewerLikes = new Set<number>()
-  for (const l of likedByMeRes.data ?? []) {
-    viewerLikes.add(l.post_id as number)
-  }
-
-  // post_id → { option_id → count, total, myOptions[] }
-  const pollAgg = new Map<
-    number,
-    { counts: Record<number, number>; total: number; mine: number[] }
-  >()
-  for (const v of votesRes.data ?? []) {
-    const pid = v.post_id as number
-    const oid = v.option_id as number
-    let agg = pollAgg.get(pid)
-    if (!agg) {
-      agg = { counts: {}, total: 0, mine: [] }
-      pollAgg.set(pid, agg)
-    }
-    agg.counts[oid] = (agg.counts[oid] ?? 0) + 1
-    agg.total += 1
-    if (v.user_id === viewerId) agg.mine.push(oid)
   }
 
   return (postsRes.data ?? []).map((row) => {
@@ -188,6 +146,14 @@ export async function fetchFeed(
           : null,
       }))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    // embedded likes 已经被 .eq('likes.user_id', viewerId) 过滤成只剩 viewer 自己；
+    // 任意行存在 = liked_by_me。
+    const likedByMe = ((row.likes as Array<{ user_id: string }> | null) ?? []).length > 0
+    // post_match_intents 在表层有 unique(post_id) 约束 → PostgREST 把它当 1:1
+    // 关系返回单对象（不是数组），没有时为 null。Supabase JS 类型推断不知道 1:1
+    // 优化所以默认推成数组，运行时验证过实际形态是单对象（scripts/verify-embed.mjs）。
+    // 最终 attach 受 isPostAuthor 控制，跟改造前的 intentByPost.get(...) 语义一致。
+    const intentRow = row.post_match_intents as unknown as { intent: string } | null
     const post: FeedPost = {
       ...row,
       author,
@@ -195,14 +161,20 @@ export async function fetchFeed(
       reply_count: replies.length,
       // posts.like_count 由 0020 trigger 在 likes INSERT/DELETE 时维护
       like_count: (row.like_count as number) ?? 0,
-      liked_by_me: viewerLikes.has(row.id as number),
-      match_intent: isPostAuthor ? (intentByPost.get(row.id as number) ?? null) : null,
+      liked_by_me: likedByMe,
+      match_intent: isPostAuthor ? (intentRow?.intent ?? null) : null,
     } as FeedPost
     if (row.type === 'poll') {
-      const agg = pollAgg.get(row.id as number)
-      post.poll_total_votes = agg?.total ?? 0
-      post.poll_option_counts = agg?.counts ?? {}
-      post.poll_my_vote_options = agg?.mine ?? []
+      const votes = (row.poll_votes as Array<{ user_id: string; option_id: number }> | null) ?? []
+      const counts: Record<number, number> = {}
+      const mine: number[] = []
+      for (const v of votes) {
+        counts[v.option_id] = (counts[v.option_id] ?? 0) + 1
+        if (v.user_id === viewerId) mine.push(v.option_id)
+      }
+      post.poll_total_votes = votes.length
+      post.poll_option_counts = counts
+      post.poll_my_vote_options = mine
     }
     return post
   })
