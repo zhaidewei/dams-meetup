@@ -29,8 +29,15 @@ export function createUser(cfg, handle) {
     closed: false,
     async close() {
       this.closed = true
-      if (this.channel) await this.anon.removeChannel(this.channel)
-      await this.anon.realtime.disconnect()
+      // @supabase/realtime-js 内部 bug：CHANNEL_ERROR 状态的 channel 在
+      // disconnect 时会尝试 connToClose.close()，但 conn 从未建立成功 → throw。
+      // 朋友机网络抖动 / SUBSCRIBE 失败时必现。这里吞掉，cleanup 阶段不受影响。
+      try {
+        if (this.channel) await this.anon.removeChannel(this.channel)
+      } catch {}
+      try {
+        await this.anon.realtime.disconnect()
+      } catch {}
     },
   }
 }

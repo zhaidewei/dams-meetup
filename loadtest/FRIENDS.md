@@ -35,6 +35,8 @@ EVENT_PASSWORD=
 
 ### 3. 跑一次小的，确认能通
 
+> ⚠️ **请用 `bash loadtest/friend.sh`，不要用 `./scripts/loadtest.sh`**。后者是 zdw 自己的 macOS Keychain 版本，默认 target 是 `localhost:3000`（你本地没东西，会得到错误数据）。
+
 ```bash
 bash loadtest/friend.sh --users 5 --duration 30
 ```
