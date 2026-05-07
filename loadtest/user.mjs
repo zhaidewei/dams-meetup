@@ -155,17 +155,19 @@ async function subscribeRealtime(s) {
   })
 }
 
-// Mirror FeedRealtime.tsx's DEBOUNCE_MS. Keep in sync — if the production
-// debounce changes, this should too, otherwise the test exerts artificial
-// load that doesn't match real browser behavior.
-const RT_DEBOUNCE_MS = 2500
+// Mirror FeedRealtime.tsx's DEBOUNCE_BASE_MS + JITTER_MS. Keep in sync — if
+// the production constants change, these should too, otherwise the test
+// exerts artificial load that doesn't match real browser behavior.
+const RT_DEBOUNCE_BASE_MS = 1500
+const RT_JITTER_MS = 4000
 function onBroadcast(s, table) {
   s.cfg.stats.inc(`rt_${table}`)
   if (s._rtTimer) return
+  const delay = RT_DEBOUNCE_BASE_MS + Math.random() * RT_JITTER_MS
   s._rtTimer = setTimeout(() => {
     s._rtTimer = null
     if (!s.closed) visitFeed(s).catch(() => {})
-  }, RT_DEBOUNCE_MS)
+  }, delay)
 }
 
 async function pickWrite(s) {
