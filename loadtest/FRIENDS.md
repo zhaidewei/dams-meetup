@@ -35,11 +35,19 @@ EVENT_PASSWORD=
 
 ### 3. 跑一次小的，确认能通
 
-> ⚠️ **请用 `bash loadtest/friend.sh`，不要用 `./scripts/loadtest.sh`**。后者是 zdw 自己的 macOS Keychain 版本，默认 target 是 `localhost:3000`（你本地没东西，会得到错误数据）。
+> ⚠️ **请用 `bash loadtest/friend.sh`，不要用 `./scripts/loadtest.sh`**。
+> 后者是 zdw 自己的 macOS Keychain 版本，默认 target 是 `localhost:3000`，
+> 你打不到生产，得到的数据是无效的（甚至打到你自己电脑上的某个 server）。
+>
+> 检查的办法：跑起来后看终端最上面 `target:` 那一行，**必须是
+> `https://live.nl-dams.com`** 才对。
 
 ```bash
-bash loadtest/friend.sh --users 5 --duration 30
+bash loadtest/friend.sh --users 5 --duration 60 --rampup 10
 ```
+
+> 注：默认 `rampup=60s`（生产场景用），smoke test 时间短的话要显式
+> 设小一点（如 `--rampup 10`），不然 spawn 完用户测试已经结束了。
 
 预期看到：
 ```

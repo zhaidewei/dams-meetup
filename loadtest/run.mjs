@@ -44,9 +44,18 @@ const { values: argv } = parseArgs({
 
 const USERS    = Number(argv.users)
 const DURATION = Number(argv.duration) * 1000
-const RAMPUP   = Number(argv.rampup) * 1000
+let   RAMPUP   = Number(argv.rampup) * 1000
 const WRITE_P  = Number(argv['write-rate'])
 const TARGET   = argv.target.replace(/\/$/, '')
+
+// 防呆：rampup 比 duration 还长 → 用户 spawn 完测试就结束了，
+// 而且 sleep(stopAt - now) 触发 Node 的 TimeoutNegativeWarning。
+// 默认 rampup=60s + 短 duration（朋友首次 smoke test 5 用户 30 秒）必踩。
+if (RAMPUP > DURATION * 0.8) {
+  const clamped = Math.max(1000, Math.floor(DURATION * 0.5))
+  console.warn(`[warn] rampup ${RAMPUP/1000}s 超过 duration ${DURATION/1000}s 的 80%，自动 clamp 到 ${clamped/1000}s`)
+  RAMPUP = clamped
+}
 
 const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
