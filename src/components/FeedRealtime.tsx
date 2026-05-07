@@ -4,11 +4,18 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 
-// 2.5s debounce: under 250 concurrent users, write rate can exceed 2/s; a
-// 500ms debounce barely coalesced anything and made every refresh hit DB
-// repeatedly. 2.5s loses near-zero perceived responsiveness but cuts refresh
-// fanout 4-6×.
-const DEBOUNCE_MS = 2500
+// Per-client refresh delay = DEBOUNCE_BASE_MS + random(0..JITTER_MS).
+// Two jobs:
+//   1. Coalesce: bursts of writes in this window collapse into one refresh
+//      (existing timer short-circuits subsequent bumps).
+//   2. De-herd: without jitter every client wakes at the same offset after a
+//      broadcast and fires SSR simultaneously; with 250 clients that's a
+//      thundering 250-rps spike per write. Random delay spreads them across
+//      the JITTER_MS window, capping peak SSR concurrency at ~N / JITTER_s.
+// 1.5–5.5s window: median 3.5s perceived lag (vs prior 2.5s), peak SSR
+// concurrency under 250 users drops ~8× (500ms → 4s window).
+const DEBOUNCE_BASE_MS = 1500
+const JITTER_MS = 4000
 
 // Subscribes to posts / replies / likes changes via Supabase Realtime and
 // triggers a server refetch when something happens. One channel per mount.
@@ -33,10 +40,11 @@ export function FeedRealtime() {
 
     function bump() {
       if (timer) return
+      const delay = DEBOUNCE_BASE_MS + Math.random() * JITTER_MS
       timer = setTimeout(() => {
         timer = null
         router.refresh()
-      }, DEBOUNCE_MS)
+      }, delay)
     }
 
     const channel = sb
