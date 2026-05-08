@@ -134,7 +134,7 @@ export function ReplySection({ postId, count, replies, viewerId, viewerCanDm }: 
       >
         <MessageCircle className="size-4" aria-hidden />
         <span>{count}</span>
-        <span className="text-xs text-zinc-400">{open ? '收起' : '查看回复'}</span>
+        <span className="text-xs text-zinc-400">{open ? '收起' : '回复'}</span>
       </button>
 
       {open && (
