@@ -166,7 +166,7 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
 
               <div className="space-y-1.5 border-t border-zinc-800 pt-2">
                 <label className="block text-[11px] text-zinc-400">
-                  抽奖 v2 — 池子取近 10 分钟活跃过的人，演到停才定 winner
+                  抽奖 v2 — 池子取近 1 小时活跃过的人，演到停才定 winner
                 </label>
                 <label className="flex items-center gap-2 text-xs text-zinc-200">
                   <input

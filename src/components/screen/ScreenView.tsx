@@ -532,7 +532,7 @@ function LotteryPreview({
       </div>
 
       <p className="text-sm text-zinc-500">
-        近 10 分钟内活跃过
+        近 1 小时内活跃过
         {draw.rules.must_have_posted && ' · 必须参与过（帖/回复/投票）'}
         {draw.rules.exclude_previous_winners && ' · 排除上轮中奖者'}
         {draw.rules.exclude_vips && ' · 不含嘉宾'}

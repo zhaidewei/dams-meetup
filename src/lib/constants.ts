@@ -12,6 +12,10 @@ export const MATCH_INTENT_MAX_CHARS = 200
 
 export const RECOVERY_WINDOW_DAYS = 7
 
+// 系统通知 user 的 contact_handle（migration 0022 插入）。中奖私信
+// 由 resolveLotteryAction 以这个 user 名义发出，复用 DM fan-out。
+export const LOTTERY_NOTIFY_HANDLE = 'SYSTEM-LOTTERY'
+
 // Cookie expiry: end of event + 7 days post-event window
 export function cookieExpiresAt(): Date {
   return new Date(Date.parse(EVENT_END_ISO) + RECOVERY_WINDOW_DAYS * 86_400_000)

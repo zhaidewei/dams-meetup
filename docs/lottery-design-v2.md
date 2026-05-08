@@ -123,7 +123,7 @@ alter table lottery_draws add constraint lottery_draws_close_consistency check (
 ```sql
 create or replace function compute_lottery_pool(
   rules jsonb,
-  online_window_seconds int default 600
+  online_window_seconds int default 3600
 ) returns table (user_id uuid, weight int) ...
 ```
 
@@ -155,7 +155,7 @@ create or replace function compute_lottery_pool(
 **画面**：
 - 顶部 banner：「即将抽奖 · 池子 187 人 · 加权 1-3 票」
 - 中央滚动栅格：所有 pool user 头像 + 昵称拼贴（30+ 人时分批 fade-in）
-- 底部规则文案：「近 10 分钟内活跃过 · 必须发言过 · 排除上轮中奖者」
+- 底部规则文案：「近 1 小时内活跃过 · 必须发言过 · 排除上轮中奖者」
 
 ### 阶段 B —— 跑马灯（4-6 秒）
 

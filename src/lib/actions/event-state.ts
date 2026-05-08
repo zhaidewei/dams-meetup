@@ -136,8 +136,12 @@ export async function exitScreenModeAction(): Promise<{ error: string | null }> 
 //   - 真正落 winner 在 resolveLotteryAction（动画停帧时由大屏调用）
 
 import { randomBytes, randomInt } from 'node:crypto'
+import { canonicalPair } from '@/lib/dm'
+import { LOTTERY_NOTIFY_HANDLE } from '@/lib/constants'
 
-const ONLINE_WINDOW_SECONDS = 600 // 10 分钟，比 v1 的 5min 放宽
+const ONLINE_WINDOW_SECONDS = 3600 // 1 小时。v1 是 5min（太严，走神被踢）；
+// 早期 v2 设过 10min 仍然激进 —— 现场容易出现 seed 后过 11min 才点抽奖
+// 池子空了的窘境。1h 覆盖整个活动 4-5 小时里的"绝大多数活跃成员"。
 
 export type LotteryRulesInput = {
   must_have_posted?: boolean
@@ -258,6 +262,95 @@ export async function resolveLotteryAction(
     .is('closed_at', null) // 防并发：如已 close 则不动
   if (updErr) return { error: updErr.message, winnerId: null }
 
+  // Fire-and-forget：给中奖人发系统私信（中奖人没看大屏也能在手机收到）。
+  // 失败只 log，抽奖本身不阻塞 —— 中奖结果已经写库 + 大屏已揭晓。
+  void sendLotteryWinDm(winner, drawId).catch((e) => {
+    console.error('lottery winner DM failed:', e)
+  })
+
   // event_state 没动，不需要 revalidatePath（大屏自己拿到 winner）
   return { error: null, winnerId: winner }
+}
+
+// 给中奖人发系统私信。复用 DM 链路：
+//   - dm_threads (system_user, winner) — 创建或复用
+//   - dm_messages — 不进 publication，body 私密
+//   - dm_notifications — 进 publication，drives winner 端 DmRealtime → router.refresh
+//
+// system user 由 migration 0022 通过 contact_handle='SYSTEM-LOTTERY' 标识；
+// 这里查一次而不是缓存，避免冷启动 + multi-instance race。
+async function sendLotteryWinDm(winnerUid: string, drawId: number): Promise<void> {
+  const sb = getServerSupabase()
+
+  const { data: sys } = await sb
+    .from('users')
+    .select('id')
+    .eq('contact_handle', LOTTERY_NOTIFY_HANDLE)
+    .maybeSingle()
+  if (!sys?.id) {
+    console.error(
+      `lottery DM skipped: system user (${LOTTERY_NOTIFY_HANDLE}) not found — apply migration 0022`,
+    )
+    return
+  }
+  const systemUid = sys.id as string
+  if (systemUid === winnerUid) return // 系统 user 自己中奖，跳过
+
+  const pair = canonicalPair(systemUid, winnerUid)
+
+  // 找已有 thread，没有就新建（unique(user_low,user_high) 撞了再查一次回退）
+  let threadId: number
+  const { data: existing } = await sb
+    .from('dm_threads')
+    .select('id')
+    .eq('user_low', pair.user_low)
+    .eq('user_high', pair.user_high)
+    .maybeSingle()
+  if (existing?.id) {
+    threadId = existing.id as number
+  } else {
+    const { data: created, error: createErr } = await sb
+      .from('dm_threads')
+      .insert(pair)
+      .select('id')
+      .single()
+    if (createErr || !created) {
+      const { data: retry } = await sb
+        .from('dm_threads')
+        .select('id')
+        .eq('user_low', pair.user_low)
+        .eq('user_high', pair.user_high)
+        .maybeSingle()
+      if (!retry?.id) {
+        console.error('lottery DM: thread create failed', createErr?.message)
+        return
+      }
+      threadId = retry.id as number
+    } else {
+      threadId = created.id as number
+    }
+  }
+
+  const body = `🎉 恭喜中奖！\n\n你在第 ${drawId} 轮抽奖中被抽中。请到主办方处领奖（凭这条私信即可）。`
+
+  const { error: msgErr } = await sb.from('dm_messages').insert({
+    thread_id: threadId,
+    sender_id: systemUid,
+    body,
+    revealed_contact: null,
+  })
+  if (msgErr) {
+    console.error('lottery DM: message insert failed', msgErr.message)
+    return
+  }
+
+  const { error: notifErr } = await sb.from('dm_notifications').insert({
+    recipient_id: winnerUid,
+    thread_id: threadId,
+  })
+  if (notifErr) {
+    // 消息已经入库，notif 失败只是 winner 端不会立刻 router.refresh —— 下次
+    // 主动刷 /me 仍然能看到。不致命。
+    console.error('lottery DM: notification insert failed', notifErr.message)
+  }
 }
