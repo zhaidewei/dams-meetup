@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Hand, X } from 'lucide-react'
 
-const STORAGE_KEY = 'dams-onboarding-v1'
+// v2: 加了"想被 AI 找到"条（match_offer 功能），bump key 让 v1 已 dismiss 的用户再看一次。
+const STORAGE_KEY = 'dams-onboarding-v2'
 
 // 首次进 /feed 顶部展示一次的轻量提示。dismiss 后写 localStorage，下次不再显示。
 // key 带 v1 — 以后改了内容可以 bump 让老用户重新看一次。
@@ -41,7 +42,7 @@ export function OnboardingBanner() {
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-blue-900">
           <Hand className="size-4" aria-hidden />
-          第一次来？三件事
+          第一次来？四件事
         </h3>
         <button
           type="button"
@@ -61,7 +62,10 @@ export function OnboardingBanner() {
           <span className="font-medium">AI 撮合</span>
           ：发帖时可以暗中委托「想找 Booking 的同学聊内推」之类，结果只回到你自己的「我」tab。
           <span className="text-blue-700"> 撮合双方都需要昵称，对方才能联系到你。</span>
-          <span className="text-blue-700"> 在「我」tab 写「我能提供什么」可以提高你被推荐的概率。</span>
+        </li>
+        <li>
+          <span className="font-medium">想被 AI 找到？</span>
+          在「我」tab 写「我能提供什么」（经验 / 资源 / 视角），AI 帮人撮合时会私下引用你，提高被推荐概率。
         </li>
         <li>
           <span className="font-medium">嘉宾发投票</span>
