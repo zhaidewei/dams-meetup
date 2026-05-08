@@ -20,3 +20,20 @@ export const LOTTERY_NOTIFY_HANDLE = 'SYSTEM-LOTTERY'
 export function cookieExpiresAt(): Date {
   return new Date(Date.parse(EVENT_END_ISO) + RECOVERY_WINDOW_DAYS * 86_400_000)
 }
+
+export type EventPhase = 'pre' | 'live' | 'post' | 'cleanup'
+
+// 活动四阶段（与 supabase/migrations/0025_match_cron_phased.sql 对齐）：
+// pre:     now < start            → 距开场，AI 撮合每小时
+// live:    start ≤ now < end      → 距结束，AI 撮合每 10 分钟
+// post:    end ≤ now < cleanup    → 距清理，AI 撮合每天
+// cleanup: now ≥ cleanup          → 7 天窗口已过，撮合 cron 不再触发
+export function getEventPhase(now: number = Date.now()): EventPhase {
+  const start = Date.parse(EVENT_START_ISO)
+  const end = Date.parse(EVENT_END_ISO)
+  const cleanup = end + RECOVERY_WINDOW_DAYS * 86_400_000
+  if (now < start) return 'pre'
+  if (now < end) return 'live'
+  if (now < cleanup) return 'post'
+  return 'cleanup'
+}

@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Clock, Radio } from 'lucide-react'
-import { EVENT_NAME, EVENT_END_ISO, EVENT_START_ISO } from '@/lib/constants'
+import {
+  EVENT_NAME,
+  EVENT_END_ISO,
+  EVENT_START_ISO,
+  RECOVERY_WINDOW_DAYS,
+  getEventPhase,
+} from '@/lib/constants'
 import { MatchCountdown } from '@/components/MatchCountdown'
 import {
   SECTION_META,
@@ -77,19 +83,24 @@ export function EventHero({ liveSection }: Props) {
   )
 }
 
-function formatCountdown(): string {
+function formatCountdown(): string | null {
   const now = Date.now()
-  const start = Date.parse(EVENT_START_ISO)
-  const end = Date.parse(EVENT_END_ISO)
-  if (now < start) return `距开场 ${human(start - now)}`
-  if (now < end) return `距结束 ${human(end - now)}`
-  return '活动已结束'
+  const phase = getEventPhase(now)
+  if (phase === 'pre') return `距开场 ${human(Date.parse(EVENT_START_ISO) - now)}`
+  if (phase === 'live') return `距结束 ${human(Date.parse(EVENT_END_ISO) - now)}`
+  if (phase === 'post') {
+    const cleanup = Date.parse(EVENT_END_ISO) + RECOVERY_WINDOW_DAYS * 86_400_000
+    return `距清理 ${human(cleanup - now)}`
+  }
+  return null
 }
 
 function human(ms: number): string {
   const totalMin = Math.max(0, Math.floor(ms / 60_000))
-  const h = Math.floor(totalMin / 60)
+  const d = Math.floor(totalMin / 1440)
+  const h = Math.floor((totalMin % 1440) / 60)
   const m = totalMin % 60
-  if (h === 0) return `${m}m`
-  return `${h}h ${m}m`
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }
