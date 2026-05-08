@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 type Props = {
-  active?: 'feed' | 'agenda' | 'me' | 'ppt'
+  active?: 'feed' | 'agenda' | 'me'
   // 「我」tab 红点合计：DM 未读 + 未读回复 + 未读 AI 提及。
   unreadMeCount?: number
 }
@@ -24,7 +24,6 @@ export function Header({ active = 'feed', unreadMeCount = 0 }: Props) {
           <NavTab href="/feed" label="时间线" active={active === 'feed'} />
           <NavTab href="/agenda" label="议程" active={active === 'agenda'} />
           <NavTab href="/me" label="我" active={active === 'me'} badge={unreadMeCount} />
-          <NavTab href="/ppt" label="介绍" active={active === 'ppt'} />
         </nav>
       </div>
     </header>

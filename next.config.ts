@@ -12,9 +12,6 @@ const nextConfig: NextConfig = {
   // making every onClick / onChange / useState appear dead while Link nav
   // and form submits still worked. See investigation 2026-05-03.
   allowedDevOrigins: ['192.168.68.110'],
-  async rewrites() {
-    return [{ source: '/ppt', destination: '/intro.html' }]
-  },
 }
 
 initOpenNextCloudflareForDev()
