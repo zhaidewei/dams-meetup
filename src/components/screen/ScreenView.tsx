@@ -164,6 +164,7 @@ export function ScreenView({
             mode={mode}
             questions={questions}
             answeredCount={answeredCount}
+            now={now}
             qrSlot={qrSlot}
             password={password}
           />
@@ -586,20 +587,40 @@ function Confetti() {
   )
 }
 
+// QA 已进行时长 mm:ss（>=1h 显示 h:mm:ss）。qa_started_at 缺失或时钟漂移
+// 导致负数时返回 null，上层不渲染。
+function formatQaElapsed(startedAt: string | null, now: number): string | null {
+  if (!startedAt) return null
+  const startMs = Date.parse(startedAt)
+  if (!Number.isFinite(startMs)) return null
+  const elapsed = Math.floor((now - startMs) / 1000)
+  if (elapsed < 0) return null
+  const s = elapsed % 60
+  const m = Math.floor(elapsed / 60) % 60
+  const h = Math.floor(elapsed / 3600)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
+}
+
 function QaSlot({
   mode,
   questions,
   answeredCount,
+  now,
   qrSlot,
   password,
 }: {
   mode: ScreenModeState
   questions: ScreenQuestion[]
   answeredCount: number
+  now: number
   qrSlot: React.ReactNode
   password: string
 }) {
   const hostName = mode.qa_host_name ?? '嘉宾'
+  // 已进行多久 — 大屏顺手提醒嘉宾和主办方时间。
+  // qa_started_at 缺失（老数据 / startQa 之前的 QA 行）时不显示，避免 NaN。
+  const elapsedLabel = formatQaElapsed(mode.qa_started_at, now)
   // 不维护本地 "已答" set —— 之前的乐观隐藏 set 只增不减，
   // 在「admin 撤销已答」或「外部回灌 answered_at=null」时无法重新出现，
   // 导致 q 永久从大屏消失。直接 trust DB 字段：fetchQuestionsForHost
@@ -635,6 +656,11 @@ function QaSlot({
             <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
           </span>
           <span className="text-sm font-semibold text-rose-300">嘉宾 QA · 进行中</span>
+          {elapsedLabel && (
+            <span className="ml-1 font-mono text-sm font-semibold tabular-nums text-rose-200">
+              {elapsedLabel}
+            </span>
+          )}
         </div>
         <p className="text-center">
           <span className="block text-5xl font-semibold leading-tight text-white">{hostName}</span>

@@ -31,6 +31,9 @@ export type ScreenModeState = {
   qa_host_title: string | null
   // 本轮 QA 绑定的板块（startQa 时快照 LIVE section）；null = 不绑定。
   qa_section: SectionId | null
+  // 本轮 QA 开始的时间戳（startQa 时写 now()）；大屏据此显示已进行 mm:ss。
+  // mode!='qa' 时通常为 null（exit 会清掉）。
+  qa_started_at: string | null
   // 上一轮 QA 的 host（exit 时归档），给 /feed 塌陷区块用；
   // 当 mode='qa' 时这俩字段不应该被用（用 qa_host_* 即可）。
   last_qa_host_user_id: string | null
@@ -49,7 +52,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const { data } = await sb
     .from('event_state')
     .select(
-      `screen_mode, qa_host_user_id, qa_section, screen_filter_section,
+      `screen_mode, qa_host_user_id, qa_section, qa_started_at, screen_filter_section,
        last_qa_host_user_id, last_qa_section, lottery_draw_id,
        host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
        last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
@@ -64,6 +67,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
       qa_host_name: null,
       qa_host_title: null,
       qa_section: null,
+      qa_started_at: null,
       last_qa_host_user_id: null,
       last_qa_host_name: null,
       last_qa_section: null,
@@ -94,6 +98,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
     qa_host_name: host ? host.vip_name ?? host.nickname ?? null : null,
     qa_host_title: host ? host.vip_title ?? host.company ?? null : null,
     qa_section: isSectionId(qaSectionRaw) ? qaSectionRaw : null,
+    qa_started_at: (data.qa_started_at as string | null) ?? null,
     last_qa_host_user_id: (data.last_qa_host_user_id as string | null) ?? null,
     last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
     last_qa_section: isSectionId(lastQaSectionRaw) ? lastQaSectionRaw : null,
@@ -116,7 +121,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
     .from('event_state')
     .select(
       `current_section, override_until,
-       screen_mode, qa_host_user_id, qa_section, screen_filter_section,
+       screen_mode, qa_host_user_id, qa_section, qa_started_at, screen_filter_section,
        last_qa_host_user_id, last_qa_section, lottery_draw_id,
        host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
        last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
@@ -143,6 +148,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
         qa_host_name: null,
         qa_host_title: null,
         qa_section: null,
+        qa_started_at: null,
         last_qa_host_user_id: null,
         last_qa_host_name: null,
         last_qa_section: null,
@@ -177,6 +183,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
       qa_host_name: host ? host.vip_name ?? host.nickname ?? null : null,
       qa_host_title: host ? host.vip_title ?? host.company ?? null : null,
       qa_section: isSectionId(qaSectionRaw) ? qaSectionRaw : null,
+      qa_started_at: (data.qa_started_at as string | null) ?? null,
       last_qa_host_user_id: (data.last_qa_host_user_id as string | null) ?? null,
       last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
       last_qa_section: isSectionId(lastQaSectionRaw) ? lastQaSectionRaw : null,

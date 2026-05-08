@@ -106,6 +106,9 @@ export async function startQaAction(
       screen_mode: 'qa',
       qa_host_user_id: hostUserId,
       qa_section: qaSection,
+      // 计时器起点 — 大屏据此显示「已进行 mm:ss」。每次 startQa 都会重置，
+      // 跳过中场休息只需 exit + start 即可重新开始计时。
+      qa_started_at: new Date().toISOString(),
       lottery_draw_id: null,
       updated_at: new Date().toISOString(),
     })
@@ -134,6 +137,7 @@ export async function exitScreenModeAction(): Promise<{ error: string | null }> 
     screen_mode: 'default',
     qa_host_user_id: null,
     qa_section: null,
+    qa_started_at: null,
     lottery_draw_id: null,
     updated_at: new Date().toISOString(),
   }
@@ -224,6 +228,7 @@ export async function startLotteryAction(
       screen_mode: 'lottery',
       qa_host_user_id: null,
       qa_section: null,
+      qa_started_at: null,
       lottery_draw_id: draw.id,
       updated_at: new Date().toISOString(),
     })
