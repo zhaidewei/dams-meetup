@@ -7,6 +7,10 @@ import type { UserRow } from './types'
 export const COOKIE_UID = 'dams-uid'
 export const COOKIE_PW = 'dams-pw-ok'
 export const COOKIE_ADMIN = 'dams-admin-ok'
+// /feed 顶部 onboarding banner 的 dismissed 状态。bump 后缀（v2 → v3 ...）让老用户重看。
+// 用 httpOnly cookie 而不是 localStorage：iOS Safari ITP 7-day script-writable storage cap
+// 会清掉 localStorage，cookie 不受影响。
+export const COOKIE_ONB = 'dams-onb-v2'
 
 function cookieOpts() {
   return {
@@ -31,6 +35,16 @@ export async function readPwCookie(): Promise<boolean> {
 export async function readAdminCookie(): Promise<boolean> {
   const c = await cookies()
   return Boolean(c.get(COOKIE_ADMIN)?.value)
+}
+
+export async function readOnbDismissed(): Promise<boolean> {
+  const c = await cookies()
+  return c.get(COOKIE_ONB)?.value === '1'
+}
+
+export async function setOnbDismissed() {
+  const c = await cookies()
+  c.set(COOKIE_ONB, '1', cookieOpts())
 }
 
 export async function setAdminCookie() {
