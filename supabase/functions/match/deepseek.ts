@@ -37,13 +37,18 @@ export async function callDeepSeek(userPrompt: string, apiKey: string): Promise<
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      // deepseek-chat alias 将被废弃，显式 pin 到 V4 flash non-thinking。
+      // 撮合是单轮分类任务，不需要 reasoner / pro 的强度。
+      model: 'deepseek-v4-flash',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
       ],
       response_format: { type: 'json_object' },
       temperature: 0.3,
+      // V4 flash 上限 384K，DS API 默认大约 4K（V3 遗留）。30 candidate × 3 推荐
+      // × ~80 token JSON ≈ 7K，16K 给 2× 余量防 JSON 被截断。
+      max_tokens: 16384,
     }),
   })
 

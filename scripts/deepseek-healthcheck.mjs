@@ -14,7 +14,7 @@ if (!apiKey) {
 
 const url = 'https://api.deepseek.com/chat/completions'
 const payload = {
-  model: 'deepseek-chat',
+  model: 'deepseek-v4-flash',
   messages: [
     { role: 'system', content: '只回复"ok"两个字，不要别的。' },
     { role: 'user', content: 'ping' },

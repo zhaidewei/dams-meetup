@@ -30,7 +30,7 @@ DB writes from Next.js server only, using Supabase **service role key** (bypasse
 - "我" tab — my posts + replies received + recovery link + edit profile
 - "撮合" tab — read-only view of `matches` table (AI-computed)
 - `/screen` route — projection mode (auto-scrolling timeline + poll takeover)
-- AI matching service — Supabase Edge Function + pg_cron every 5 min calls DeepSeek; failures isolated to "撮合" tab
+- AI matching service — Supabase Edge Function + pg_cron every 30 min calls DeepSeek; failures isolated to "撮合" tab
 
 ## Folder layout
 ```
@@ -150,9 +150,10 @@ Then point Claude at this file: it contains all the architectural decisions and 
 3. ~~`/matches` tab~~ — **废除**（F'' 决策；AI reply 内联到 feed）
 4. ~~Supabase Realtime 接线~~ — **DONE**（issue #7，2026-05-03）
 5. ~~CF Workers 部署收尾~~ — **DONE**（2026-05-05）— 部署到朋友 CF 账户 (`f1dc30bb93206c310ab2b840baceb857`) 的 `live.nl-dams.com`；本地 deploy + runtime secrets push + Workers Builds 接 GitHub repo 全部跑通
-6. **端到端验证 match function 真跑通** — 部署完成但还没观测到 match_runs 表里有 success 行；至少塞 ≥3 条暗需求 mock 数据后等下一次 cron（5min），或 admin force token 手动触发，验证 DeepSeek 调用+ AI reply 写回
+6. ~~端到端验证 match function 真跑通~~ — **DONE**（2026-05-08）— admin force trigger 返回 `{status:success, candidates:1, batches:1, recommendations:0, inserted:0}`，6.7s。production `post_match_intents` 当前只有 1 条暗需求帖，DeepSeek 守规矩没硬撮合（recommendations:0 是预期，不是 bug）。
 
 ### Recently shipped
+- 2026-05-08: **AI 撮合复审 + 调优** — (a) DS 模型显式 pin `deepseek-v4-flash`（原 `deepseek-chat` alias 将废弃），(b) 删 `fetchCandidates` 的"已 AI 处理就跳过"逻辑 → 每轮 cron 全量重算，匹配过的也允许产新连接，重复推荐由 `replies_ai_dedup_idx` 兜底，(c) 单次 DS 调用拆批 `BATCH_SIZE=30` + 显式 `max_tokens=16384` 防 JSON 输出截断，(d) 端到端 force trigger 验证通过。CLAUDE.md 里 cron "every 5 min" 修正为 "every 30 min"（一直就是 30，文档过时）。
 - 2026-05-06: **issue #32 — 新增「公共讨论区」板块 lounge** — `lounge` 加到 `SECTIONS` 第一位，无 `SECTION_WINDOWS` 项（永远开放、`sectionByClock` 永不命中、admin 显式覆写才能成 LIVE）。`DEFAULT_SECTION` 由 `p1` → `lounge`，活动外/空档期 /feed 默认跳 lounge。migration 0018 放宽 `posts.section` 与 `event_state.current_section` 的 CHECK 约束。admin 大屏「当前 LIVE 板块」「视图筛选」两个旋钮自动出现 lounge 选项，"全部" 自然包含 lounge 帖。
 - 2026-05-05: **CF 部署切到朋友账户 `live.nl-dams.com` (PR #31)** — wrangler.jsonc pin `account_id` + custom_domain route；本地首次 deploy → runtime secrets push → Workers Builds 接 `zhaidewei/dams-meetup` repo 自动 build & deploy。朋友 CF 账户给的 role：`Workers Admin` + `Administrator Read Only`（后者补 Account Settings Read，否则 Workers Builds connect 会报权限错）。Build env vars (NEXT_PUBLIC_*) 必须在朋友 dashboard 单独配，不走 `scripts/deploy.sh` 的 Keychain 注入路径。
 - 2026-05-03 傍晚: **issue #17 — 投票手动关闭 + DeepSeek 数据声明 + redact 兜底** — `closePollAction` 把 `poll_deadline` 提前到 now()（复用既有字段，无新状态列），PollCard 给作者显示「立即截止」按钮；`prompt.ts` 加 `redactContacts()`（邮箱/URL/≥10 数字串 → `[已隐藏]`），UI 显式声明数据流向 DeepSeek。`docs/matching-design.md` §8 完整字段清单。

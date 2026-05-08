@@ -12,6 +12,12 @@ import { callDeepSeek } from './deepseek.ts'
 
 const MIN_INTENT_THRESHOLD = 3
 const CANDIDATE_LIMIT = 50
+// 单次 DeepSeek 调用最多带 BATCH_SIZE 条 candidates。
+// 拆批的动机不是 input context（V4 flash 1M 完全够），而是 LLM 注意力质量
+// —— 单 prompt candidate 越多，推荐相关度越下降。30 是经验上的甜区。
+// 50 / 30 = 2 批顺序跑，单 batch 失败整 run failed → 下轮 cron 重试。
+// 配合 deepseek.ts 显式 max_tokens=16384 防 JSON 输出被截断。
+const BATCH_SIZE = 30
 const PROFILES_POST_LIMIT = 500
 const REASON_MAX_CHARS = 500
 
@@ -59,30 +65,35 @@ Deno.serve(async (req) => {
 
     const profiles = await fetchProfiles(supabase)
 
-    const userPrompt = buildPrompt({ candidates, profiles })
-    const recs = await callDeepSeek(userPrompt, apiKey)
-
     const candidateIds = new Set(candidates.map((c) => c.id))
     const candidateAuthors = new Map(candidates.map((c) => [c.id, c.user_id]))
 
     let inserted = 0
-    for (const rec of recs) {
-      if (!candidateIds.has(rec.post_id)) continue
-      if (candidateAuthors.get(rec.post_id) === rec.user_id) continue
+    let totalRecs = 0
+    for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+      const batch = candidates.slice(i, i + BATCH_SIZE)
+      const userPrompt = buildPrompt({ candidates: batch, profiles })
+      const recs = await callDeepSeek(userPrompt, apiKey)
+      totalRecs += recs.length
 
-      const { error } = await supabase.from('replies').insert({
-        post_id: rec.post_id,
-        user_id: null,
-        is_ai: true,
-        visibility: 'author_only',
-        body: rec.reason.slice(0, REASON_MAX_CHARS),
-        mentioned_user_id: rec.user_id,
-      })
-      if (!error) {
-        inserted++
-      } else if (error.code !== '23505') {
-        // 23505 = unique violation = dedup index 命中，静默跳过
-        console.error(`insert failed post=${rec.post_id} user=${rec.user_id}: ${error.message}`)
+      for (const rec of recs) {
+        if (!candidateIds.has(rec.post_id)) continue
+        if (candidateAuthors.get(rec.post_id) === rec.user_id) continue
+
+        const { error } = await supabase.from('replies').insert({
+          post_id: rec.post_id,
+          user_id: null,
+          is_ai: true,
+          visibility: 'author_only',
+          body: rec.reason.slice(0, REASON_MAX_CHARS),
+          mentioned_user_id: rec.user_id,
+        })
+        if (!error) {
+          inserted++
+        } else if (error.code !== '23505') {
+          // 23505 = unique violation = dedup index 命中，静默跳过
+          console.error(`insert failed post=${rec.post_id} user=${rec.user_id}: ${error.message}`)
+        }
       }
     }
 
@@ -95,7 +106,8 @@ Deno.serve(async (req) => {
     return jsonResponse({
       status: 'success',
       candidates: candidates.length,
-      recommendations: recs.length,
+      batches: Math.ceil(candidates.length / BATCH_SIZE),
+      recommendations: totalRecs,
       inserted,
     })
   } catch (err) {
@@ -129,17 +141,11 @@ async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[
     .limit(CANDIDATE_LIMIT)
   if (error) throw new Error(`candidate query: ${error.message}`)
 
-  // 排除已经有 AI reply 的帖子（避免重复处理）
-  const { data: processed, error: procErr } = await supabase
-    .from('replies')
-    .select('post_id')
-    .eq('is_ai', true)
-  if (procErr) throw new Error(`processed query: ${procErr.message}`)
-  const skip = new Set((processed ?? []).map((r) => r.post_id))
-
+  // 每轮全量重跑：上轮没匹配上的下轮可能因为画像变化匹配上；
+  // 上轮匹配过的也允许再产出新连接，重复推荐由 replies_ai_dedup_idx 唯一索引兜底。
   return ((rows ?? []) as IntentRow[])
     .filter((r): r is IntentRow & { post: NonNullable<IntentRow['post']> } =>
-      r.post !== null && !skip.has(r.post.id),
+      r.post !== null,
     )
     .map((r) => ({
       id: r.post.id,
