@@ -29,7 +29,9 @@ type SearchParams = Promise<{ section?: string }>
 
 export default async function FeedPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await getCurrentUser()
-  if (!user) redirect('/')
+  // pw cookie 在但 user 不存在 = 跨库 uid / users 被清 / cookie 残缺。带 ?error=reset
+  // 让 / 显示「会话已失效」提示，避免用户疑惑「为什么又看到密码框」。
+  if (!user) redirect('/?error=reset')
 
   const sp = await searchParams
   if (sp.section !== undefined && !isSectionId(sp.section)) {

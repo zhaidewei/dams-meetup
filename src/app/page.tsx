@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { ensureUser, readPwCookie, setPwCookie } from '@/lib/identity'
+import { ensureUser, getCurrentUser, readPwCookie, setPwCookie } from '@/lib/identity'
+import { decideEntry, safeNext } from '@/lib/auth-gate'
 import { EVENT_NAME, EVENT_ORGANIZER } from '@/lib/constants'
 import { Agenda } from '@/components/Agenda'
 
@@ -17,21 +18,24 @@ export default async function HomePage({
 }) {
   const sp = await searchParams
 
-  // Recovery flow: ?u=<uuid>&t=<token> — delegate to /recover route handler.
-  // (Cookie writes are not allowed in Server Components.)
-  if (sp.u && sp.t) {
-    const qs = new URLSearchParams({ u: sp.u, t: sp.t })
-    if (sp.next) qs.set('next', sp.next)
+  // 进入决策抽到 decideEntry（auth-gate.ts）— UT 覆盖 redirect loop 防护。
+  // pw cookie 在但 user 不在时绝不能跳 /feed，否则 /feed 看到 user=null 会跳回 /
+  // 形成 307 死循环（cookies 跨 Supabase 库 / users 行被清都会触发）。
+  const pwOk = await readPwCookie()
+  const userPresent = pwOk ? Boolean(await getCurrentUser()) : false
+  const decision = decideEntry({ search: sp, pwOk, userPresent })
+  if (decision.kind === 'recover') {
+    const qs = new URLSearchParams({ u: decision.uid, t: decision.token })
+    if (decision.next) qs.set('next', decision.next)
     redirect(`/recover?${qs.toString()}`)
   }
-
-  // Already authed → straight to feed
-  if (await readPwCookie()) {
-    redirect(safeNext(sp.next))
+  if (decision.kind === 'enter') {
+    redirect(decision.next)
   }
 
   const showError = sp.error === '1'
   const recoveryFailed = sp.error === 'recovery'
+  const sessionReset = sp.error === 'reset'
 
   return (
     <main className="flex min-h-svh flex-col items-center bg-gradient-to-b from-blue-50 via-white to-white px-6 py-12">
@@ -62,6 +66,9 @@ export default async function HomePage({
               {recoveryFailed && (
                 <p className="mt-2 text-sm text-amber-600">恢复链接已失效，请输入活动密码进入</p>
               )}
+              {sessionReset && (
+                <p className="mt-2 text-sm text-amber-600">会话已失效，请重新输入活动密码</p>
+              )}
             </div>
 
             <input type="hidden" name="next" value={sp.next ?? ''} />
@@ -90,13 +97,6 @@ export default async function HomePage({
       </div>
     </main>
   )
-}
-
-function safeNext(next: string | undefined) {
-  if (typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')) {
-    return next
-  }
-  return '/feed'
 }
 
 async function loginAction(formData: FormData) {
