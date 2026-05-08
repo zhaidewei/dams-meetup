@@ -438,7 +438,7 @@ const BODY = `
     <div class="stack">
       <div class="row"><div class="num">1.</div><div>发一条帖子，<strong>全场 200 人</strong>同时看到</div></div>
       <div class="row"><div class="num">2.</div><div>板块跟着议程切 · <strong>信息再多也不被淹没</strong></div></div>
-      <div class="row"><div class="num">3.</div><div>点赞、回复、投票、大屏直播 —— 都是<strong>实时同步</strong></div></div>
+      <div class="row"><div class="num">3.</div><div>投票、QA、抽奖、大屏直播 —— 都是<strong>实时同步</strong></div></div>
     </div>
   </section>
 

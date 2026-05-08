@@ -3,7 +3,7 @@
 import { useState, useSyncExternalStore, useTransition } from 'react'
 import type { FeedPost } from '@/lib/queries/posts'
 import { displayName, displayMeta } from '@/lib/display'
-import { POST_MAX_CHARS } from '@/lib/constants'
+import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import {
   deletePostAction,
   setQuestionAnsweredAction,
@@ -33,10 +33,12 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
 
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(post.body)
+  const [matchIntent, setMatchIntent] = useState(post.match_intent ?? '')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   const remaining = POST_MAX_CHARS - body.length
+  const intentRemaining = MATCH_INTENT_MAX_CHARS - matchIntent.length
 
   function onSaveEdit() {
     const trimmed = body.trim()
@@ -48,8 +50,12 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
       setError(`不能超过 ${POST_MAX_CHARS} 字`)
       return
     }
+    if (matchIntent.length > MATCH_INTENT_MAX_CHARS) {
+      setError(`撮合需求不能超过 ${MATCH_INTENT_MAX_CHARS} 字`)
+      return
+    }
     startTransition(async () => {
-      const res = await updatePostAction(post.id, trimmed, '')
+      const res = await updatePostAction(post.id, trimmed, '', matchIntent.trim())
       if (res.error) {
         setError(res.error)
       } else {
@@ -63,6 +69,7 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
     setEditing(false)
     setError(null)
     setBody(post.body)
+    setMatchIntent(post.match_intent ?? '')
   }
 
   function onDelete() {
@@ -173,28 +180,46 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
             rows={4}
             className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-[15px] focus:border-zinc-400 focus:outline-none"
           />
-          <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="flex justify-end text-xs text-zinc-400">
             <span className={remaining < 0 ? 'text-red-500' : ''}>
               {remaining < 0 ? remaining : ''}
             </span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={onCancelEdit}
-                disabled={pending}
-                className="rounded-md px-2.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={onSaveEdit}
-                disabled={pending || body.trim().length === 0 || remaining < 0}
-                className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
-              >
-                {pending ? '保存中…' : '保存'}
-              </button>
+          </div>
+          <div className="rounded-md border border-violet-200 bg-violet-50 px-3 py-2 space-y-1.5">
+            <div className="text-xs font-medium text-violet-800">
+              你想找 · 仅你可见（留空则清除）
             </div>
+            <textarea
+              value={matchIntent}
+              onChange={(e) => setMatchIntent(e.target.value)}
+              maxLength={MATCH_INTENT_MAX_CHARS}
+              rows={2}
+              placeholder="比如：想找 Booking 的同学聊内推 / 想找会 dbt 的人"
+              className="w-full resize-none rounded-md border border-violet-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-violet-400 focus:outline-none"
+            />
+            <div className="flex justify-end text-[11px] text-violet-700">
+              <span className={intentRemaining < 0 ? 'text-red-600' : ''}>
+                {intentRemaining}
+              </span>
+            </div>
+          </div>
+          <div className="flex justify-end gap-1">
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              disabled={pending}
+              className="rounded-md px-2.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              disabled={pending || body.trim().length === 0 || remaining < 0 || intentRemaining < 0}
+              className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-300"
+            >
+              {pending ? '保存中…' : '保存'}
+            </button>
           </div>
         </div>
       ) : (
@@ -205,7 +230,7 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
-      {isMine && post.match_intent && (
+      {!editing && isMine && post.match_intent && (
         <div className="mt-3 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
           <div className="mb-0.5 font-medium text-violet-800">
             你想找 · 仅你可见

@@ -13,7 +13,7 @@ type AgendaItem = {
   // 整 row 对应一个 section（如 breakout / panel）。p1/p2 在 talks[i].sectionId 上标。
   sectionId?: SectionId
   talks?: Talk[]
-  sponsors?: { label: string; name: string }[]
+  sponsors?: { label: string; name: string; url?: string }[]
   panelists?: { name: string; role: string }[]
 }
 
@@ -40,10 +40,14 @@ const AGENDA: AgendaItem[] = [
   },
   {
     time: '14:30 – 14:45',
-    title: '赞助商 & 合作协会宣讲',
+    title: '赞助商 & 协办方宣讲',
     sponsors: [
       { label: '赞助商', name: '腾讯 (Tencent)' },
-      { label: '合作协会', name: '荷兰华人学者与工程师协会' },
+      {
+        label: '协办',
+        name: 'VCWI（荷兰华人学者与工程师协会）',
+        url: 'https://vcwi.nl/en/elementor-2835/',
+      },
     ],
   },
   { time: '14:45 – 15:30', title: '分组交流 & 茶歇', sectionId: 'breakout' },
@@ -117,7 +121,18 @@ export function Agenda({ liveSection = null }: Props) {
                     {item.sponsors.map((s) => (
                       <li key={s.name}>
                         <span className="text-zinc-500">{s.label}：</span>
-                        {s.name}
+                        {s.url ? (
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 underline-offset-2 hover:underline"
+                          >
+                            {s.name}
+                          </a>
+                        ) : (
+                          s.name
+                        )}
                       </li>
                     ))}
                   </ul>

@@ -106,10 +106,18 @@ function nullableStr(v: FormDataEntryValue | null): string | null | undefined {
 
 // Authorize-by-filter: .eq('user_id', user.id) means a non-owner update
 // hits 0 rows. Polls can be deleted but not edited (vote integrity).
+//
+// matchIntent semantics:
+//   undefined → don't touch post_match_intents (back-compat for callers
+//               that only edit body)
+//   null / '' → delete any existing intent row
+//   string    → upsert; requires user.ai_consent_at (set during create
+//               flow); editing is not the right place to grant consent.
 export async function updatePostAction(
   postId: number,
   body: string,
   tagsRaw: string,
+  matchIntent?: string | null,
 ): Promise<PostMutationResult> {
   const user = await getCurrentUser()
   if (!user) redirect('/')
@@ -118,6 +126,18 @@ export async function updatePostAction(
   const trimmed = String(body ?? '').trim()
   if (!trimmed) return { error: '内容不能为空' }
   if (trimmed.length > POST_MAX_CHARS) return { error: `不能超过 ${POST_MAX_CHARS} 字` }
+
+  let normalizedIntent: string | null | undefined = undefined
+  if (matchIntent !== undefined) {
+    const intentTrimmed = (matchIntent ?? '').trim()
+    if (intentTrimmed.length > MATCH_INTENT_MAX_CHARS) {
+      return { error: `撮合需求不能超过 ${MATCH_INTENT_MAX_CHARS} 字` }
+    }
+    normalizedIntent = intentTrimmed.length > 0 ? intentTrimmed : null
+    if (normalizedIntent && !user.ai_consent_at) {
+      return { error: '需要先在发帖时同意把内容发给 DeepSeek 处理，才能加暗需求' }
+    }
+  }
 
   const sb = getServerSupabase()
   const { data, error } = await sb
@@ -131,6 +151,30 @@ export async function updatePostAction(
 
   if (error) return { error: error.message }
   if (!data) return { error: '没找到这条帖子，或者它不是你的（投票贴不可编辑）' }
+
+  if (normalizedIntent !== undefined) {
+    if (normalizedIntent === null) {
+      const { error: delErr } = await sb
+        .from('post_match_intents')
+        .delete()
+        .eq('post_id', postId)
+      if (delErr) {
+        console.error('post_match_intents delete failed:', delErr.message)
+        return { error: '保存失败：暗需求清空时出错' }
+      }
+    } else {
+      const { error: upErr } = await sb
+        .from('post_match_intents')
+        .upsert(
+          { post_id: postId, intent: normalizedIntent },
+          { onConflict: 'post_id' },
+        )
+      if (upErr) {
+        console.error('post_match_intents upsert failed:', upErr.message)
+        return { error: '保存失败：暗需求写入时出错' }
+      }
+    }
+  }
 
   revalidatePath('/feed')
   revalidatePath('/me')
