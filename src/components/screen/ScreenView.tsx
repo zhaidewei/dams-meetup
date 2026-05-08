@@ -52,6 +52,7 @@ export function ScreenView({
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
   const [questions, setQuestions] = useState<ScreenQuestion[]>([])
+  const [answeredCount, setAnsweredCount] = useState(0)
   const [lottery, setLottery] = useState<ScreenLotteryDraw | null>(null)
   const [online, setOnline] = useState(initialOnline)
   const [mode, setMode] = useState<ScreenModeState>(initialMode)
@@ -74,6 +75,7 @@ export function ScreenView({
         if (cancelled) return
         setPosts(snap.posts)
         setQuestions(snap.questions)
+        setAnsweredCount(snap.questionsAnsweredCount)
         setLottery(snap.lottery)
         setOnline(snap.online)
         setMode(snap.mode)
@@ -161,6 +163,7 @@ export function ScreenView({
             key={mode.qa_host_user_id ?? 'no-host'}
             mode={mode}
             questions={questions}
+            answeredCount={answeredCount}
             qrSlot={qrSlot}
             password={password}
           />
@@ -586,11 +589,13 @@ function Confetti() {
 function QaSlot({
   mode,
   questions,
+  answeredCount,
   qrSlot,
   password,
 }: {
   mode: ScreenModeState
   questions: ScreenQuestion[]
+  answeredCount: number
   qrSlot: React.ReactNode
   password: string
 }) {
@@ -652,7 +657,8 @@ function QaSlot({
       {/* Right: 问题列表 */}
       <div className="flex h-full min-h-0 flex-col gap-4">
         <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">
-          观众提问 · 共 {questions.length} 条 · 按点赞排序
+          观众提问 · {questions.length} 待答
+          {answeredCount > 0 && ` · ${answeredCount} 已答`} · 按点赞排序
         </p>
         {errorMsg && (
           <p className="rounded-md bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/40">
@@ -661,7 +667,14 @@ function QaSlot({
         )}
         {questions.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60">
-            <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>
+            {answeredCount > 0 ? (
+              <p className="text-center text-2xl text-emerald-400">
+                ✓ {answeredCount} 个问题都答完了
+                <span className="mt-2 block text-base text-zinc-500">下一个问题，扫码 →</span>
+              </p>
+            ) : (
+              <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>
+            )}
           </div>
         ) : (
           <>

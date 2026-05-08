@@ -14,6 +14,9 @@ const ONLINE_WINDOW_MS = 5 * 60 * 1000
 export type ScreenSnapshot = {
   posts: FeedPost[]
   questions: ScreenQuestion[]
+  // 当前 host 已答的问题数；让大屏在 questions=[] 但有 answered 时显示
+  // 「N 个问题都答完了」而非「还没有人提问」。
+  questionsAnsweredCount: number
   lottery: ScreenLotteryDraw | null
   online: number
   mode: ScreenModeState
@@ -35,10 +38,18 @@ export async function fetchScreenData(): Promise<ScreenSnapshot> {
       .gte('last_seen_at', cutoff),
   ])
 
-  const [questions, lottery] = await Promise.all([
+  const [questions, answeredCountRes, lottery] = await Promise.all([
     mode.mode === 'qa' && mode.qa_host_user_id
       ? fetchQuestionsForHost(mode.qa_host_user_id)
       : Promise.resolve([] as ScreenQuestion[]),
+    mode.mode === 'qa' && mode.qa_host_user_id
+      ? sb
+          .from('posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'question')
+          .eq('question_target_user_id', mode.qa_host_user_id)
+          .not('answered_at', 'is', null)
+      : Promise.resolve({ count: 0 } as { count: number | null }),
     mode.mode === 'lottery' && mode.lottery_draw_id
       ? fetchLotteryDraw(mode.lottery_draw_id)
       : Promise.resolve(null as ScreenLotteryDraw | null),
@@ -47,6 +58,7 @@ export async function fetchScreenData(): Promise<ScreenSnapshot> {
   return {
     posts,
     questions,
+    questionsAnsweredCount: answeredCountRes.count ?? 0,
     lottery,
     online: onlineRes.count ?? 0,
     mode,
