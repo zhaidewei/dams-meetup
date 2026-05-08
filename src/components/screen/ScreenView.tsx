@@ -11,6 +11,7 @@ import { resolveLotteryAction } from '@/lib/actions/event-state'
 import { setQuestionAnsweredAction } from '@/lib/actions/posts'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
+import { AGENDA, agendaRowByClock } from '@/lib/agenda'
 import { displayName, displayMeta } from '@/lib/display'
 import { EVENT_END_ISO } from '@/lib/constants'
 import { Avatar } from '@/components/Avatar'
@@ -210,6 +211,7 @@ export function ScreenView({
           <DefaultSlot
             liveSection={liveSection}
             online={online}
+            now={now}
             qrSlot={qrSlot}
             password={password}
             siteHost={siteHost}
@@ -232,12 +234,14 @@ type SlotState =
 function DefaultSlot({
   liveSection,
   online,
+  now,
   qrSlot,
   password,
   siteHost,
 }: {
   liveSection: SectionId | null
   online: number
+  now: number
   qrSlot: React.ReactNode
   password: string
   siteHost: string
@@ -254,8 +258,8 @@ function DefaultSlot({
         <JoinHint password={password} siteHost={siteHost} size="lg" />
       </div>
 
-      <div className="flex flex-col justify-center gap-8 rounded-3xl bg-zinc-900/30 p-10 ring-1 ring-zinc-800/60">
-        {liveSection && liveMeta ? (
+      {liveSection && liveMeta ? (
+        <div className="flex flex-col justify-center gap-8 rounded-3xl bg-zinc-900/30 p-10 ring-1 ring-zinc-800/60">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-rose-500/20 px-3 py-1 ring-1 ring-rose-500/40">
               <span className="relative flex size-2 shrink-0">
@@ -277,17 +281,90 @@ function DefaultSlot({
               </p>
             )}
           </div>
-        ) : (
-          <div>
-            <p className="text-3xl font-semibold text-zinc-300">空档期</p>
-            <p className="mt-2 text-lg text-zinc-500">下一个板块即将开始</p>
+          <div className="rounded-2xl bg-zinc-900/60 px-6 py-5 ring-1 ring-zinc-800">
+            <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">在线人数</p>
+            <p className="mt-1 text-6xl font-semibold tabular-nums text-white">{online}</p>
           </div>
-        )}
-
-        <div className="rounded-2xl bg-zinc-900/60 px-6 py-5 ring-1 ring-zinc-800">
-          <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">在线人数</p>
-          <p className="mt-1 text-6xl font-semibold tabular-nums text-white">{online}</p>
         </div>
+      ) : (
+        <ScreenAgenda now={now} online={online} />
+      )}
+    </div>
+  )
+}
+
+// 空档期 / 活动外的右半边：完整议程，按时间高亮当前行。底部一行"在线 X 人"。
+function ScreenAgenda({ now, online }: { now: number; online: number }) {
+  const activeRow = agendaRowByClock(new Date(now))
+  return (
+    <div className="flex h-full flex-col gap-4 rounded-3xl bg-zinc-900/30 p-8 ring-1 ring-zinc-800/60">
+      <div className="flex items-baseline justify-between">
+        <p className="text-xl font-semibold text-zinc-300">活动议程</p>
+        <p className="text-sm text-zinc-500">2026-05-09 · Europe/Amsterdam</p>
+      </div>
+      <ol className="flex flex-1 flex-col divide-y divide-zinc-800 overflow-hidden rounded-xl ring-1 ring-zinc-800">
+        {AGENDA.map((item, i) => {
+          const isActive = i === activeRow
+          return (
+            <li
+              key={item.time}
+              className={
+                'flex items-start gap-4 px-5 py-3 ' +
+                (isActive ? 'bg-rose-500/15 ring-1 ring-inset ring-rose-500/40' : 'bg-zinc-900/40')
+              }
+            >
+              <span
+                className={
+                  'mt-0.5 w-32 shrink-0 text-base tabular-nums ' +
+                  (isActive ? 'font-semibold text-rose-300' : 'text-zinc-500')
+                }
+              >
+                {item.time}
+              </span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p
+                  className={
+                    'text-lg leading-tight ' +
+                    (isActive ? 'font-semibold text-white' : 'text-zinc-200')
+                  }
+                >
+                  {isActive && (
+                    <span className="mr-2 inline-flex items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 align-middle text-[11px] font-bold text-white">
+                      <span className="relative flex size-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                        <span className="relative inline-flex size-1.5 rounded-full bg-white" />
+                      </span>
+                      LIVE
+                    </span>
+                  )}
+                  {item.title}
+                </p>
+                {item.talks && (
+                  <ul className="space-y-0.5">
+                    {item.talks.map((t) => (
+                      <li key={t.topic} className="text-sm text-zinc-400">
+                        <span className="text-zinc-300">{t.speaker}</span>
+                        <span className="ml-1.5 text-zinc-500">· {t.topic}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {item.sponsors && (
+                  <p className="text-sm text-zinc-400">
+                    {item.sponsors.map((s) => `${s.label} ${s.name.replace(/（.*$/, '')}`).join(' · ')}
+                  </p>
+                )}
+                {item.panelists && (
+                  <p className="text-sm text-zinc-400">{item.panelists.length} 位嘉宾圆桌</p>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+      <div className="flex items-center justify-between text-sm text-zinc-500">
+        <span>当前在线 <span className="font-semibold text-zinc-200">{online}</span> 人</span>
+        <span>{activeRow < 0 ? '空档期 · 等待下个板块' : '正在进行中'}</span>
       </div>
     </div>
   )
