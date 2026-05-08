@@ -115,6 +115,8 @@ export default async function MePage() {
                 defaultCompany={user.company}
                 defaultContactHandle={user.contact_handle}
                 defaultShowContact={user.show_contact}
+                defaultMatchOffer={user.match_offer}
+                hasAiConsent={user.ai_consent_at !== null}
                 isVip={user.is_vip}
                 vipName={user.vip_name}
                 vipTitle={user.vip_title}

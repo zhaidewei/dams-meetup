@@ -61,6 +61,7 @@ export function OnboardingBanner() {
           <span className="font-medium">AI 撮合</span>
           ：发帖时可以暗中委托「想找 Booking 的同学聊内推」之类，结果只回到你自己的「我」tab。
           <span className="text-blue-700"> 撮合双方都需要昵称，对方才能联系到你。</span>
+          <span className="text-blue-700"> 在「我」tab 写「我能提供什么」可以提高你被推荐的概率。</span>
         </li>
         <li>
           <span className="font-medium">嘉宾发投票</span>

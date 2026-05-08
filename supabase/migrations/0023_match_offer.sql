@@ -1,0 +1,13 @@
+-- AI 撮合的对偶字段：用户在 /me 私下写「我能提供什么」（经验 / 资源 / 视角），
+-- 仅 AI 可见，匹配时被引用为推荐理由，提高被推荐概率。
+-- 设计动机见 docs/matching-design.md（"水下专家"问题：内向用户不发公开帖，
+-- 但有可被撮合的资源）。
+--
+-- 跟 match_intent (migration 0011, post_match_intents) 对偶：
+--   - match_intent  = "我想要的"，per-post，独立表防 Realtime 泄漏
+--   - match_offer   = "我能给的"，per-user，留在 users 表。Realtime publication
+--     里 users 表只在 lottery 中奖时刷新，公开 select 不进画像，OK。
+--
+-- 长度上限走 server-side check (MATCH_INTENT_MAX_CHARS = 200)，DB 不加 CHECK
+-- 约束以便后续可调。
+alter table users add column match_offer text;

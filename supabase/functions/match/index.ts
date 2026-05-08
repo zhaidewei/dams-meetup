@@ -167,7 +167,7 @@ async function fetchProfiles(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from('posts')
     .select(
-      'user_id, body, tags, section, users:user_id!inner (id, nickname, company, is_vip, vip_name, vip_title, ai_consent_at)',
+      'user_id, body, tags, section, users:user_id!inner (id, nickname, company, is_vip, vip_name, vip_title, ai_consent_at, match_offer)',
     )
     .not('users.ai_consent_at', 'is', null)
     .or('nickname.not.is.null,is_vip.is.true', { referencedTable: 'users' })

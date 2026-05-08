@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'supabase/functions/**/*.test.ts'],
   },
   resolve: {
     alias: {

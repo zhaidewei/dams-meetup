@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useTransition } from 'react'
+import { useActionState } from 'react'
 import { updateProfileAction, type ProfileFormState } from '@/lib/actions/profile'
+import { MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 
 const initial: ProfileFormState = { error: null }
 
@@ -10,6 +11,8 @@ type Props = {
   defaultCompany: string | null
   defaultContactHandle: string | null
   defaultShowContact: boolean
+  defaultMatchOffer: string | null
+  hasAiConsent: boolean
   isVip: boolean
   vipName: string | null
   vipTitle: string | null
@@ -20,22 +23,21 @@ export function ProfileForm({
   defaultCompany,
   defaultContactHandle,
   defaultShowContact,
+  defaultMatchOffer,
+  hasAiConsent,
   isVip,
   vipName,
   vipTitle,
 }: Props) {
-  const [state, formAction] = useActionState(updateProfileAction, initial)
-  const [isPending, startTransition] = useTransition()
-
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    startTransition(() => formAction(fd))
-  }
+  // CLAUDE.md known quirk：iPhone Chrome / 桌面 Chrome 密码管理器 extension
+  // 注入 attribute 到 input / textarea，会触发 React 19 root-level hydration
+  // mismatch。修复：走 React 19 form action（progressive enhancement），
+  // 而不是 onSubmit + manual FormData。
+  const [state, formAction, isPending] = useActionState(updateProfileAction, initial)
 
   return (
     <form
-      onSubmit={onSubmit}
+      action={formAction}
       className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
     >
       <h2 className="text-sm font-semibold text-zinc-900">我的身份</h2>
@@ -85,6 +87,35 @@ export function ProfileForm({
         />
         公开联系方式（其他人点你头像可看 / 复制）
       </label>
+
+      <div className="border-t border-zinc-100 pt-3">
+        <Field
+          label={`AI 撮合偏好 — 我能提供什么（仅 AI 可见，最多 ${MATCH_INTENT_MAX_CHARS} 字）`}
+        >
+          <textarea
+            name="match_offer"
+            defaultValue={defaultMatchOffer ?? ''}
+            placeholder="例：在 Booking 做了 5 年 SRE，可以聊面试 / 内推 / 实习"
+            maxLength={MATCH_INTENT_MAX_CHARS}
+            rows={3}
+            className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+        </Field>
+        <p className="mt-1 text-[11px] text-zinc-500">
+          写下你能提供的经验 / 资源 / 视角。AI 帮人撮合时会私下引用，提高你被推荐的概率。
+          <span className="text-amber-700"> 内容会通过 AI 推荐理由展示给被撮合的人，等同于你公开声明这些资源。</span>
+        </p>
+        {!hasAiConsent && (
+          <label className="mt-2 flex items-start gap-2 text-[11px] text-zinc-700">
+            <input
+              type="checkbox"
+              name="ai_consent"
+              className="mt-0.5 size-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-400"
+            />
+            <span>同意把内容发给 DeepSeek 处理（仅写非空撮合偏好时需要）</span>
+          </label>
+        )}
+      </div>
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-zinc-500">

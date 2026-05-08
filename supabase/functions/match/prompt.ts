@@ -25,6 +25,10 @@ export type UserProfile = {
   user_id: string
   display_name: string
   affiliation: string | null
+  // 用户在 /me 私下写的「我能提供什么」（migration 0023）。仅 AI 可见，
+  // 在 prompt 里以独立段落呈现，让 LLM 区分公开帖（被动观察）与自我声明
+  // （主动委托）。redactContacts 兜底个人联系方式。
+  match_offer: string | null
   posts: Array<{ body: string; tags: string[] | null; section: string | null }>
 }
 
@@ -61,6 +65,9 @@ export function buildPrompt(args: {
   for (const p of args.profiles) {
     const head = p.affiliation ? `${p.display_name} · ${p.affiliation}` : p.display_name
     lines.push(`### user_id=${p.user_id} | ${head}`)
+    if (p.match_offer) {
+      lines.push(`自我介绍（用户私下委托 AI 引用）: ${redactContacts(p.match_offer)}`)
+    }
     for (const post of p.posts.slice(0, 5)) {
       const tags = post.tags?.length ? ` [${post.tags.join(',')}]` : ''
       const redacted = redactContacts(post.body)
@@ -85,6 +92,7 @@ export type RawPostWithUser = {
     is_vip: boolean
     vip_name: string | null
     vip_title: string | null
+    match_offer: string | null
   } | null
 }
 
@@ -101,6 +109,7 @@ export function aggregateProfiles(rows: RawPostWithUser[]): UserProfile[] {
         user_id: row.user_id,
         display_name: display,
         affiliation: aff,
+        match_offer: u.match_offer,
         posts: [],
       }
       map.set(row.user_id, profile)
