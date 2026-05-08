@@ -56,7 +56,7 @@ export default async function ScreenPage({
       initialOnline={snap.online}
       initialMode={modeState}
       eventName={EVENT_NAME}
-      liveSection={currentSection}
+      initialLiveSection={currentSection}
       password={password}
       siteHost={siteHost}
       qrSlot={<QRCode value={qrUrl} size={280} />}

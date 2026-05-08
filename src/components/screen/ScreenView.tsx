@@ -22,10 +22,16 @@ const POLL_TICK_MS = 1_000 // ui re-render cadence
 //
 // 15s 的依据（issue #36）：投票实时计数 — 改投后大屏在 30s 一格的轮播里，
 // 即使 Realtime 偶尔丢一次 broadcast，最坏情况下用户也只能等 60s 才看到更
-// 新过的票数 → 给人"改投失效"的错觉。15s 的兜底 + Realtime 主路 + 500ms
-// debounce 一起，把最坏延迟从 60s 压到 15s，刷新成本对 Supabase 可以忽略。
+// 新过的票数 → 给人"改投失效"的错觉。15s 的兜底 + Realtime 主路 + debounce
+// 一起，把最坏延迟从 60s 压到 15s，刷新成本对 Supabase 可以忽略。
 const FALLBACK_REFRESH_MS = 15_000
-const REALTIME_DEBOUNCE_MS = 500
+// debounce = BASE + random(0..JITTER)。两个作用：
+//   1. coalesce: 同一 burst 的多个 broadcast 合并成一次 refresh
+//   2. de-herd: 多块 /screen tab 同时收到 broadcast 时，jitter 把 SSR 打散
+//      到 [500, 1500] 区间，避免几块投影同时打 DB 形成微 spike
+// 选 500-1500：median ~1s，投影感知不到延迟变化；fallback 15s 就在数量级外。
+const DEBOUNCE_BASE_MS = 500
+const DEBOUNCE_JITTER_MS = 1000
 const SLOT_MS = 30_000 // each poll slot
 
 type Props = {
@@ -34,8 +40,9 @@ type Props = {
   initialMode: ScreenModeState
   eventName: string
   // 当前实际 LIVE 板块（来自 getCurrentSection — 主办方覆写 → 议程时间表）；
-  // 用于顶 bar 的 LIVE pill。可能与 filter 不一致。
-  liveSection: SectionId | null
+  // 用于顶 bar 的 LIVE pill。可能与 filter 不一致。SSR 提供 initial 值，client
+  // 通过 fetchScreenData refresh 持续同步（admin 切板块后自动跟随）。
+  initialLiveSection: SectionId | null
   // 活动密码 — 作为兜底显示在 QR 旁边，扫不动码的人可以手输。
   password: string
   // 站点域名（不带 https://），用作"扫不动"的兜底入口提示。
@@ -48,7 +55,7 @@ export function ScreenView({
   initialOnline,
   initialMode,
   eventName,
-  liveSection,
+  initialLiveSection,
   password,
   siteHost,
   qrSlot,
@@ -59,6 +66,7 @@ export function ScreenView({
   const [lottery, setLottery] = useState<ScreenLotteryDraw | null>(null)
   const [online, setOnline] = useState(initialOnline)
   const [mode, setMode] = useState<ScreenModeState>(initialMode)
+  const [liveSection, setLiveSection] = useState<SectionId | null>(initialLiveSection)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -66,6 +74,10 @@ export function ScreenView({
     return () => clearInterval(tick)
   }, [])
 
+  // 依赖 mode.mode：QA 模式下才订 likes（按赞排序问题），其他模式 likes 是
+  // 纯噪声。mode 切换时整个 channel 重建（~200ms 短暂订阅断窗），fallback
+  // 15s 兜底覆盖这段；mode 切换本身就是 admin 主动触发的低频事件。
+  const screenMode = mode.mode
   useEffect(() => {
     let cancelled = false
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -82,6 +94,7 @@ export function ScreenView({
         setLottery(snap.lottery)
         setOnline(snap.online)
         setMode(snap.mode)
+        setLiveSection(snap.liveSection)
       } catch {
         // network blip — fallback interval will retry
       }
@@ -89,25 +102,34 @@ export function ScreenView({
 
     function bump() {
       if (debounceTimer) return
+      const delay = DEBOUNCE_BASE_MS + Math.random() * DEBOUNCE_JITTER_MS
       debounceTimer = setTimeout(() => {
         debounceTimer = null
         void refresh()
-      }, REALTIME_DEBOUNCE_MS)
+      }, delay)
     }
 
     // First refresh after mount fills questions for the initial mode (server
     // page already passes initialMode, but questions come from a separate fetch).
     void refresh()
 
+    // replies 任何 slot 都不展示 → 不订。
+    // likes 仅 QA 模式按赞排序问题时需要，其他 mode 不订。
+    // posts/poll_votes/event_state 是常开依赖（新 poll/question/mode 切换）。
     const sb = getBrowserSupabase()
-    const channel = sb
+    let chain = sb
       .channel('screen-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'replies' }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_state' }, bump)
-      .subscribe()
+    if (screenMode === 'qa') {
+      chain = chain.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'likes' },
+        bump,
+      )
+    }
+    const channel = chain.subscribe()
 
     const fallback = setInterval(refresh, FALLBACK_REFRESH_MS)
 
@@ -117,7 +139,7 @@ export function ScreenView({
       clearInterval(fallback)
       sb.removeChannel(channel)
     }
-  }, [])
+  }, [screenMode])
 
   const activePolls = useMemo(
     () =>

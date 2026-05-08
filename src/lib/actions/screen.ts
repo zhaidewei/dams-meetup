@@ -4,7 +4,8 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { fetchFeed, type FeedPost } from '@/lib/queries/posts'
 import { fetchQuestionsForHost, type ScreenQuestion } from '@/lib/queries/questions'
 import { fetchLotteryDraw, type ScreenLotteryDraw } from '@/lib/queries/lottery'
-import { getScreenModeState, type ScreenModeState } from '@/lib/queries/event-state'
+import { getEventStateBundle, type ScreenModeState } from '@/lib/queries/event-state'
+import type { SectionId } from '@/lib/sections'
 
 // The screen has no viewer identity — using a zero UUID makes liked_by_me /
 // poll_my_vote_options always false in fetchFeed (no row matches).
@@ -20,16 +21,23 @@ export type ScreenSnapshot = {
   lottery: ScreenLotteryDraw | null
   online: number
   mode: ScreenModeState
+  // 当前 LIVE 板块（主办方覆写 → 议程时间表）。client 端持有为 state，
+  // admin 切板块后通过 Realtime → refresh 同步过来。
+  liveSection: SectionId | null
   serverNow: number
 }
 
 // fetchScreenData 不再接 section 参数（issue #45）：filter 已升级为 server state，
 // 内部先拿 mode，再用 mode.screen_filter_section 喂给 fetchFeed。/admin 改 filter
 // → event_state 写入 → Realtime broadcast → 所有 /screen tab 下次 refresh 拿新值。
+//
+// 用 getEventStateBundle 一次取 liveSection + modeState（同一行 select，零成本），
+// 让 client refresh 也能更新 liveSection — 之前 liveSection 只在 SSR 时通过 prop
+// 传入，admin 切 LIVE 板块后大屏要手动刷新才更新（regression 修复）。
 export async function fetchScreenData(): Promise<ScreenSnapshot> {
   const sb = getServerSupabase()
   const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString()
-  const mode = await getScreenModeState()
+  const { liveSection, modeState: mode } = await getEventStateBundle()
   const [posts, onlineRes] = await Promise.all([
     fetchFeed(SCREEN_VIEWER_ID, { limit: 50, section: mode.screen_filter_section ?? undefined }),
     sb
@@ -62,6 +70,7 @@ export async function fetchScreenData(): Promise<ScreenSnapshot> {
     lottery,
     online: onlineRes.count ?? 0,
     mode,
+    liveSection,
     serverNow: Date.now(),
   }
 }

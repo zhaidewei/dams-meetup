@@ -46,67 +46,6 @@ export type ScreenModeState = {
   screen_filter_section: SectionId | null
 }
 
-// 读 screen_mode + 可能伴随的 host 信息。一次查询即够 — /screen 顶层 fetch。
-export async function getScreenModeState(): Promise<ScreenModeState> {
-  const sb = getServerSupabase()
-  const { data } = await sb
-    .from('event_state')
-    .select(
-      `screen_mode, qa_host_user_id, qa_section, qa_started_at, screen_filter_section,
-       last_qa_host_user_id, last_qa_section, lottery_draw_id,
-       host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
-       last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
-    )
-    .eq('id', 1)
-    .maybeSingle()
-
-  if (!data) {
-    return {
-      mode: 'default',
-      qa_host_user_id: null,
-      qa_host_name: null,
-      qa_host_title: null,
-      qa_section: null,
-      qa_started_at: null,
-      last_qa_host_user_id: null,
-      last_qa_host_name: null,
-      last_qa_section: null,
-      lottery_draw_id: null,
-      screen_filter_section: null,
-    }
-  }
-
-  type HostRow = {
-    vip_name: string | null
-    nickname: string | null
-    vip_title: string | null
-    company: string | null
-  }
-  type LastHostRow = { vip_name: string | null; nickname: string | null }
-  const hostRel = (data as { host?: HostRow | HostRow[] | null }).host
-  const host = Array.isArray(hostRel) ? hostRel[0] ?? null : hostRel ?? null
-  const lastHostRel = (data as { last_host?: LastHostRow | LastHostRow[] | null }).last_host
-  const lastHost = Array.isArray(lastHostRel) ? lastHostRel[0] ?? null : lastHostRel ?? null
-
-  const mode = (data.screen_mode as ScreenMode) ?? 'default'
-  const qaSectionRaw = data.qa_section as string | null
-  const lastQaSectionRaw = data.last_qa_section as string | null
-  const filterSectionRaw = data.screen_filter_section as string | null
-  return {
-    mode,
-    qa_host_user_id: (data.qa_host_user_id as string | null) ?? null,
-    qa_host_name: host ? host.vip_name ?? host.nickname ?? null : null,
-    qa_host_title: host ? host.vip_title ?? host.company ?? null : null,
-    qa_section: isSectionId(qaSectionRaw) ? qaSectionRaw : null,
-    qa_started_at: (data.qa_started_at as string | null) ?? null,
-    last_qa_host_user_id: (data.last_qa_host_user_id as string | null) ?? null,
-    last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
-    last_qa_section: isSectionId(lastQaSectionRaw) ? lastQaSectionRaw : null,
-    lottery_draw_id: (data.lottery_draw_id as number | null) ?? null,
-    screen_filter_section: isSectionId(filterSectionRaw) ? filterSectionRaw : null,
-  }
-}
-
 // /feed 和 /screen 渲染都需要 (current_section + override_until) 和 (screen_mode + qa host
 // 信息)。两路本来各跑一次 `from('event_state').eq('id',1)`，加上 host nested join。
 // 200 并发用户下 PostgREST 池被这种重复查询挤爆（5/9 实测 503 风暴）。
