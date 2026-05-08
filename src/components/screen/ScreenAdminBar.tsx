@@ -35,6 +35,8 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
   const [pendingHostId, setPendingHostId] = useState<string>(qaHostUserId ?? vips[0]?.user_id ?? '')
   const [mustHavePosted, setMustHavePosted] = useState(false)
   const [excludePreviousWinners, setExcludePreviousWinners] = useState(true)
+  const [excludeVips, setExcludeVips] = useState(true)
+  const [enableWeights, setEnableWeights] = useState(true)
 
   function pickSection(id: SectionId) {
     setError(null)
@@ -82,6 +84,8 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
       const res = await startLotteryAction({
         must_have_posted: mustHavePosted,
         exclude_previous_winners: excludePreviousWinners,
+        exclude_vips: excludeVips,
+        enable_weights: enableWeights,
       })
       if (res.error) setError(res.error)
     })
@@ -161,7 +165,9 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
               </div>
 
               <div className="space-y-1.5 border-t border-zinc-800 pt-2">
-                <label className="block text-[11px] text-zinc-400">抽奖 — 池子取在线 5 分钟内</label>
+                <label className="block text-[11px] text-zinc-400">
+                  抽奖 v2 — 池子取近 10 分钟活跃过的人，演到停才定 winner
+                </label>
                 <label className="flex items-center gap-2 text-xs text-zinc-200">
                   <input
                     type="checkbox"
@@ -169,7 +175,7 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
                     onChange={(e) => setMustHavePosted(e.target.checked)}
                     className="size-3.5 rounded border-zinc-600 bg-zinc-800"
                   />
-                  必须发过帖才能被抽
+                  必须参与过（帖/回复/投票）
                 </label>
                 <label className="flex items-center gap-2 text-xs text-zinc-200">
                   <input
@@ -179,6 +185,24 @@ export function ScreenAdminBar({ currentSection, screenMode, qaHostUserId, vips 
                     className="size-3.5 rounded border-zinc-600 bg-zinc-800"
                   />
                   排除上轮中奖者
+                </label>
+                <label className="flex items-center gap-2 text-xs text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={excludeVips}
+                    onChange={(e) => setExcludeVips(e.target.checked)}
+                    className="size-3.5 rounded border-zinc-600 bg-zinc-800"
+                  />
+                  排除 VIP 嘉宾
+                </label>
+                <label className="flex items-center gap-2 text-xs text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={enableWeights}
+                    onChange={(e) => setEnableWeights(e.target.checked)}
+                    className="size-3.5 rounded border-zinc-600 bg-zinc-800"
+                  />
+                  启用加权（发帖+1，被回复+1，封顶 3）
                 </label>
                 <button
                   type="button"

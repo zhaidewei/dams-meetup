@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import { getCurrentUser, touchLastSeenMe } from '@/lib/identity'
+import { getCurrentUser, touchLastSeen, touchLastSeenMe } from '@/lib/identity'
 import { Header } from '@/components/Header'
 import { MeIdentityBar } from '@/components/MeIdentityBar'
 import { PostCard } from '@/components/PostCard'
@@ -36,6 +36,9 @@ export default async function MePage() {
   // 进 /me 即把"我"tab 红点清零（下次刷新时回复 / 提及未读 → 0）。
   // Fire-and-forget — 失败不影响渲染。
   void touchLastSeenMe(user.id)
+  // 抽奖 v2：last_seen_at 也要在 /me 打点，否则停在「我」页的人被静默
+  // 排除出抽奖池。详见 docs/lottery-design-v2.md §5 / D5。
+  void touchLastSeen(user.id)
 
   return (
     <>

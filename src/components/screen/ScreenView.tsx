@@ -7,6 +7,7 @@ import type { ScreenQuestion } from '@/lib/queries/questions'
 import type { ScreenLotteryDraw } from '@/lib/queries/lottery'
 import type { ScreenModeState } from '@/lib/queries/event-state'
 import { fetchScreenData } from '@/lib/actions/screen'
+import { resolveLotteryAction } from '@/lib/actions/event-state'
 import { setQuestionAnsweredAction } from '@/lib/actions/posts'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
@@ -164,7 +165,9 @@ export function ScreenView({
             password={password}
           />
         ) : slot.kind === 'lottery' ? (
-          <LotterySlot draw={slot.draw} now={now} />
+          // key=draw.id —— 切到下一轮抽奖时整个 LotterySlot remount，
+          // 三阶段动画时钟、optimistic winner 自动重置。
+          <LotterySlot key={slot.draw.id} draw={slot.draw} now={now} />
         ) : slot.kind === 'poll' ? (
           <PollSlot post={slot.post} now={now} qrSlot={qrSlot} password={password} />
         ) : (
@@ -352,93 +355,230 @@ function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: stri
   )
 }
 
-// Lottery animation: ~5s spin then settle on the (server-determined) winner.
-// Winner identity is fixed by the server; the animation is purely visual.
-const LOTTERY_SPIN_MS = 5_000
+// 抽奖 v2：三阶段状态机（docs/lottery-design-v2.md §4）
+//   A. 候选预览  PREVIEW_MS   滚动展示池子，让观众肉眼确认
+//   B. 跑马灯    SPIN_MS      加速→减速，停帧瞬间调 resolveLotteryAction
+//   C. 揭晓      —            winner 放大 + glow + 礼花
+//
+// 关键设计：phase 切换由 client 时钟（draw.created_at + 偏移）驱动；
+// winner 在 B → C 切换那一刻才向 server 索要，主办方/server 都没机会
+// 提前知道结果。draw.closed_at 用作幂等：第二次进入 C（重渲染、F5）
+// 直接用 draw.winner 显示，不重抽。
+const PREVIEW_MS = 2_500
+const SPIN_MS = 4_500
+const PHASE_B_START = PREVIEW_MS
+const PHASE_C_START = PREVIEW_MS + SPIN_MS
 
 function LotterySlot({ draw, now }: { draw: ScreenLotteryDraw; now: number }) {
-  // `now` ticks every 1s from the parent; we derive phase from it (pure render).
   const startedAt = Date.parse(draw.created_at)
-  const phase: 'spinning' | 'settled' =
-    now - startedAt >= LOTTERY_SPIN_MS ? 'settled' : 'spinning'
+  const elapsed = now - startedAt
 
-  // Faster cadence (80–500ms) is needed for the avatar swap during spin —
-  // 1s tick is too slow. Cell rotation lives in its own effect so it can
-  // schedule itself with a decelerating timer.
-  const [cellIdx, setCellIdx] = useState(0)
+  // 已 closed 的 draw（refresh 后回到这里）：跳过动画直接到 C 阶段。
+  const alreadySettled = !!draw.closed_at && !!draw.winner
+  const phase: 'preview' | 'spin' | 'reveal' = alreadySettled
+    ? 'reveal'
+    : elapsed < PHASE_B_START
+      ? 'preview'
+      : elapsed < PHASE_C_START
+        ? 'spin'
+        : 'reveal'
+
+  // 乐观 winner：B 阶段尾巴向 server 拿一次。父组件 key=draw.id 保证
+  // 切下一轮时 remount，optimistic 自动重置，无需 useEffect 同步 props。
+  // 渲染时 server-truth (draw.winner) 优先于乐观值。
+  const [optimisticWinner, setOptimisticWinner] = useState<typeof draw.winner>(null)
+  const winnerForReveal = draw.winner ?? optimisticWinner
 
   useEffect(() => {
+    if (alreadySettled) return
+    if (winnerForReveal) return // 已经有 winner（server 或 optimistic），别再请求
+    if (phase !== 'spin' && phase !== 'reveal') return
+    let cancelled = false
+    void (async () => {
+      const res = await resolveLotteryAction(draw.id)
+      if (cancelled || res.error || !res.winnerId) return
+      const winnerInSample = draw.pool_sample.find((u) => u.id === res.winnerId)
+      if (winnerInSample) setOptimisticWinner(winnerInSample)
+      // 不在 sample 里：等下一次 fetchScreenData refresh 带来完整 draw.winner。
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [draw.id, phase, alreadySettled, winnerForReveal, draw.pool_sample])
+
+  // 跑马灯快速切换头像（80→500ms 缓动）
+  const [cellIdx, setCellIdx] = useState(0)
+  useEffect(() => {
+    if (phase !== 'spin') return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
-
     function tick() {
       if (cancelled) return
-      const elapsed = Date.now() - startedAt
-      if (elapsed >= LOTTERY_SPIN_MS) return
+      const e = Date.now() - startedAt - PHASE_B_START
+      if (e >= SPIN_MS) return
       setCellIdx((i) => (i + 1) % Math.max(1, draw.pool_sample.length))
-      const t = Math.max(0, Math.min(1, elapsed / LOTTERY_SPIN_MS))
-      const interval = 80 + t * 420
-      timer = setTimeout(tick, interval)
+      const t = Math.max(0, Math.min(1, e / SPIN_MS))
+      timer = setTimeout(tick, 80 + t * 420)
     }
-
-    if (Date.now() - startedAt < LOTTERY_SPIN_MS) {
-      timer = setTimeout(tick, 80)
-    }
-
+    timer = setTimeout(tick, 80)
     return () => {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [draw.id, startedAt, draw.pool_sample.length])
+  }, [phase, draw.id, draw.pool_sample.length, startedAt])
 
+  if (phase === 'preview') {
+    return <LotteryPreview draw={draw} elapsed={elapsed} />
+  }
+
+  // spin / reveal 共用大卡片布局；reveal 时有 winner，spin 时是滚头像
   const current =
-    phase === 'settled'
-      ? draw.winner
-      : draw.pool_sample[cellIdx % Math.max(1, draw.pool_sample.length)] ?? draw.winner
+    phase === 'reveal' && winnerForReveal
+      ? winnerForReveal
+      : draw.pool_sample[cellIdx % Math.max(1, draw.pool_sample.length)]
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-8">
-      <div className="inline-flex items-center gap-3 rounded-full bg-amber-500/20 px-5 py-2 ring-1 ring-amber-500/40">
-        <span className="text-base font-semibold text-amber-200">
-          {phase === 'spinning' ? '抽奖中…' : '🎉 中奖！'}
-        </span>
-        <span className="text-xs text-amber-300/80">池子 {draw.pool_sample.length}+ 人</span>
-      </div>
+    <div className="relative flex h-full flex-col items-center justify-center gap-8">
+      {phase === 'reveal' && <Confetti />}
 
       <div
         className={
-          'rounded-3xl p-12 ring-2 transition-all duration-500 ' +
-          (phase === 'settled'
-            ? 'scale-110 bg-amber-500/20 ring-amber-400 shadow-[0_0_120px_rgba(251,191,36,0.5)]'
-            : 'bg-zinc-900/60 ring-zinc-700')
+          'inline-flex items-center gap-3 rounded-full px-5 py-2 ring-1 ' +
+          (phase === 'reveal'
+            ? 'bg-amber-500/30 ring-amber-400'
+            : 'bg-amber-500/20 ring-amber-500/40')
         }
       >
-        <div className="flex flex-col items-center gap-6">
-          <div className={phase === 'spinning' ? 'animate-pulse' : ''}>
-            <Avatar seed={current.id} user={current} size="3xl" onDark />
-          </div>
-          <div className="text-center">
-            <p className="text-6xl font-bold leading-tight text-white">{displayName(current)}</p>
-            {displayMeta(current) && (
-              <p className="mt-3 text-2xl text-zinc-300">{displayMeta(current)}</p>
-            )}
-            {current.is_vip && (
-              <p className="mt-3">
-                <span className="rounded-full bg-amber-500/30 px-3 py-1 text-base font-semibold text-amber-200">
-                  嘉宾
-                </span>
-              </p>
-            )}
-          </div>
-        </div>
+        <span className="text-base font-semibold text-amber-200">
+          {phase === 'reveal' ? '🎉 中奖！' : '抽奖中…'}
+        </span>
+        <span className="text-xs text-amber-300/80">池子 {draw.pool_size} 人</span>
       </div>
 
-      {phase === 'settled' && (
-        <p className="text-lg text-zinc-400">
-          {draw.rules.must_have_posted && '已发帖 · '}
-          {draw.rules.exclude_previous_winners && '首次中奖'}
-        </p>
+      {current && (
+        <div
+          className={
+            'rounded-3xl p-12 ring-2 transition-all duration-500 ' +
+            (phase === 'reveal'
+              ? 'scale-110 bg-amber-500/20 ring-amber-400 shadow-[0_0_120px_rgba(251,191,36,0.5)]'
+              : 'bg-zinc-900/60 ring-zinc-700')
+          }
+        >
+          <div className="flex flex-col items-center gap-6">
+            <div className={phase === 'spin' ? 'animate-pulse' : ''}>
+              <Avatar seed={current.id} user={current} size="3xl" onDark />
+            </div>
+            <div className="text-center">
+              <p className="text-6xl font-bold leading-tight text-white">
+                {displayName(current)}
+              </p>
+              {displayMeta(current) && (
+                <p className="mt-3 text-2xl text-zinc-300">{displayMeta(current)}</p>
+              )}
+              {current.is_vip && (
+                <p className="mt-3">
+                  <span className="rounded-full bg-amber-500/30 px-3 py-1 text-base font-semibold text-amber-200">
+                    嘉宾
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
+
+      {phase === 'reveal' && <LotteryAuditFooter draw={draw} />}
+    </div>
+  )
+}
+
+// A 阶段：候选预览 —— 让观众肉眼确认池子
+function LotteryPreview({
+  draw,
+  elapsed,
+}: {
+  draw: ScreenLotteryDraw
+  elapsed: number
+}) {
+  // 渐进 fade-in：每 60ms 显示下一个，2.5s 内最多覆盖 ~40 人
+  const visibleCount = Math.min(
+    draw.pool_sample.length,
+    Math.max(8, Math.floor((elapsed / PREVIEW_MS) * draw.pool_sample.length)),
+  )
+  const visible = draw.pool_sample.slice(0, visibleCount)
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-6 px-8">
+      <div className="inline-flex items-center gap-3 rounded-full bg-amber-500/20 px-5 py-2 ring-1 ring-amber-500/40">
+        <span className="text-base font-semibold text-amber-200">即将抽奖</span>
+        <span className="text-xs text-amber-300/80">
+          池子 {draw.pool_size} 人 ·{' '}
+          {draw.rules.enable_weights === false ? '人均 1 票' : '加权 1-3 票'}
+        </span>
+      </div>
+
+      <div className="grid w-full max-w-[1400px] grid-cols-8 gap-3">
+        {visible.map((u) => (
+          <div
+            key={u.id}
+            className="flex flex-col items-center gap-1.5 rounded-xl bg-zinc-900/60 p-2.5 ring-1 ring-zinc-800 animate-in fade-in"
+          >
+            <Avatar seed={u.id} user={u} size="md" onDark />
+            <p className="line-clamp-1 text-center text-xs text-zinc-200">
+              {displayName(u)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-sm text-zinc-500">
+        近 10 分钟内活跃过
+        {draw.rules.must_have_posted && ' · 必须参与过（帖/回复/投票）'}
+        {draw.rules.exclude_previous_winners && ' · 排除上轮中奖者'}
+        {draw.rules.exclude_vips && ' · 不含嘉宾'}
+      </p>
+    </div>
+  )
+}
+
+function LotteryAuditFooter({ draw }: { draw: ScreenLotteryDraw }) {
+  return (
+    <p className="font-mono text-xs text-zinc-500">
+      draw #{draw.id} · seed {draw.seed_short ?? '—'} · pool {draw.pool_size} 人
+      {draw.rules.enable_weights === false ? ' · 人均 1 票' : ' · 加权 1-3 票'}
+    </p>
+  )
+}
+
+function Confetti() {
+  // 纯 CSS 礼花：12 片彩色方块从顶部随机角度散落
+  const pieces = Array.from({ length: 24 }, (_, i) => i)
+  const colors = ['#fbbf24', '#f472b6', '#60a5fa', '#34d399', '#f87171']
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {pieces.map((i) => {
+        const left = (i * 4159) % 100
+        const delay = (i * 137) % 800
+        const duration = 1800 + ((i * 89) % 1200)
+        const color = colors[i % colors.length]
+        return (
+          <span
+            key={i}
+            className="absolute -top-4 size-2 rounded-sm"
+            style={{
+              left: `${left}%`,
+              backgroundColor: color,
+              animation: `confetti-fall ${duration}ms ${delay}ms linear forwards`,
+            }}
+          />
+        )
+      })}
+      <style>{`
+        @keyframes confetti-fall {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+      `}</style>
     </div>
   )
 }

@@ -128,16 +128,26 @@ export async function exitScreenModeAction(): Promise<{ error: string | null }> 
 }
 
 // =====================================================================
-// 抽奖 (issue #27)
+// 抽奖 v2 (docs/lottery-design-v2.md)
 // =====================================================================
-const ONLINE_WINDOW_MS = 5 * 60 * 1000
+// 与 v1 关键差异：
+//   - winner 不再在 startLotteryAction 当下选定，先写 winner=null
+//   - pool + 权重交给 RPC compute_lottery_pool（DB 一次算完）
+//   - 真正落 winner 在 resolveLotteryAction（动画停帧时由大屏调用）
+
+import { randomBytes, randomInt } from 'node:crypto'
+
+const ONLINE_WINDOW_SECONDS = 600 // 10 分钟，比 v1 的 5min 放宽
 
 export type LotteryRulesInput = {
   must_have_posted?: boolean
   exclude_previous_winners?: boolean
+  exclude_vips?: boolean
+  enable_weights?: boolean
 }
 
-// 开始一轮抽奖。winner 在服务端选好（防作弊）；前端只播动画。
+// 阶段 1：开抽。冻结 pool + 权重快照，winner_user_id 先留 null。
+// 大屏接收 broadcast 进入 A/B 阶段动画；动画停帧时调 resolveLotteryAction。
 export async function startLotteryAction(
   rulesIn: LotteryRulesInput,
 ): Promise<{ error: string | null }> {
@@ -146,55 +156,42 @@ export async function startLotteryAction(
   const rules = {
     must_have_posted: !!rulesIn.must_have_posted,
     exclude_previous_winners: rulesIn.exclude_previous_winners ?? true,
+    exclude_vips: rulesIn.exclude_vips ?? true,
+    enable_weights: rulesIn.enable_weights ?? true,
+    online_window_seconds: ONLINE_WINDOW_SECONDS,
   }
 
   const sb = getServerSupabase()
-  const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString()
 
-  // 1. 在线用户（last_seen_at 5min 内）
-  const { data: onlineUsers, error: onlineErr } = await sb
-    .from('users')
-    .select('id')
-    .gte('last_seen_at', cutoff)
-  if (onlineErr) return { error: onlineErr.message }
-  let pool = (onlineUsers ?? []).map((u) => u.id as string)
-  if (pool.length === 0) return { error: '当前没有在线参与者' }
+  // 1. RPC 一次算完 pool + 权重
+  const { data: poolRows, error: poolErr } = await sb.rpc('compute_lottery_pool', { rules })
+  if (poolErr) return { error: poolErr.message }
+  const pool = (poolRows ?? []) as Array<{ user_id: string; weight: number }>
+  if (pool.length === 0) return { error: '没有满足条件的在线参与者，调整规则后再试' }
 
-  // 2. must_have_posted: 至少发过一帖（任何 type）
-  if (rules.must_have_posted) {
-    const { data: posters } = await sb
-      .from('posts')
-      .select('user_id')
-      .in('user_id', pool)
-    const posterSet = new Set((posters ?? []).map((p) => p.user_id as string))
-    pool = pool.filter((id) => posterSet.has(id))
-    if (pool.length === 0) return { error: '没有满足「必须发过帖」的在线参与者' }
-  }
+  // 2. 拆成 pool_user_ids + pool_weights（schema 兼容 + 权重审计）
+  const poolUserIds = pool.map((r) => r.user_id)
+  const poolWeights: Record<string, number> = {}
+  for (const r of pool) poolWeights[r.user_id] = r.weight
 
-  // 3. exclude_previous_winners: 历次中奖人都剔除
-  if (rules.exclude_previous_winners) {
-    const { data: prev } = await sb.from('lottery_draws').select('winner_user_id')
-    const winnerSet = new Set((prev ?? []).map((p) => p.winner_user_id as string))
-    pool = pool.filter((id) => !winnerSet.has(id))
-    if (pool.length === 0) return { error: '所有满足条件的人都中过奖了，换个规则？' }
-  }
+  // 3. 生成 random_seed（事后审计可复现；本身不参与 winner 选择）
+  const seed = randomBytes(16)
 
-  // 4. 随机选 winner
-  const winner = pool[Math.floor(Math.random() * pool.length)]
-
-  // 5. 写 lottery_draws
+  // 4. 写 lottery_draws —— winner_user_id=null + closed_at=null，等 resolve
   const { data: draw, error: drawErr } = await sb
     .from('lottery_draws')
     .insert({
       rules,
-      pool_user_ids: pool,
-      winner_user_id: winner,
+      pool_user_ids: poolUserIds,
+      pool_weights: poolWeights,
+      random_seed: '\\x' + seed.toString('hex'), // bytea hex literal
+      winner_user_id: null,
     })
     .select('id')
     .single()
   if (drawErr) return { error: drawErr.message }
 
-  // 6. 切 event_state；先清 qa_host 防止 mode_consistency 约束失败
+  // 5. 切 event_state；先清 qa_host 防止 mode_consistency 约束失败
   const { error: stateErr } = await sb
     .from('event_state')
     .update({
@@ -209,4 +206,58 @@ export async function startLotteryAction(
 
   revalidatePath('/screen')
   return { error: null }
+}
+
+// 阶段 2：动画停帧 → 真正抽 winner。幂等：已 closed 直接返回当前 winner。
+// 由大屏 LotterySlot 在 B 阶段尾巴调用一次。
+export async function resolveLotteryAction(
+  drawId: number,
+): Promise<{ error: string | null; winnerId: string | null }> {
+  // 注意：resolve 不要求 admin cookie —— 大屏可能没登录（admin cookie 只在
+  // /screen 路由进入时由专用 token 写）。startLotteryAction 已经做了授权
+  // gate，且一行 lottery_draws 只能 resolve 一次（幂等性靠 closed_at 判定）。
+  const sb = getServerSupabase()
+
+  const { data: draw, error: readErr } = await sb
+    .from('lottery_draws')
+    .select('id, pool_user_ids, pool_weights, winner_user_id, closed_at')
+    .eq('id', drawId)
+    .maybeSingle()
+  if (readErr) return { error: readErr.message, winnerId: null }
+  if (!draw) return { error: '抽奖记录不存在', winnerId: null }
+
+  // 幂等：已落定，直接返回
+  if (draw.closed_at && draw.winner_user_id) {
+    return { error: null, winnerId: draw.winner_user_id as string }
+  }
+
+  const poolIds = (draw.pool_user_ids as string[]) ?? []
+  const weights = (draw.pool_weights as Record<string, number>) ?? {}
+  if (poolIds.length === 0) return { error: '池子为空', winnerId: null }
+
+  // 加权抽取：累加权重 -> randomInt(0, total) -> 二分定位
+  // 没权重数据时退化为均匀分布（每人 1）
+  const cumulative: Array<{ uid: string; until: number }> = []
+  let total = 0
+  for (const uid of poolIds) {
+    const w = Math.max(1, weights[uid] ?? 1)
+    total += w
+    cumulative.push({ uid, until: total })
+  }
+  const r = randomInt(0, total) // CSPRNG，[0, total)
+  const winner = cumulative.find((c) => r < c.until)?.uid ?? poolIds[poolIds.length - 1]
+
+  // 写 winner + closed_at（一致性约束保证两者同步）
+  const { error: updErr } = await sb
+    .from('lottery_draws')
+    .update({
+      winner_user_id: winner,
+      closed_at: new Date().toISOString(),
+    })
+    .eq('id', drawId)
+    .is('closed_at', null) // 防并发：如已 close 则不动
+  if (updErr) return { error: updErr.message, winnerId: null }
+
+  // event_state 没动，不需要 revalidatePath（大屏自己拿到 winner）
+  return { error: null, winnerId: winner }
 }

@@ -54,14 +54,21 @@ export type EventStateRow = {
 export type LotteryRules = {
   must_have_posted: boolean
   exclude_previous_winners: boolean
+  // v2 新增（向后兼容：旧行可能没这两个 key，读时 ?? 默认值）
+  exclude_vips?: boolean
+  enable_weights?: boolean
+  online_window_seconds?: number
 }
 
 export type LotteryDrawRow = {
   id: number
   rules: LotteryRules
   pool_user_ids: string[]
-  winner_user_id: string
+  pool_weights: Record<string, number>
+  random_seed: string | null
+  winner_user_id: string | null
   created_at: string
+  closed_at: string | null
 }
 
 // match_intent moved to its own table (migration 0011) so it cannot leak via
