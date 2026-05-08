@@ -158,15 +158,19 @@ async function fetchCandidates(supabase: SupabaseClient): Promise<CandidatePost[
 }
 
 async function fetchProfiles(supabase: SupabaseClient) {
-  // issue #34: 只聚合已同意 AI 处理的用户的帖子。inner join + filter 保证
-  // 未同意者整片画像不进 prompt。candidates 路径无需重复 gate —
-  // intent 写入端（createPostAction）已经卡住未同意者。
+  // 双 gate：
+  //   (1) issue #34 — 只聚合已同意 AI 处理的用户；
+  //   (2) "匿名 = 只读" 产品规则 — 无昵称且非 VIP 的用户即使被推荐，对方
+  //        也无 DM 入口、画像里也只显示「匿名」，跳过即可。
+  // candidates 路径无需重复 gate — intent 写入端 (createPostAction) 已用
+  // requireNonAnon + ai_consent 双卡。
   const { data, error } = await supabase
     .from('posts')
     .select(
       'user_id, body, tags, section, users:user_id!inner (id, nickname, company, is_vip, vip_name, vip_title, ai_consent_at)',
     )
     .not('users.ai_consent_at', 'is', null)
+    .or('nickname.not.is.null,is_vip.is.true', { referencedTable: 'users' })
     .order('created_at', { ascending: false })
     .limit(PROFILES_POST_LIMIT)
   if (error) throw new Error(`profiles query: ${error.message}`)

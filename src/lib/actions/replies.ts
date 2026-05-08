@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/identity'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { REPLY_MAX_CHARS } from '@/lib/constants'
+import { requireNonAnon } from '@/lib/permissions'
 
 export type ReplyFormState = { error: string | null; ok?: boolean }
 export type ReplyMutationResult = { error: string | null }
@@ -15,6 +16,9 @@ export async function createReplyAction(
 ): Promise<ReplyFormState> {
   const user = await getCurrentUser()
   if (!user) redirect('/')
+
+  const gate = requireNonAnon(user)
+  if (!gate.ok) return { error: gate.error }
 
   const postId = Number(formData.get('post_id'))
   const body = String(formData.get('body') ?? '').trim()

@@ -54,13 +54,13 @@ export function OnboardingBanner() {
       </div>
       <ul className="space-y-1.5 text-sm text-blue-900">
         <li>
-          <span className="font-medium">默认匿名</span>
-          ：发帖不显示你是谁。想让人认出你 → 点「编辑身份」填昵称 / 公司 / 联系方式。
+          <span className="font-medium">默认匿名 = 只能看 + 点赞</span>
+          。想发帖 / 回复 / 私信 / 被 AI 撮合 → 去「我」tab 填昵称（可以只填昵称、不填公司联系方式）。
         </li>
         <li>
           <span className="font-medium">AI 撮合</span>
           ：发帖时可以暗中委托「想找 Booking 的同学聊内推」之类，结果只回到你自己的「我」tab。
-          <span className="text-blue-700"> 想让对方找到你 → 先填昵称 + 联系方式。</span>
+          <span className="text-blue-700"> 撮合双方都需要昵称，对方才能联系到你。</span>
         </li>
         <li>
           <span className="font-medium">嘉宾发投票</span>

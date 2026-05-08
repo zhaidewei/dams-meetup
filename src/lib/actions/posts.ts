@@ -7,6 +7,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { POST_MAX_CHARS, MATCH_INTENT_MAX_CHARS } from '@/lib/constants'
 import { DEFAULT_SECTION, isSectionId } from '@/lib/sections'
 import { parseTags } from '@/lib/tags'
+import { requireNonAnon } from '@/lib/permissions'
 
 export type PostFormState = { error: string | null; ok?: boolean }
 export type PostMutationResult = { error: string | null }
@@ -17,6 +18,9 @@ export async function createPostAction(
 ): Promise<PostFormState> {
   const user = await getCurrentUser()
   if (!user) redirect('/')
+
+  const gate = requireNonAnon(user)
+  if (!gate.ok) return { error: gate.error }
 
   const body = String(formData.get('body') ?? '').trim()
   if (!body) return { error: '说点啥再发吧' }
@@ -141,6 +145,9 @@ export async function createQuestionAction(
 ): Promise<PostFormState> {
   const user = await getCurrentUser()
   if (!user) redirect('/')
+
+  const gate = requireNonAnon(user)
+  if (!gate.ok) return { error: gate.error }
 
   const body = String(formData.get('body') ?? '').trim()
   if (!body) return { error: '说点啥再发吧' }

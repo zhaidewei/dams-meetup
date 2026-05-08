@@ -43,7 +43,9 @@ export function MeIdentityBar({ user }: Props) {
           )}
         </div>
         <p className="text-xs text-zinc-500">
-          {isAnon ? '当前匿名 — 填昵称让人能找到你' : '点编辑改昵称 / 公司 / 联系方式'}
+          {isAnon
+            ? '当前匿名 — 只能看 + 点赞；填昵称解锁发帖 / 回复 / 私信 / 被撮合'
+            : '点编辑改昵称 / 公司 / 联系方式'}
         </p>
       </div>
       <button
