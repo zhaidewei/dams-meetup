@@ -13,18 +13,22 @@ import {
 } from '@/lib/actions/event-state'
 import { SECTIONS, type SectionId } from '@/lib/sections'
 import type { VipForDropdown, ScreenModeState } from '@/lib/queries/event-state'
+import type { ScreenQuestion } from '@/lib/queries/questions'
+import { QaQuestionPanel } from './QaQuestionPanel'
 
 type Props = {
   currentSection: SectionId | null
   modeState: ScreenModeState
   vips: VipForDropdown[]
+  // mode='qa' 时由 server page 一次性拉好，未到 QA 模式传 null。
+  qaQuestions: ScreenQuestion[] | null
 }
 
 // /admin (issue #45) — 移动端优先的主办方控制台。从 /screen 的 ScreenAdminBar 拆出
 // 来，layout 重写：撑满宽度、按钮 py-3、段落清晰；逻辑（state + server actions）
 // 一致。手机改 filter 走 server state（event_state.screen_filter_section），所有
 // /screen tab 自动同步。
-export function AdminConsole({ currentSection, modeState, vips }: Props) {
+export function AdminConsole({ currentSection, modeState, vips, qaQuestions }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [pendingHostId, setPendingHostId] = useState<string>(
@@ -191,11 +195,15 @@ export function AdminConsole({ currentSection, modeState, vips }: Props) {
             </div>
           </div>
         ) : (
-          <div className="space-y-2">
-            {screenMode === 'qa' && (
-              <p className="text-xs leading-relaxed text-zinc-500">
-                问题已答：在大屏 tab 鼠标移到问题卡片右上角 ✓ 单条标记。
-              </p>
+          <div className="space-y-3">
+            {screenMode === 'qa' && qaQuestions !== null && (
+              <div className="space-y-2 border-t border-zinc-100 pt-3">
+                <p className="text-xs font-medium text-zinc-600">
+                  问题列表 · {qaQuestions.filter((q) => !q.answered_at).length} 待答 /{' '}
+                  {qaQuestions.length} 总
+                </p>
+                <QaQuestionPanel initial={qaQuestions} />
+              </div>
             )}
             <button
               type="button"

@@ -113,6 +113,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
                 hostTitle={modeState.qa_host_title}
                 defaultNickname={user.nickname}
                 defaultCompany={user.company}
+                viewerIsAnon={!viewerCanDm}
               />
               {qaQuestions.length > 0 && (
                 <section className="space-y-2">

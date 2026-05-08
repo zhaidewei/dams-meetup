@@ -598,19 +598,26 @@ function QaSlot({
   // 乐观隐藏：admin 点完「✓」后立刻从大屏移除，无需等 Realtime 回灌。
   // 父组件用 key={qa_host_user_id} 保证切轮次时 QaSlot remount，set 自动重置。
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const visible = questions.filter((q) => !answeredIds.has(q.id))
   const top = visible.slice(0, 5)
   const ticker = visible.slice(5, 13)
   const [, startTransition] = useTransition()
 
   function markAnswered(id: number) {
+    // 乐观隐藏；失败时回滚 + 提示，避免「点了 ✓ 但 DB 没写」的错觉。
     setAnsweredIds((s) => new Set(s).add(id))
+    setErrorMsg(null)
     startTransition(async () => {
       const res = await setQuestionAnsweredAction(id, true)
       if (res?.error) {
-        // 服务器拒了；不强制 rollback，避免与 Realtime 竞态 — 下一轮
-        // refresh 重新拉到原始 unanswered 列表后会自动出现。
-        console.error('mark answered failed:', res.error)
+        setAnsweredIds((s) => {
+          const next = new Set(s)
+          next.delete(id)
+          return next
+        })
+        setErrorMsg(`标记失败：${res.error}`)
+        setTimeout(() => setErrorMsg((m) => (m === `标记失败：${res.error}` ? null : m)), 5000)
       }
     })
   }
@@ -649,6 +656,11 @@ function QaSlot({
         <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">
           观众提问 · 共 {visible.length} 条 · 按点赞排序
         </p>
+        {errorMsg && (
+          <p className="rounded-md bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/40">
+            {errorMsg}
+          </p>
+        )}
         {visible.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60">
             <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>

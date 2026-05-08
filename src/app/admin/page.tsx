@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { readAdminCookie, setAdminCookie } from '@/lib/identity'
 import { getEventStateBundle, listVipUsers } from '@/lib/queries/event-state'
+import { fetchQuestionsForHost } from '@/lib/queries/questions'
 import { AdminConsole } from '@/components/admin/AdminConsole'
 
 // /admin (issue #45) — 移动端友好的主办方控制台，从 /screen ScreenAdminBar 拆出来。
@@ -26,11 +27,20 @@ export default async function AdminPage({
     listVipUsers(),
   ])
 
+  // 仅在 mode='qa' 拉问题列表给控制台。includeAnswered=true 让主办方
+  // 看到全集，已答行渲染撤销按钮。limit 50 — 一场 QA 极少超过这个量。
+  const qaHostId = eventState.modeState.qa_host_user_id
+  const qaQuestions =
+    eventState.modeState.mode === 'qa' && qaHostId
+      ? await fetchQuestionsForHost(qaHostId, 50, { includeAnswered: true })
+      : null
+
   return (
     <AdminConsole
       currentSection={eventState.liveSection}
       modeState={eventState.modeState}
       vips={vips}
+      qaQuestions={qaQuestions}
     />
   )
 }

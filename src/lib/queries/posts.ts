@@ -91,8 +91,12 @@ export async function fetchFeed(
     postsQuery = postsQuery
       .eq('type', 'question')
       .eq('question_target_user_id', opts.questionTargetUserId)
+  } else if (opts.authorId) {
+    // /me「我发的帖子」需要含自己提的问题，否则用户没有路径回看 / 删除自己
+    // 的 question 帖。PostCard 已经按 type='question' 渲染提问徽章 / 已答样
+    // 式，混在一起视觉上不混乱。section 不限（question 跨 section 都算自己的）。
   } else {
-    // 常规 timeline / /me：question 帖走独立区块（/feed 的 QA 区），不进 section feed。
+    // 常规 timeline：question 帖走独立区块（/feed 的 QA 区），不进 section feed。
     postsQuery = postsQuery.in('type', ['text', 'poll'])
     if (opts.section) postsQuery = postsQuery.eq('section', opts.section)
   }

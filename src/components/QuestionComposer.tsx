@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Mic } from 'lucide-react'
 import { createQuestionAction, type PostFormState } from '@/lib/actions/posts'
 import { POST_MAX_CHARS } from '@/lib/constants'
@@ -12,6 +13,10 @@ type Props = {
   hostTitle: string | null
   defaultNickname: string | null
   defaultCompany: string | null
+  // 匿名 = 没昵称且非 VIP。匿名只能浏览，不能提问 — 与 PostComposer 同规则
+  // (CLAUDE.md「匿名只读 / 发言需署名」)。匿名时整个 form 不可编辑 + 引导
+  // 去 /me 设昵称，避免把表单填满才在提交时被 server gate 拒掉。
+  viewerIsAnon: boolean
 }
 
 // 观众端 QA 提问入口。仅在 event_state.screen_mode='qa' 时由 /feed 渲染在
@@ -23,6 +28,7 @@ export function QuestionComposer({
   hostTitle,
   defaultNickname,
   defaultCompany,
+  viewerIsAnon,
 }: Props) {
   const [state, formAction, isPending] = useActionState(createQuestionAction, initial)
   const [bodyLen, setBodyLen] = useState(0)
@@ -37,6 +43,29 @@ export function QuestionComposer({
   }, [state])
 
   const remaining = POST_MAX_CHARS - bodyLen
+
+  if (viewerIsAnon) {
+    return (
+      <div className="rounded-2xl border-2 border-rose-300 bg-rose-50/60 p-4 shadow-sm">
+        <div className="flex items-start gap-2">
+          <Mic className="mt-0.5 size-4 shrink-0 text-rose-600" aria-hidden />
+          <div className="flex-1 leading-tight">
+            <p className="text-sm font-semibold text-rose-900">
+              向「{hostName}」提问
+              {hostTitle && <span className="ml-1 text-xs font-normal text-rose-700">· {hostTitle}</span>}
+            </p>
+            <p className="mt-1 text-sm text-rose-800">
+              提问需要先在「
+              <Link href="/me#settings" className="font-medium underline underline-offset-2">
+                我
+              </Link>
+              」里填一个昵称（公司选填）— 嘉宾才知道是谁问的。
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <form
