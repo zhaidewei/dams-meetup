@@ -595,27 +595,25 @@ function QaSlot({
   password: string
 }) {
   const hostName = mode.qa_host_name ?? '嘉宾'
-  // 乐观隐藏：admin 点完「✓」后立刻从大屏移除，无需等 Realtime 回灌。
-  // 父组件用 key={qa_host_user_id} 保证切轮次时 QaSlot remount，set 自动重置。
-  const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
+  // 不维护本地 "已答" set —— 之前的乐观隐藏 set 只增不减，
+  // 在「admin 撤销已答」或「外部回灌 answered_at=null」时无法重新出现，
+  // 导致 q 永久从大屏消失。直接 trust DB 字段：fetchQuestionsForHost
+  // 默认 .is('answered_at', null)，所以 questions 里有就该显示。
+  // 点 ✓ 后由 server action → Realtime broadcast → 500ms 内 re-fetch
+  // 自然让该条从 questions 移除；用户感知到的延迟可忽略。
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const visible = questions.filter((q) => !answeredIds.has(q.id))
-  const top = visible.slice(0, 5)
-  const ticker = visible.slice(5, 13)
+  const [pendingId, setPendingId] = useState<number | null>(null)
+  const top = questions.slice(0, 5)
+  const ticker = questions.slice(5, 13)
   const [, startTransition] = useTransition()
 
   function markAnswered(id: number) {
-    // 乐观隐藏；失败时回滚 + 提示，避免「点了 ✓ 但 DB 没写」的错觉。
-    setAnsweredIds((s) => new Set(s).add(id))
     setErrorMsg(null)
+    setPendingId(id)
     startTransition(async () => {
       const res = await setQuestionAnsweredAction(id, true)
+      setPendingId((p) => (p === id ? null : p))
       if (res?.error) {
-        setAnsweredIds((s) => {
-          const next = new Set(s)
-          next.delete(id)
-          return next
-        })
         setErrorMsg(`标记失败：${res.error}`)
         setTimeout(() => setErrorMsg((m) => (m === `标记失败：${res.error}` ? null : m)), 5000)
       }
@@ -654,14 +652,14 @@ function QaSlot({
       {/* Right: 问题列表 */}
       <div className="flex h-full min-h-0 flex-col gap-4">
         <p className="text-sm uppercase tracking-[0.18em] text-zinc-500">
-          观众提问 · 共 {visible.length} 条 · 按点赞排序
+          观众提问 · 共 {questions.length} 条 · 按点赞排序
         </p>
         {errorMsg && (
           <p className="rounded-md bg-rose-500/15 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/40">
             {errorMsg}
           </p>
         )}
-        {visible.length === 0 ? (
+        {questions.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800/60">
             <p className="text-2xl text-zinc-500">还没有人提问，扫码抢沙发 →</p>
           </div>
@@ -695,9 +693,10 @@ function QaSlot({
                   <button
                     type="button"
                     onClick={() => markAnswered(q.id)}
+                    disabled={pendingId === q.id}
                     aria-label="标记已答"
                     title="标记已答"
-                    className="shrink-0 self-start rounded-lg p-2 text-zinc-600 opacity-50 transition-all hover:bg-emerald-500/20 hover:text-emerald-300 hover:opacity-100 group-hover:opacity-100"
+                    className="shrink-0 self-start rounded-lg p-2 text-zinc-600 opacity-50 transition-all hover:bg-emerald-500/20 hover:text-emerald-300 hover:opacity-100 group-hover:opacity-100 disabled:opacity-30"
                   >
                     <Check className="size-6" aria-hidden />
                   </button>
@@ -717,9 +716,10 @@ function QaSlot({
                       <button
                         type="button"
                         onClick={() => markAnswered(q.id)}
+                        disabled={pendingId === q.id}
                         aria-label="标记已答"
                         title="标记已答"
-                        className="ml-auto shrink-0 rounded p-1 text-zinc-600 opacity-0 transition-all hover:bg-emerald-500/20 hover:text-emerald-300 group-hover:opacity-100"
+                        className="ml-auto shrink-0 rounded p-1 text-zinc-600 opacity-0 transition-all hover:bg-emerald-500/20 hover:text-emerald-300 group-hover:opacity-100 disabled:opacity-30"
                       >
                         <Check className="size-3.5" aria-hidden />
                       </button>
