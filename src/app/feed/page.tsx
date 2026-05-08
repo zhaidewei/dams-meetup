@@ -86,7 +86,8 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       const bDone = b.answered_at ? 1 : 0
       if (aDone !== bDone) return aDone - bDone
       if (b.like_count !== a.like_count) return b.like_count - a.like_count
-      return b.created_at.localeCompare(a.created_at)
+      // 同 like 时 FIFO（先提的排前面）— 与 /screen 的 fetchQuestionsForHost 保持一致。
+      return a.created_at.localeCompare(b.created_at)
     })
   const qaQuestions = sortQuestions(qaQuestionsRaw)
   const lastQaQuestions = sortQuestions(lastQaQuestionsRaw)

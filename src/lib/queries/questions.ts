@@ -66,7 +66,8 @@ export async function fetchQuestionsForHost(
     const bDone = b.answered_at ? 1 : 0
     if (aDone !== bDone) return aDone - bDone
     if (b.like_count !== a.like_count) return b.like_count - a.like_count
-    return b.created_at.localeCompare(a.created_at)
+    // 同 like 时 FIFO（先提的排前面）—— 让排队感更直觉，新问题不抢老问题位置。
+    return a.created_at.localeCompare(b.created_at)
   })
   return items.slice(0, limit)
 }
