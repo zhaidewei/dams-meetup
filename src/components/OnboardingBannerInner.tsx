@@ -14,6 +14,7 @@ export function OnboardingBannerInner() {
   useEffect(() => {
     try {
       if (localStorage.getItem(LEGACY_LS_KEY) === '1') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot migration: SSR has no localStorage so banner defaults open; close on hydrate if legacy LS marker exists
         setOpen(false)
         void dismissOnboardingAction()
       }
