@@ -21,7 +21,7 @@ export function DmThreadList({ threads, viewerCanDm, viewerId }: Props) {
   if (threads.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-500">
-        还没有私信。在时间线点别人帖子的「私信」按钮可发起会话。
+        还没有私信。在讨论广场点别人帖子的「私信」按钮可发起会话。
       </div>
     )
   }

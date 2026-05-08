@@ -21,7 +21,7 @@ export function Header({ active = 'feed', unreadMeCount = 0 }: Props) {
           <span className="font-semibold text-zinc-900">荷兰华人数据社群</span>
         </a>
         <nav className="flex gap-1 text-sm">
-          <NavTab href="/feed" label="时间线" active={active === 'feed'} />
+          <NavTab href="/feed" label="讨论广场" active={active === 'feed'} />
           <NavTab href="/agenda" label="议程" active={active === 'agenda'} />
           <NavTab href="/me" label="我" active={active === 'me'} badge={unreadMeCount} />
         </nav>

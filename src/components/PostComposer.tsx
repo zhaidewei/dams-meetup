@@ -208,7 +208,7 @@ export function PostComposer({
             className="w-full resize-none rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-zinc-400 focus:border-blue-400 focus:outline-none"
           />
           <div className="space-y-1 text-[11px] text-blue-700">
-            <p>这条不进时间线，结果以回帖形式仅你可见。</p>
+            <p>这条不进讨论广场，结果以回帖形式仅你可见。</p>
             <p className="flex items-start gap-1 text-blue-800">
               <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />
               <span>

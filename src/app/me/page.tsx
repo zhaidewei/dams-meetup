@@ -82,7 +82,7 @@ export default async function MePage() {
 
           <Section title="我发的帖子" count={myPosts.length} defaultOpen={false}>
             {myPosts.length === 0 ? (
-              <Empty text="你还没发过帖子。去 时间线 发第一条。" />
+              <Empty text="你还没发过帖子。去 讨论广场 发第一条。" />
             ) : (
               <FoldableList
                 items={myPosts}
