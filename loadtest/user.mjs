@@ -192,7 +192,7 @@ async function writePost(s) {
     if (s.knownPostIds.length > 20) s.knownPostIds.shift()
     s.cfg.stats.observe('write_post_ms', Date.now() - t0)
     s.cfg.stats.inc('write_post')
-  } catch (err) {
+  } catch {
     s.cfg.stats.inc('write_post_err')
   }
 }
@@ -209,7 +209,7 @@ async function writeLike(s) {
     if (error) throw error
     s.cfg.stats.observe('write_like_ms', Date.now() - t0)
     s.cfg.stats.inc('write_like')
-  } catch (err) {
+  } catch {
     s.cfg.stats.inc('write_like_err')
   }
 }
@@ -225,7 +225,7 @@ async function writeReply(s) {
     if (error) throw error
     s.cfg.stats.observe('write_reply_ms', Date.now() - t0)
     s.cfg.stats.inc('write_reply')
-  } catch (err) {
+  } catch {
     s.cfg.stats.inc('write_reply_err')
   }
 }
