@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { EVENT_NAME } from '@/lib/constants'
 
 type Props = {
   active?: 'feed' | 'agenda' | 'me'
@@ -11,9 +10,16 @@ export function Header({ active = 'feed', unreadMeCount = 0 }: Props) {
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75">
       <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-        <Link href="/feed" className="text-sm font-semibold tracking-tight">
-          {EVENT_NAME}
-        </Link>
+        <a
+          href="https://nl-dams.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-baseline gap-1.5 text-sm tracking-tight transition-opacity hover:opacity-80"
+          title="访问 DAMS 主站"
+        >
+          <span className="font-bold text-blue-600">DAMS</span>
+          <span className="font-semibold text-zinc-900">荷兰华人数据社群</span>
+        </a>
         <nav className="flex gap-1 text-sm">
           <NavTab href="/feed" label="时间线" active={active === 'feed'} />
           <NavTab href="/agenda" label="议程" active={active === 'agenda'} />

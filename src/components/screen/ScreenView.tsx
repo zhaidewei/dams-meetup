@@ -14,6 +14,7 @@ import { sectionLabel, SECTION_META, type SectionId } from '@/lib/sections'
 import { displayName, displayMeta } from '@/lib/display'
 import { EVENT_END_ISO } from '@/lib/constants'
 import { Avatar } from '@/components/Avatar'
+import { MatchCountdown } from '@/components/MatchCountdown'
 
 const POLL_TICK_MS = 1_000 // ui re-render cadence
 // Safety-net resync if the websocket drops silently — projection mode runs
@@ -788,6 +789,7 @@ function ScreenTopBar({
       <div className="ml-auto flex items-center gap-6 text-base tabular-nums">
         <span className="text-2xl font-semibold tracking-tight text-white">{clock}</span>
         <span className="text-zinc-400">{countdown}</span>
+        <MatchCountdown size="lg" variant="dark" />
         <span className="text-zinc-300">
           在线 <span className="font-semibold text-white">{online}</span> 人
         </span>

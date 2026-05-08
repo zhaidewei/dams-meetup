@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Clock, Radio } from 'lucide-react'
 import { EVENT_NAME, EVENT_END_ISO, EVENT_START_ISO } from '@/lib/constants'
+import { MatchCountdown } from '@/components/MatchCountdown'
 import {
   SECTION_META,
   sectionLabel,
@@ -48,27 +49,30 @@ export function EventHero({ liveSection }: Props) {
         )}
       </div>
 
-      {liveSection && liveMeta ? (
-        <Link
-          href={`/feed?section=${liveSection}`}
-          className="mt-3 flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm text-zinc-700 ring-1 ring-blue-100 transition-colors hover:bg-white"
-        >
-          <span className="relative flex size-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
-          </span>
-          <span className="font-semibold text-rose-600">LIVE</span>
-          <span className="truncate">
-            {sectionLabel(liveSection)} · {sectionTimeRange(liveSection)}
-            {liveMeta.speaker && ` · ${liveMeta.speaker}`}
-          </span>
-        </Link>
-      ) : (
-        <p className="mt-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-xs text-zinc-500 ring-1 ring-zinc-100">
-          <Radio className="size-3.5" aria-hidden />
-          活动暂未进入演讲时段
-        </p>
-      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {liveSection && liveMeta ? (
+          <Link
+            href={`/feed?section=${liveSection}`}
+            className="flex min-w-0 items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm text-zinc-700 ring-1 ring-blue-100 transition-colors hover:bg-white"
+          >
+            <span className="relative flex size-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
+            </span>
+            <span className="font-semibold text-rose-600">LIVE</span>
+            <span className="truncate">
+              {sectionLabel(liveSection)} · {sectionTimeRange(liveSection)}
+              {liveMeta.speaker && ` · ${liveMeta.speaker}`}
+            </span>
+          </Link>
+        ) : (
+          <p className="flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2 text-xs text-zinc-500 ring-1 ring-zinc-100">
+            <Radio className="size-3.5" aria-hidden />
+            活动暂未进入演讲时段
+          </p>
+        )}
+        <MatchCountdown size="sm" />
+      </div>
     </section>
   )
 }
