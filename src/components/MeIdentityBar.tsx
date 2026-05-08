@@ -31,23 +31,30 @@ export function MeIdentityBar({ user }: Props) {
 
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white p-3 shadow-sm">
-      <Avatar seed={user.id} user={user} size="md" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 text-sm">
-          <span className="truncate font-semibold text-zinc-900">{name}</span>
-          {meta && <span className="truncate text-zinc-500">· {meta}</span>}
-          {user.is_vip && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
-              嘉宾
-            </span>
-          )}
+      <button
+        type="button"
+        onClick={openSettings}
+        aria-label="编辑个人资料"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left hover:bg-blue-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+      >
+        <Avatar seed={user.id} user={user} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 text-sm">
+            <span className="truncate font-semibold text-zinc-900">{name}</span>
+            {meta && <span className="truncate text-zinc-500">· {meta}</span>}
+            {user.is_vip && (
+              <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
+                嘉宾
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-zinc-500">
+            {isAnon
+              ? '当前匿名 — 只能看 + 点赞；填昵称解锁发帖 / 回复 / 私信 / 被撮合'
+              : '点编辑改昵称 / 公司 / 联系方式'}
+          </p>
         </div>
-        <p className="text-xs text-zinc-500">
-          {isAnon
-            ? '当前匿名 — 只能看 + 点赞；填昵称解锁发帖 / 回复 / 私信 / 被撮合'
-            : '点编辑改昵称 / 公司 / 联系方式'}
-        </p>
-      </div>
+      </button>
       <button
         type="button"
         onClick={openSettings}
