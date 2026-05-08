@@ -46,6 +46,9 @@ export default async function ScreenPage({
   const password = process.env.EVENT_PASSWORD ?? ''
   const qrTarget = `/auto-login?p=${encodeURIComponent(password)}&next=${encodeURIComponent(feedPath)}`
   const qrUrl = host ? `${proto}://${host}${qrTarget}` : qrTarget
+  // 扫不动二维码的人需要 URL（现场口报或抄写到浏览器）— 取 host 不带 proto，
+  // live.nl-dams.com 比 https://live.nl-dams.com 更短更易看清。
+  const siteHost = host
 
   return (
     <ScreenView
@@ -55,6 +58,7 @@ export default async function ScreenPage({
       eventName={EVENT_NAME}
       liveSection={currentSection}
       password={password}
+      siteHost={siteHost}
       qrSlot={<QRCode value={qrUrl} size={280} />}
     />
   )

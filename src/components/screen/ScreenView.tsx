@@ -38,6 +38,8 @@ type Props = {
   liveSection: SectionId | null
   // 活动密码 — 作为兜底显示在 QR 旁边，扫不动码的人可以手输。
   password: string
+  // 站点域名（不带 https://），用作"扫不动"的兜底入口提示。
+  siteHost: string
   qrSlot: React.ReactNode
 }
 
@@ -48,6 +50,7 @@ export function ScreenView({
   eventName,
   liveSection,
   password,
+  siteHost,
   qrSlot,
 }: Props) {
   const [posts, setPosts] = useState(initialPosts)
@@ -167,19 +170,27 @@ export function ScreenView({
             now={now}
             qrSlot={qrSlot}
             password={password}
+            siteHost={siteHost}
           />
         ) : slot.kind === 'lottery' ? (
           // key=draw.id —— 切到下一轮抽奖时整个 LotterySlot remount，
           // 三阶段动画时钟、optimistic winner 自动重置。
           <LotterySlot key={slot.draw.id} draw={slot.draw} now={now} />
         ) : slot.kind === 'poll' ? (
-          <PollSlot post={slot.post} now={now} qrSlot={qrSlot} password={password} />
+          <PollSlot
+            post={slot.post}
+            now={now}
+            qrSlot={qrSlot}
+            password={password}
+            siteHost={siteHost}
+          />
         ) : (
           <DefaultSlot
             liveSection={liveSection}
             online={online}
             qrSlot={qrSlot}
             password={password}
+            siteHost={siteHost}
           />
         )}
       </main>
@@ -201,11 +212,13 @@ function DefaultSlot({
   online,
   qrSlot,
   password,
+  siteHost,
 }: {
   liveSection: SectionId | null
   online: number
   qrSlot: React.ReactNode
   password: string
+  siteHost: string
 }) {
   const liveMeta = liveSection ? SECTION_META[liveSection] : null
   return (
@@ -216,14 +229,7 @@ function DefaultSlot({
           <p className="text-3xl font-semibold text-white">扫码一键加入</p>
           <p className="mt-1 text-base text-zinc-400">发帖 · 投票 · 找人</p>
         </div>
-        {password && (
-          <div className="w-full max-w-md rounded-2xl bg-zinc-800/80 px-6 py-4 text-center ring-1 ring-zinc-700">
-            <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">扫不动？手输密码</p>
-            <p className="mt-1.5 select-all font-mono text-4xl font-semibold tracking-[0.18em] text-white">
-              {password}
-            </p>
-          </div>
-        )}
+        <JoinHint password={password} siteHost={siteHost} size="lg" />
       </div>
 
       <div className="flex flex-col justify-center gap-8 rounded-3xl bg-zinc-900/30 p-10 ring-1 ring-zinc-800/60">
@@ -270,11 +276,13 @@ function PollSlot({
   now,
   qrSlot,
   password,
+  siteHost,
 }: {
   post: FeedPost
   now: number
   qrSlot: React.ReactNode
   password: string
+  siteHost: string
 }) {
   const totalVotes = post.poll_total_votes ?? 0
   const counts = post.poll_option_counts ?? {}
@@ -334,12 +342,20 @@ function PollSlot({
         <span>{remainingMs !== null ? formatRemaining(remainingMs) : '无截止'}</span>
       </div>
     </div>
-      <QrPanel qrSlot={qrSlot} password={password} />
+      <QrPanel qrSlot={qrSlot} password={password} siteHost={siteHost} />
     </div>
   )
 }
 
-function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: string }) {
+function QrPanel({
+  qrSlot,
+  password,
+  siteHost,
+}: {
+  qrSlot: React.ReactNode
+  password: string
+  siteHost: string
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 rounded-2xl bg-zinc-900/60 px-8 py-6 ring-1 ring-zinc-800">
       <div className="rounded-xl bg-white p-3">{qrSlot}</div>
@@ -347,10 +363,56 @@ function QrPanel({ qrSlot, password }: { qrSlot: React.ReactNode; password: stri
         <span className="block text-xl font-semibold text-white">扫码一键加入</span>
         <span className="text-sm text-zinc-400">发帖 / 投票 / 找人</span>
       </p>
+      <JoinHint password={password} siteHost={siteHost} size="md" />
+    </div>
+  )
+}
+
+// 「扫不动」兜底：URL + 现场密码两段。
+//   - 之前只显示密码，没 URL，会让人愣在那里不知道往哪输入
+//   - URL 在前（先打开网页），密码在后（再输入），匹配实际操作顺序
+//   - mono + select-all + tracking 让远处也能看清、近处可以一键复制
+//   - size 适配三种宿主：lg=DefaultSlot 大留白，md=QrPanel 中等，sm=QaSlot 紧凑
+function JoinHint({
+  password,
+  siteHost,
+  size,
+}: {
+  password: string
+  siteHost: string
+  size: 'sm' | 'md' | 'lg'
+}) {
+  if (!siteHost && !password) return null
+  const urlClass =
+    size === 'lg'
+      ? 'text-3xl tracking-wider'
+      : size === 'md'
+        ? 'text-2xl tracking-wide'
+        : 'text-xl tracking-wide'
+  const passClass =
+    size === 'lg'
+      ? 'text-4xl tracking-[0.18em]'
+      : size === 'md'
+        ? 'text-3xl tracking-wider'
+        : 'text-2xl tracking-[0.2em]'
+  const wrapClass =
+    size === 'lg' ? 'max-w-md px-6 py-4' : size === 'md' ? 'px-4 py-3' : 'max-w-sm px-4 py-3'
+  return (
+    <div
+      className={`w-full ${wrapClass} space-y-2 rounded-2xl bg-zinc-800/80 text-center ring-1 ring-zinc-700`}
+    >
+      {siteHost && (
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">扫不动？打开</p>
+          <p className={`mt-0.5 select-all font-mono font-semibold text-white ${urlClass}`}>
+            {siteHost}
+          </p>
+        </div>
+      )}
       {password && (
-        <div className="w-full rounded-xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
-          <p className="text-xs uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
-          <p className="mt-1 select-all font-mono text-3xl font-semibold tracking-wider text-white">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">现场密码</p>
+          <p className={`mt-0.5 select-all font-mono font-semibold text-white ${passClass}`}>
             {password}
           </p>
         </div>
@@ -609,6 +671,7 @@ function QaSlot({
   now,
   qrSlot,
   password,
+  siteHost,
 }: {
   mode: ScreenModeState
   questions: ScreenQuestion[]
@@ -616,6 +679,7 @@ function QaSlot({
   now: number
   qrSlot: React.ReactNode
   password: string
+  siteHost: string
 }) {
   const hostName = mode.qa_host_name ?? '嘉宾'
   // 已进行多久 — 大屏顺手提醒嘉宾和主办方时间。
@@ -656,12 +720,17 @@ function QaSlot({
             <span className="relative inline-flex size-2 rounded-full bg-rose-500" />
           </span>
           <span className="text-sm font-semibold text-rose-300">嘉宾 QA · 进行中</span>
-          {elapsedLabel && (
-            <span className="ml-1 font-mono text-sm font-semibold tabular-nums text-rose-200">
-              {elapsedLabel}
-            </span>
-          )}
         </div>
+        {/* 计时器单独一行做大 — 嘉宾和主办方都要在远处一眼看到当前 QA 已耗时，
+            决定是否收尾。徽章里的小字号在投影上不够醒目。 */}
+        {elapsedLabel && (
+          <div className="text-center leading-none">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-rose-300/70">已进行</p>
+            <p className="mt-1 font-mono text-7xl font-bold tabular-nums text-rose-200">
+              {elapsedLabel}
+            </p>
+          </div>
+        )}
         <p className="text-center">
           <span className="block text-5xl font-semibold leading-tight text-white">{hostName}</span>
           {mode.qa_host_title && (
@@ -670,14 +739,7 @@ function QaSlot({
         </p>
         <div className="rounded-2xl bg-white p-4">{qrSlot}</div>
         <p className="text-center text-2xl font-semibold text-white">扫码向 {hostName} 提问</p>
-        {password && (
-          <div className="w-full max-w-sm rounded-2xl bg-zinc-800/80 px-4 py-3 text-center ring-1 ring-zinc-700">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">扫不动？手输密码</p>
-            <p className="mt-1 select-all font-mono text-2xl font-semibold tracking-[0.2em] text-white">
-              {password}
-            </p>
-          </div>
-        )}
+        <JoinHint password={password} siteHost={siteHost} size="sm" />
       </div>
 
       {/* Right: 问题列表 */}
