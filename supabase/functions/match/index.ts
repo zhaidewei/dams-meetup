@@ -11,11 +11,13 @@ import { aggregateProfiles, buildPrompt, type CandidatePost, type RawPostWithUse
 import { callDeepSeek } from './deepseek.ts'
 
 const MIN_INTENT_THRESHOLD = 3
-const CANDIDATE_LIMIT = 50
+// 200 覆盖 200-300 人会议下任何暗帖密度，避免老帖被新帖永久挤出 candidate 池。
+// 单 run 上限 ceil(200/30)=7 batch × ~7s ≈ 50s，远低于 Edge Function 150s wall clock。
+const CANDIDATE_LIMIT = 200
 // 单次 DeepSeek 调用最多带 BATCH_SIZE 条 candidates。
 // 拆批的动机不是 input context（V4 flash 1M 完全够），而是 LLM 注意力质量
 // —— 单 prompt candidate 越多，推荐相关度越下降。30 是经验上的甜区。
-// 50 / 30 = 2 批顺序跑，单 batch 失败整 run failed → 下轮 cron 重试。
+// 单 batch 失败整 run failed → 下轮 cron 重试。
 // 配合 deepseek.ts 显式 max_tokens=16384 防 JSON 输出被截断。
 const BATCH_SIZE = 30
 const PROFILES_POST_LIMIT = 500

@@ -1,7 +1,7 @@
 'use client'
 
-// AI 撮合下一轮倒计时。三阶段（与 migration 0025_match_cron_phased.sql 对齐）：
-//   - 活动前 (pre):  hourly @ :00 UTC          → mm:ss 距下个整点
+// AI 撮合下一轮倒计时。三阶段（与 migrations 0025 + 0027 对齐）：
+//   - 活动前 (pre):  every 4h @ :00 UTC        → Xh Ym 距下个 4 小时整点（0/4/8/12/16/20 UTC）
 //   - 活动中 (live): every 10 min UTC          → mm:ss 距下个 10 分钟整点
 //   - 活动后 (post): daily @ 03:00 UTC ×7d     → Xh Ym 距下次 03:00 UTC
 //   - 7 天后 (cleanup): cron 已停 → 不渲染
@@ -22,9 +22,12 @@ function msUntilNextSlot(now: number, phase: EventPhase): number {
     return slot - into
   }
   if (phase === 'pre') {
-    const slot = 60 * 60 * 1000
+    // 4 小时整点对齐（UTC）：00/04/08/12/16/20。当前是 UTC 的第几小时模 4 决定已进入这个 slot 多深。
+    const slot = 4 * 60 * 60 * 1000
     const into =
-      (d.getMinutes() * 60 + d.getSeconds()) * 1000 + d.getMilliseconds()
+      ((d.getUTCHours() % 4) * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds()) *
+        1000 +
+      d.getUTCMilliseconds()
     return slot - into
   }
   // post — daily 03:00 UTC
@@ -36,7 +39,8 @@ function msUntilNextSlot(now: number, phase: EventPhase): number {
 }
 
 function formatRemaining(ms: number, phase: EventPhase): string {
-  if (phase === 'post') {
+  // pre / post 是小时级（4h / 24h），用 Xh Ym；live 是 10 分钟级，用 mm:ss
+  if (phase === 'pre' || phase === 'post') {
     const totalMin = Math.max(0, Math.ceil(ms / 60_000))
     const h = Math.floor(totalMin / 60)
     const m = totalMin % 60
@@ -49,7 +53,7 @@ function formatRemaining(ms: number, phase: EventPhase): string {
 }
 
 const PHASE_TITLE: Record<Exclude<EventPhase, 'cleanup'>, string> = {
-  pre: 'AI 撮合每小时自动跑一轮（活动前）',
+  pre: 'AI 撮合每 4 小时自动跑一轮（活动前）',
   live: 'AI 撮合每 10 分钟自动跑一轮（活动中）',
   post: 'AI 撮合每天自动跑一轮（活动后 7 天）',
 }

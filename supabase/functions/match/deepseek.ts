@@ -29,28 +29,46 @@ const SYSTEM_PROMPT = `你是 DAMS Meetup 的 AI 撮合助手。会议主题：�
 - reason 不要复述 candidate 的暗需求原文，只说"你提到的需求"
 - 只输出 JSON，不要任何额外文字、不要 markdown 包裹`
 
+// 单个 DS 调用上限。Deno fetch 默认无 timeout → DS 卡死会拖整 run。
+// 30s 给 DS 充分响应空间（实测 5-10s），又能让 Edge Function 在 150s wall
+// clock 内即使 7 个 batch 全 timeout 也不会被 runtime 强杀。
+const DEEPSEEK_TIMEOUT_MS = 30_000
+
 export async function callDeepSeek(userPrompt: string, apiKey: string): Promise<Recommendation[]> {
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      // deepseek-chat alias 将被废弃，显式 pin 到 V4 flash non-thinking。
-      // 撮合是单轮分类任务，不需要 reasoner / pro 的强度。
-      model: 'deepseek-v4-flash',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.3,
-      // V4 flash 上限 384K，DS API 默认大约 4K（V3 遗留）。30 candidate × 3 推荐
-      // × ~80 token JSON ≈ 7K，16K 给 2× 余量防 JSON 被截断。
-      max_tokens: 16384,
-    }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS)
+  let res: Response
+  try {
+    res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        // deepseek-chat alias 将被废弃，显式 pin 到 V4 flash non-thinking。
+        // 撮合是单轮分类任务，不需要 reasoner / pro 的强度。
+        model: 'deepseek-v4-flash',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+        // V4 flash 上限 384K，DS API 默认大约 4K（V3 遗留）。30 candidate × 3 推荐
+        // × ~80 token JSON ≈ 7K，16K 给 2× 余量防 JSON 被截断。
+        max_tokens: 16384,
+      }),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') {
+      throw new Error(`DeepSeek timeout after ${DEEPSEEK_TIMEOUT_MS}ms`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')

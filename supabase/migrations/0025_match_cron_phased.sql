@@ -1,5 +1,6 @@
 -- AI 撮合 cron 拆三阶段（替换 0009 的单一 30min job）：
 --   pre   (now < event_start):           hourly @ :00 UTC          → 给提前发暗需求帖兜底
+--                                          （0027 降频为 every 4h @ :00 UTC）
 --   live  (event_start ≤ now < event_end): every 10 min            → 高频跟现场节奏
 --   post  (event_end ≤ now < cleanup):   daily @ 03:00 UTC × 7d    → 收尾兜底
 --   cleanup (now ≥ event_end + 7d):      不触发                     → 论坛已过保留期
