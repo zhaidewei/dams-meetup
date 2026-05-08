@@ -33,10 +33,8 @@ type Props = {
   initialOnline: number
   initialMode: ScreenModeState
   eventName: string
-  // 当前 URL 筛选板块；null 表示显示全部。
-  section: SectionId | null
   // 当前实际 LIVE 板块（来自 getCurrentSection — 主办方覆写 → 议程时间表）；
-  // 用于顶 bar 的 LIVE pill。可能与 URL section 不一致。
+  // 用于顶 bar 的 LIVE pill。可能与 filter 不一致。
   liveSection: SectionId | null
   // 活动密码 — 作为兜底显示在 QR 旁边，扫不动码的人可以手输。
   password: string
@@ -48,7 +46,6 @@ export function ScreenView({
   initialOnline,
   initialMode,
   eventName,
-  section,
   liveSection,
   password,
   qrSlot,
@@ -71,7 +68,9 @@ export function ScreenView({
 
     async function refresh() {
       try {
-        const snap = await fetchScreenData(section)
+        // filter 来源已升级为 server state（mode.screen_filter_section），
+        // fetchScreenData 内部读 event_state 拿 filter，不再接 section 参数。
+        const snap = await fetchScreenData()
         if (cancelled) return
         setPosts(snap.posts)
         setQuestions(snap.questions)
@@ -113,7 +112,7 @@ export function ScreenView({
       clearInterval(fallback)
       sb.removeChannel(channel)
     }
-  }, [section])
+  }, [])
 
   const activePolls = useMemo(
     () =>
@@ -150,7 +149,7 @@ export function ScreenView({
       <ScreenTopBar
         eventName={eventName}
         liveSection={liveSection}
-        filterSection={section}
+        filterSection={mode.screen_filter_section}
         online={online}
         now={now}
       />

@@ -5,7 +5,6 @@ import { fetchFeed, type FeedPost } from '@/lib/queries/posts'
 import { fetchQuestionsForHost, type ScreenQuestion } from '@/lib/queries/questions'
 import { fetchLotteryDraw, type ScreenLotteryDraw } from '@/lib/queries/lottery'
 import { getScreenModeState, type ScreenModeState } from '@/lib/queries/event-state'
-import { isSectionId, type SectionId } from '@/lib/sections'
 
 // The screen has no viewer identity — using a zero UUID makes liked_by_me /
 // poll_my_vote_options always false in fetchFeed (no row matches).
@@ -21,17 +20,19 @@ export type ScreenSnapshot = {
   serverNow: number
 }
 
-export async function fetchScreenData(section?: string | null): Promise<ScreenSnapshot> {
+// fetchScreenData 不再接 section 参数（issue #45）：filter 已升级为 server state，
+// 内部先拿 mode，再用 mode.screen_filter_section 喂给 fetchFeed。/admin 改 filter
+// → event_state 写入 → Realtime broadcast → 所有 /screen tab 下次 refresh 拿新值。
+export async function fetchScreenData(): Promise<ScreenSnapshot> {
   const sb = getServerSupabase()
   const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString()
-  const sectionFilter: SectionId | undefined = isSectionId(section) ? section : undefined
-  const [posts, onlineRes, mode] = await Promise.all([
-    fetchFeed(SCREEN_VIEWER_ID, { limit: 50, section: sectionFilter }),
+  const mode = await getScreenModeState()
+  const [posts, onlineRes] = await Promise.all([
+    fetchFeed(SCREEN_VIEWER_ID, { limit: 50, section: mode.screen_filter_section ?? undefined }),
     sb
       .from('users')
       .select('id', { count: 'exact', head: true })
       .gte('last_seen_at', cutoff),
-    getScreenModeState(),
   ])
 
   const [questions, lottery] = await Promise.all([

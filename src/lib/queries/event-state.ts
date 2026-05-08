@@ -37,6 +37,10 @@ export type ScreenModeState = {
   last_qa_host_name: string | null
   last_qa_section: SectionId | null
   lottery_draw_id: number | null
+  // 大屏视图筛选（issue #45 升级为 server state）；null = 显示全部。
+  // 跟 LIVE 板块解耦：current_section 是"事实当前在演讲谁"，filter 是
+  // 主办方"想让大屏放大看哪一段"。手机 /admin 改这个，所有 /screen tab 同步。
+  screen_filter_section: SectionId | null
 }
 
 // 读 screen_mode + 可能伴随的 host 信息。一次查询即够 — /screen 顶层 fetch。
@@ -45,7 +49,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const { data } = await sb
     .from('event_state')
     .select(
-      `screen_mode, qa_host_user_id, qa_section,
+      `screen_mode, qa_host_user_id, qa_section, screen_filter_section,
        last_qa_host_user_id, last_qa_section, lottery_draw_id,
        host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
        last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
@@ -64,6 +68,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
       last_qa_host_name: null,
       last_qa_section: null,
       lottery_draw_id: null,
+      screen_filter_section: null,
     }
   }
 
@@ -82,6 +87,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
   const mode = (data.screen_mode as ScreenMode) ?? 'default'
   const qaSectionRaw = data.qa_section as string | null
   const lastQaSectionRaw = data.last_qa_section as string | null
+  const filterSectionRaw = data.screen_filter_section as string | null
   return {
     mode,
     qa_host_user_id: (data.qa_host_user_id as string | null) ?? null,
@@ -92,6 +98,7 @@ export async function getScreenModeState(): Promise<ScreenModeState> {
     last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
     last_qa_section: isSectionId(lastQaSectionRaw) ? lastQaSectionRaw : null,
     lottery_draw_id: (data.lottery_draw_id as number | null) ?? null,
+    screen_filter_section: isSectionId(filterSectionRaw) ? filterSectionRaw : null,
   }
 }
 
@@ -109,7 +116,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
     .from('event_state')
     .select(
       `current_section, override_until,
-       screen_mode, qa_host_user_id, qa_section,
+       screen_mode, qa_host_user_id, qa_section, screen_filter_section,
        last_qa_host_user_id, last_qa_section, lottery_draw_id,
        host:users!qa_host_user_id ( vip_name, nickname, vip_title, company ),
        last_host:users!last_qa_host_user_id ( vip_name, nickname )`,
@@ -140,6 +147,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
         last_qa_host_name: null,
         last_qa_section: null,
         lottery_draw_id: null,
+        screen_filter_section: null,
       },
     }
   }
@@ -159,6 +167,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
   const mode = (data.screen_mode as ScreenMode) ?? 'default'
   const qaSectionRaw = data.qa_section as string | null
   const lastQaSectionRaw = data.last_qa_section as string | null
+  const filterSectionRaw = data.screen_filter_section as string | null
 
   return {
     liveSection,
@@ -172,6 +181,7 @@ export async function getEventStateBundle(): Promise<EventStateBundle> {
       last_qa_host_name: lastHost ? lastHost.vip_name ?? lastHost.nickname ?? null : null,
       last_qa_section: isSectionId(lastQaSectionRaw) ? lastQaSectionRaw : null,
       lottery_draw_id: (data.lottery_draw_id as number | null) ?? null,
+      screen_filter_section: isSectionId(filterSectionRaw) ? filterSectionRaw : null,
     },
   }
 }

@@ -2,16 +2,16 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { readAdminCookie, setAdminCookie } from '@/lib/identity'
 import { fetchScreenData } from '@/lib/actions/screen'
-import { getEventStateBundle, listVipUsers } from '@/lib/queries/event-state'
+import { getEventStateBundle } from '@/lib/queries/event-state'
 import { QRCode } from '@/components/QRCode'
 import { ScreenView } from '@/components/screen/ScreenView'
-import { ScreenAdminBar } from '@/components/screen/ScreenAdminBar'
 import { EVENT_NAME } from '@/lib/constants'
-import { isSectionId } from '@/lib/sections'
 
 export const dynamic = 'force-dynamic'
 
-type SearchParams = Promise<{ section?: string; error?: string }>
+// /screen 只剩投影展示（issue #45 拆分后）：admin 控制完全搬到 /admin。
+// filter 不再走 ?section=URL，已升级为 event_state.screen_filter_section。
+type SearchParams = Promise<{ error?: string }>
 
 export default async function ScreenPage({
   searchParams,
@@ -28,13 +28,10 @@ export default async function ScreenPage({
     return <AdminLoginPage error={sp.error === '1'} />
   }
 
-  const section = isSectionId(sp.section) ? sp.section : null
-
-  const [snap, h, eventState, vips] = await Promise.all([
-    fetchScreenData(section),
+  const [snap, h, eventState] = await Promise.all([
+    fetchScreenData(),
     headers(),
     getEventStateBundle(),
-    listVipUsers(),
   ])
   const { liveSection: currentSection, modeState } = eventState
 
@@ -44,31 +41,22 @@ export default async function ScreenPage({
   // QR points to /auto-login with the event password baked in: scanning is
   // a one-tap login. Same risk model as printing the password on the slide —
   // it's already public to attendees in the room.
-  const feedPath = section ? `/feed?section=${section}` : '/feed'
+  const filterSection = modeState.screen_filter_section
+  const feedPath = filterSection ? `/feed?section=${filterSection}` : '/feed'
   const password = process.env.EVENT_PASSWORD ?? ''
   const qrTarget = `/auto-login?p=${encodeURIComponent(password)}&next=${encodeURIComponent(feedPath)}`
   const qrUrl = host ? `${proto}://${host}${qrTarget}` : qrTarget
 
   return (
-    <>
-      <ScreenView
-        key={section ?? 'all'}
-        initialPosts={snap.posts}
-        initialOnline={snap.online}
-        initialMode={modeState}
-        eventName={EVENT_NAME}
-        section={section}
-        liveSection={currentSection}
-        password={password}
-        qrSlot={<QRCode value={qrUrl} size={280} />}
-      />
-      <ScreenAdminBar
-        currentSection={currentSection}
-        screenMode={modeState.mode}
-        qaHostUserId={modeState.qa_host_user_id}
-        vips={vips}
-      />
-    </>
+    <ScreenView
+      initialPosts={snap.posts}
+      initialOnline={snap.online}
+      initialMode={modeState}
+      eventName={EVENT_NAME}
+      liveSection={currentSection}
+      password={password}
+      qrSlot={<QRCode value={qrUrl} size={280} />}
+    />
   )
 }
 

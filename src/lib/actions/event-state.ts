@@ -31,6 +31,28 @@ export async function setCurrentSectionAction(
   return { error: null }
 }
 
+// 大屏视图筛选（issue #45）— 主办方在 /admin 选择"放大看哪个板块"。
+// null = 显示全部。仅影响 /screen 显示的帖子集合，不影响 /feed、不影响 LIVE 红标。
+export async function setScreenFilterAction(
+  section: SectionId | null,
+): Promise<{ error: string | null }> {
+  if (!(await readAdminCookie())) return { error: '未授权' }
+  if (section !== null && !isSectionId(section)) return { error: '无效的板块' }
+
+  const sb = getServerSupabase()
+  const { error } = await sb
+    .from('event_state')
+    .update({
+      screen_filter_section: section,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', 1)
+
+  if (error) return { error: error.message }
+  revalidatePath('/screen')
+  return { error: null }
+}
+
 // 清除覆写 → 回落到议程时间表。
 export async function clearCurrentSectionAction(): Promise<{ error: string | null }> {
   if (!(await readAdminCookie())) return { error: '未授权' }
