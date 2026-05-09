@@ -36,8 +36,8 @@ export type SectionWindow = {
 export const SECTION_WINDOWS: SectionWindow[] = [
   { id: 'p1', startIso: '2026-05-09T13:30:00+02:00', endIso: '2026-05-09T14:00:00+02:00' },
   { id: 'p2', startIso: '2026-05-09T14:00:00+02:00', endIso: '2026-05-09T14:30:00+02:00' },
-  { id: 'breakout', startIso: '2026-05-09T14:45:00+02:00', endIso: '2026-05-09T15:30:00+02:00' },
-  { id: 'panel', startIso: '2026-05-09T15:30:00+02:00', endIso: '2026-05-09T17:20:00+02:00' },
+  { id: 'breakout', startIso: '2026-05-09T14:45:00+02:00', endIso: '2026-05-09T15:45:00+02:00' },
+  { id: 'panel', startIso: '2026-05-09T15:45:00+02:00', endIso: '2026-05-09T17:20:00+02:00' },
 ]
 
 // 板块上下文：用于 SectionTabs 下方的「演讲 1 · 13:30–14:30 · 刘爵铭：和 AI 搭档」一行（issue #18 C）。

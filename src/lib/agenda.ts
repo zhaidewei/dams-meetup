@@ -7,7 +7,7 @@ export type Talk = {
   sectionId?: SectionId
 }
 
-export type Sponsor = { label: string; name: string; url?: string }
+export type Sponsor = { label: string; name: string; italic?: string; url?: string }
 export type Panelist = { name: string; role: string }
 
 export type AgendaItem = {
@@ -60,26 +60,26 @@ export const AGENDA: AgendaItem[] = [
     startIso: '2026-05-09T14:30:00+02:00',
     endIso: '2026-05-09T14:45:00+02:00',
     sponsors: [
-      { label: '赞助商', name: '腾讯 (Tencent)' },
+      { label: '赞助商', name: '腾讯', italic: 'Tencent', url: 'https://www.tencent.com' },
       {
         label: '协办',
-        name: 'VCWI（荷兰华人学者与工程师协会）',
+        name: 'VCWI 荷兰华人学者与工程师协会',
         url: 'https://vcwi.nl/en/elementor-2835/',
       },
     ],
   },
   {
-    time: '14:45 – 15:30',
+    time: '14:45 – 15:45',
     title: '分组交流 & 茶歇',
     sectionId: 'breakout',
     startIso: '2026-05-09T14:45:00+02:00',
-    endIso: '2026-05-09T15:30:00+02:00',
+    endIso: '2026-05-09T15:45:00+02:00',
   },
   {
-    time: '15:30 – 17:20',
+    time: '15:45 – 17:20',
     title: '圆桌讨论：AI 浪潮下数据人何去何从',
     sectionId: 'panel',
-    startIso: '2026-05-09T15:30:00+02:00',
+    startIso: '2026-05-09T15:45:00+02:00',
     endIso: '2026-05-09T17:20:00+02:00',
     panelists: [
       { name: '葛怡', role: 'Project Lead @ ASML' },

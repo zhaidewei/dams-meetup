@@ -350,9 +350,16 @@ function ScreenAgenda({ now, online }: { now: number; online: number }) {
                   </ul>
                 )}
                 {item.sponsors && (
-                  <p className="text-sm text-zinc-400">
-                    {item.sponsors.map((s) => `${s.label} ${s.name.replace(/（.*$/, '')}`).join(' · ')}
-                  </p>
+                  <ul className="space-y-0.5 text-sm text-zinc-400">
+                    {item.sponsors.map((s) => (
+                      <li key={s.name}>
+                        {s.label}：
+                        {s.italic && <em>{s.italic}</em>}
+                        {s.italic && ' '}
+                        {s.name.replace(/（.*$/, '')}
+                      </li>
+                    ))}
+                  </ul>
                 )}
                 {item.panelists && (
                   <p className="text-sm text-zinc-400">{item.panelists.length} 位嘉宾圆桌</p>

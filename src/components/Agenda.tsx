@@ -52,23 +52,32 @@ export function Agenda({ liveSection = null }: Props) {
                 )}
                 {item.sponsors && (
                   <ul className="space-y-1 text-sm text-zinc-700">
-                    {item.sponsors.map((s) => (
-                      <li key={s.name}>
-                        <span className="text-zinc-500">{s.label}：</span>
-                        {s.url ? (
-                          <a
-                            href={s.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 underline-offset-2 hover:underline"
-                          >
-                            {s.name}
-                          </a>
-                        ) : (
-                          s.name
-                        )}
-                      </li>
-                    ))}
+                    {item.sponsors.map((s) => {
+                      const content = (
+                        <>
+                          {s.italic && <em>{s.italic}</em>}
+                          {s.italic && ' '}
+                          {s.name}
+                        </>
+                      )
+                      return (
+                        <li key={s.name}>
+                          <span className="text-zinc-500">{s.label}：</span>
+                          {s.url ? (
+                            <a
+                              href={s.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline-offset-2 hover:underline"
+                            >
+                              {content}
+                            </a>
+                          ) : (
+                            content
+                          )}
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
                 {item.panelists && (
