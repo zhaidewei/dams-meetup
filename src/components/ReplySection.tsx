@@ -134,7 +134,9 @@ export function ReplySection({ postId, count, replies, viewerId, viewerCanDm }: 
       >
         <MessageCircle className="size-4" aria-hidden />
         <span>{count}</span>
-        <span className="text-xs text-zinc-400">{open ? '收起' : '回复'}</span>
+        <span className="text-xs text-zinc-400" title={open ? '收起' : '回复'}>
+          {open ? '收' : '回'}
+        </span>
       </button>
 
       {open && (
@@ -291,8 +293,12 @@ function ReplyRow({
           <span className="font-medium text-zinc-700">{name}</span>
           {meta && <span className="text-zinc-500">· {meta}</span>}
           {a.is_vip && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-px text-[10px] text-amber-800">
-              嘉宾
+            <span
+              className="rounded-full bg-amber-100 px-1 py-px text-[10px] text-amber-800"
+              title="嘉宾"
+              aria-label="嘉宾"
+            >
+              宾
             </span>
           )}
         </UserCardTrigger>
@@ -302,9 +308,11 @@ function ReplyRow({
             <button
               type="button"
               onClick={onReply}
+              title="回复"
+              aria-label="回复"
               className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800"
             >
-              回复
+              回
             </button>
           )}
           {!editing && isMine && (
@@ -312,17 +320,21 @@ function ReplyRow({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
+                title="编辑"
+                aria-label="编辑"
                 className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800"
               >
-                编辑
+                编
               </button>
               <button
                 type="button"
                 onClick={onDelete}
                 disabled={pending}
+                title="删除"
+                aria-label="删除"
                 className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
               >
-                删除
+                删
               </button>
             </>
           )}

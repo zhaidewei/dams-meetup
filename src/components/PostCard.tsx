@@ -111,8 +111,12 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
           <span className="font-semibold text-zinc-900">{name}</span>
           {meta && <span className="text-zinc-500">· {meta}</span>}
           {author.is_vip && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-              嘉宾
+            <span
+              className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800"
+              title="嘉宾"
+              aria-label="嘉宾"
+            >
+              宾
             </span>
           )}
         </UserCardTrigger>
@@ -154,18 +158,22 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
               <button
                 type="button"
                 onClick={() => setEditing(true)}
+                title="编辑"
+                aria-label="编辑"
                 className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
               >
-                编辑
+                编
               </button>
             )}
             <button
               type="button"
               onClick={onDelete}
               disabled={pending}
+              title="删除"
+              aria-label="删除"
               className="rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
             >
-              删除
+              删
             </button>
           </div>
         )}
