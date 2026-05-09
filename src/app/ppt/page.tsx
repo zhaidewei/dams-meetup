@@ -434,17 +434,16 @@ const BODY = `
 
   <section class="slide">
     <div class="pill">我们的解</div>
-    <h2>一个<span class="hl">实时广播</span>的房间</h2>
+    <h2>一个加了大屏 · 嘉宾互动 · AI 撮合的<span class="hl">临时 Twitter</span></h2>
     <div class="stack">
-      <div class="row"><div class="num">1.</div><div>发一条帖子，<strong>全场 200 人</strong>同时看到</div></div>
-      <div class="row"><div class="num">2.</div><div>板块跟着议程切 · <strong>信息再多也不被淹没</strong></div></div>
-      <div class="row"><div class="num">3.</div><div>投票、QA、抽奖、大屏直播 —— 都是<strong>实时同步</strong></div></div>
+      <div class="row"><div class="num">1.</div><div>大屏聚焦<strong>议题</strong>和<strong>互动</strong>（QA · 投票）</div></div>
+      <div class="row"><div class="num">2.</div><div><strong>AI 撮合</strong></div></div>
     </div>
   </section>
 
   <section class="slide">
     <div class="pill" style="background:rgba(96,165,250,.15);color:var(--accent-2)">★ 重点功能</div>
-    <h2>AI 撮合 ——<br>需要你<span class="hl">两侧都发声</span></h2>
+    <h2>AI 撮合</h2>
     <div class="match-grid">
       <div class="match-side">
         <div class="match-tag">求方 · 发帖时</div>
@@ -462,59 +461,38 @@ const BODY = `
     <div class="match-merge">
       <div class="match-arrow">↓</div>
       <div class="flow-step highlight" style="max-width:560px">
-        <div class="label">每 30 分钟 · DeepSeek 交叉匹配</div>
+        <div class="label">每 10 分钟 · DeepSeek 交叉匹配</div>
         <div class="text" style="margin-top:.5rem">在你帖子下留言<br><strong style="color:var(--accent)">"你和 X 可能可以聊聊"</strong></div>
       </div>
     </div>
   </section>
 
   <section class="slide">
-    <h2>为什么这件事 <span class="hl">非 AI 不可</span>？</h2>
+    <div class="pill">关于登录</div>
+    <h2>扫码 / 输密码 · <span class="hl">不用注册</span></h2>
     <div class="cards">
       <div class="card">
-        <div class="quote" style="color:var(--accent)">看得过来</div>
-        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.5;margin-top:.5rem">
-          200 人的信息和帖子<br>你刷不完，AI 一次扫完
+        <div class="quote" style="color:var(--accent)">现在就进</div>
+        <div id="ppt-qr-slot" style="margin:1rem auto;width:200px;background:#fff;border-radius:.75rem;padding:.75rem;display:flex"></div>
+        <div class="who" style="font-size:1.1rem;color:var(--fg);line-height:1.6;margin-top:.6rem">
+          扫上方二维码，或访问<br>
+          <strong style="color:var(--accent-2)">live.nl-dams.com</strong> 输大屏密码<br>
+          <span style="color:var(--muted)">嘉宾走专属登录入口</span>
         </div>
       </div>
       <div class="card">
-        <div class="quote" style="color:var(--accent)">挖得出来</div>
-        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.5;margin-top:.5rem">
-          "招 PM" 和 "想跳槽做 PM"<br>关键词不一样，AI 看得出
+        <div class="quote" style="color:var(--accent)">跨设备登录</div>
+        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.6;margin-top:.5rem">
+          去「<strong>我</strong>」tab<br>
+          复制属于你的<strong>专属链接</strong><br>
+          换设备打开 → 还是同一个账号
         </div>
       </div>
       <div class="card">
-        <div class="quote" style="color:var(--accent)">说得出口</div>
-        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.5;margin-top:.5rem">
-          尴尬的搭话由 AI 替你开<br>双方都不丢面子
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="slide">
-    <div class="pill">顺便讲两句基础设施</div>
-    <h2>进门不烦、署名可控、<br>散场不丢</h2>
-    <div class="cards">
-      <div class="card">
-        <div class="quote" style="color:var(--accent)">无密码登录</div>
-        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.5;margin-top:.5rem">
-          一个<strong>会场密码</strong>进门<br>
-          浏览器自动认你 · 不用注册
-        </div>
-      </div>
-      <div class="card">
-        <div class="quote" style="color:var(--accent)">看 vs 说</div>
-        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.5;margin-top:.5rem">
-          浏览 / 点赞 <strong>可以匿名</strong><br>
-          发帖 / 撮合 <strong>需要署名</strong> · VIP 自动实名
-        </div>
-      </div>
-      <div class="card">
-        <div class="quote" style="color:var(--accent)">7 天回看 · 7 天后清空</div>
-        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.5;margin-top:.5rem">
-          会后 7 天还能浏览 / 换设备<br>
-          <strong>过期自动删数据</strong> · 不留隐私尾巴
+        <div class="quote" style="color:var(--accent)">7 天后清空</div>
+        <div class="who" style="font-size:1.4rem;color:var(--fg);line-height:1.6;margin-top:.5rem">
+          会后 <strong>7 天</strong> 还能浏览 / 换设备<br>
+          过期后所有数据<strong>自动删除</strong>
         </div>
       </div>
     </div>
@@ -586,7 +564,7 @@ const BODY = `
 
 <div class="ppt-nav">
   <span class="hint">← → 翻页 · F 全屏</span>
-  <span class="counter" id="ppt-counter">1 / 9</span>
+  <span class="counter" id="ppt-counter">1 / 8</span>
 </div>
 `
 
@@ -636,6 +614,21 @@ export default function PptPage() {
 
     const hash = parseInt(location.hash.replace('#', ''), 10)
     show(Number.isFinite(hash) && hash > 0 ? hash - 1 : 0)
+
+    // 动态生成入场 QR：deck 是 string 模板不能塞 React 组件，挂载后注入到占位 div
+    const qrSlot = document.getElementById('ppt-qr-slot')
+    if (qrSlot) {
+      import('qrcode').then((QR) =>
+        QR.toString('https://live.nl-dams.com', {
+          type: 'svg',
+          margin: 0,
+          width: 184,
+          color: { dark: '#000000', light: '#ffffff' },
+        }).then((svg) => {
+          qrSlot.innerHTML = svg
+        }),
+      )
+    }
 
     return () => {
       document.removeEventListener('keydown', onKey)
