@@ -54,6 +54,7 @@ export function FeedRealtime() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_state' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reply_reactions' }, bump)
       .subscribe()
 
     return () => {
