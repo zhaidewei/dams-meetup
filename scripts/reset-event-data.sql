@@ -30,13 +30,13 @@ begin;
 
 -- 1) 业务事实表 — TRUNCATE CASCADE + RESTART IDENTITY 一次性清光
 --    顺序无所谓，CASCADE 会自动处理外键链。
+--    注意：`matches` 表已在 migration 0004 被 drop（F'' 后撮合结果存进 replies）。
 truncate table
   lottery_draws,
   dm_notifications,
   dm_messages,
   dm_threads,
   match_runs,
-  matches,
   post_match_intents,
   poll_votes,
   likes,
