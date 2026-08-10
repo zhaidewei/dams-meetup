@@ -6,6 +6,7 @@ import {
   createReplyAction,
   deleteReplyAction,
   updateReplyAction,
+  toggleReplyReactionAction,
   type ReplyFormState,
 } from '@/lib/actions/replies'
 import { REPLY_MAX_CHARS } from '@/lib/constants'
@@ -14,6 +15,15 @@ import { Avatar } from './Avatar'
 import { UserCardTrigger } from './UserCard'
 
 const initial: ReplyFormState = { error: null }
+
+// Popular emojis for quick selection
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '➕']
+
+export type ReplyReaction = {
+  emoji: string
+  count: number
+  viewerReacted: boolean
+}
 
 export type ReplyDisplay = {
   id: number
@@ -43,6 +53,7 @@ export type ReplyDisplay = {
     vip_name: string | null
     vip_title: string | null
   } | null
+  reactions?: ReplyReaction[]
 }
 
 type Props = {
@@ -238,12 +249,28 @@ function ReplyRow({
   const [editBody, setEditBody] = useState(reply.body)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [localReactions, setLocalReactions] = useState<ReplyReaction[]>(reply.reactions ?? [])
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
 
   if (!a) return null
   const name = displayName(a)
   const meta = displayMeta(a)
   const isMine = reply.user_id !== null && reply.user_id === viewerId
   const editRemaining = REPLY_MAX_CHARS - editBody.length
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showEmojiPicker])
 
   function onSaveEdit() {
     const trimmed = editBody.trim()
@@ -278,6 +305,30 @@ function ReplyRow({
       const res = await deleteReplyAction(reply.id)
       if (res.error) setError(res.error)
     })
+  }
+
+  function onToggleReaction(emoji: string) {
+    startTransition(async () => {
+      const res = await toggleReplyReactionAction(reply.id, emoji)
+      if (!res.error) {
+        // Optimistic update
+        setLocalReactions(prev => {
+          const existing = prev.find(r => r.emoji === emoji)
+          if (existing) {
+            if (existing.count <= 1) {
+              return prev.filter(r => r.emoji !== emoji)
+            }
+            return prev.map(r =>
+              r.emoji === emoji
+                ? { ...r, count: r.count - 1, viewerReacted: false }
+                : r
+            )
+          }
+          return [...prev, { emoji, count: 1, viewerReacted: true }]
+        })
+      }
+    })
+    setShowEmojiPicker(false)
   }
 
   return (
@@ -378,6 +429,53 @@ function ReplyRow({
       ) : (
         <ReplyBody body={reply.body} />
       )}
+
+      {/* Emoji reactions */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {localReactions.map((reaction) => (
+          <button
+            key={reaction.emoji}
+            type="button"
+            onClick={() => onToggleReaction(reaction.emoji)}
+            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs transition-colors ${
+              reaction.viewerReacted
+                ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+            }`}
+          >
+            <span>{reaction.emoji}</span>
+            <span>{reaction.count}</span>
+          </button>
+        ))}
+        
+        {/* Add emoji button */}
+        <div ref={emojiPickerRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(v => !v)}
+            className="inline-flex items-center rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700"
+            aria-label="添加表情"
+          >
+            +
+          </button>
+          
+          {showEmojiPicker && (
+            <div className="absolute bottom-full left-0 mb-1 flex gap-0.5 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-lg">
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => onToggleReaction(emoji)}
+                  className="rounded p-1 text-lg hover:bg-zinc-100"
+                  aria-label={`添加 ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

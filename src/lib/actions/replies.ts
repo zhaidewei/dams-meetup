@@ -117,3 +117,50 @@ export async function deleteReplyAction(
   revalidatePath('/me')
   return { error: null }
 }
+
+// =============================================================================
+// reply_reactions: emoji reactions on replies
+// =============================================================================
+export async function toggleReplyReactionAction(
+  replyId: number,
+  emoji: string,
+): Promise<ReplyMutationResult> {
+  const user = await getCurrentUser()
+  if (!user) redirect('/')
+
+  if (!Number.isInteger(replyId) || replyId <= 0) return { error: '回复 id 不对' }
+  if (!emoji || emoji.length > 4) return { error: 'emoji 不对' }
+
+  const sb = getServerSupabase()
+
+  // Check if reaction already exists
+  const { data: existing } = await sb
+    .from('reply_reactions')
+    .select('emoji')
+    .eq('reply_id', replyId)
+    .eq('user_id', user.id)
+    .eq('emoji', emoji)
+    .maybeSingle()
+
+  if (existing) {
+    // Remove reaction
+    const { error } = await sb
+      .from('reply_reactions')
+      .delete()
+      .eq('reply_id', replyId)
+      .eq('user_id', user.id)
+      .eq('emoji', emoji)
+
+    if (error) return { error: error.message }
+  } else {
+    // Add reaction
+    const { error } = await sb
+      .from('reply_reactions')
+      .insert({ reply_id: replyId, user_id: user.id, emoji })
+
+    if (error) return { error: error.message }
+  }
+
+  revalidatePath('/feed')
+  return { error: null }
+}

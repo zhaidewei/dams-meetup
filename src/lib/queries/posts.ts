@@ -20,6 +20,12 @@ export type MentionedUserMini = Pick<
   'id' | 'nickname' | 'company' | 'contact_handle' | 'show_contact' | 'is_vip' | 'vip_name' | 'vip_title'
 >
 
+export type FeedReaction = {
+  emoji: string
+  count: number
+  viewerReacted: boolean
+}
+
 // Public reply: written by a human, visible to everyone.
 // AI reply: is_ai=true, visibility='author_only', author is null,
 //           mentioned_user is the recommendation target.
@@ -33,6 +39,7 @@ export type FeedReply = {
   is_ai: boolean
   author: ReplyAuthorMini | null
   mentioned_user: MentionedUserMini | null
+  reactions: FeedReaction[]
 }
 
 export type FeedPost = PostRow & {
@@ -159,6 +166,41 @@ export async function fetchFeed(
     if (v.user_id === viewerId) agg.mine.push(oid)
   }
 
+  // Collect all reply IDs for fetching reactions
+  const allRepliesRaw = postRows.flatMap((r) => (r.replies ?? []) as Array<{ id: number }>)
+  const replyIds = allRepliesRaw.map((r) => r.id as number)
+
+  // Fetch reply reactions
+  const emptyReactions = { data: [] as never[], error: null }
+  const reactionsRes = replyIds.length
+    ? await sb
+        .from('reply_reactions')
+        .select('reply_id, user_id, emoji')
+        .in('reply_id', replyIds)
+    : emptyReactions
+
+  if (reactionsRes.error) console.error('fetchFeed reply_reactions error:', reactionsRes.error)
+
+  // Aggregate reactions: { reply_id -> { emoji -> { count, viewerReacted } } }
+  const reactionsMap = new Map<number, Map<string, { count: number; viewerReacted: boolean }>>()
+  for (const r of reactionsRes.data ?? []) {
+    const replyId = r.reply_id as number
+    const emoji = r.emoji as string
+    const isMe = r.user_id === viewerId
+    let emojiMap = reactionsMap.get(replyId)
+    if (!emojiMap) {
+      emojiMap = new Map()
+      reactionsMap.set(replyId, emojiMap)
+    }
+    const existing = emojiMap.get(emoji)
+    if (existing) {
+      existing.count++
+      if (isMe) existing.viewerReacted = true
+    } else {
+      emojiMap.set(emoji, { count: 1, viewerReacted: isMe })
+    }
+  }
+
   return (postsRes.data ?? []).map((row) => {
     const author = unnestRelation(row.author) as AuthorMini
     const repliesRaw = (row.replies ?? []) as Array<{
@@ -178,19 +220,30 @@ export async function fetchFeed(
     const replies: FeedReply[] = repliesRaw
       // F'' visibility filter: author_only replies are exposed only to post author.
       .filter((r) => r.visibility === 'public' || isPostAuthor)
-      .map((r) => ({
-        id: r.id,
-        user_id: r.user_id,
-        parent_reply_id: r.parent_reply_id,
-        body: r.body,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-        is_ai: r.is_ai,
-        author: r.author ? (unnestRelation(r.author) as ReplyAuthorMini) : null,
-        mentioned_user: r.mentioned_user
-          ? (unnestRelation(r.mentioned_user) as MentionedUserMini)
-          : null,
-      }))
+      .map((r) => {
+        const emojiMap = reactionsMap.get(r.id) ?? new Map()
+        const reactions: FeedReaction[] = Array.from(emojiMap.entries()).map(
+          ([emoji, data]) => ({
+            emoji,
+            count: data.count,
+            viewerReacted: data.viewerReacted,
+          })
+        )
+        return {
+          id: r.id,
+          user_id: r.user_id,
+          parent_reply_id: r.parent_reply_id,
+          body: r.body,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+          is_ai: r.is_ai,
+          author: r.author ? (unnestRelation(r.author) as ReplyAuthorMini) : null,
+          mentioned_user: r.mentioned_user
+            ? (unnestRelation(r.mentioned_user) as MentionedUserMini)
+            : null,
+          reactions,
+        }
+      })
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
     const post: FeedPost = {
       ...row,
