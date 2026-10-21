@@ -15,6 +15,18 @@
 npm run dev     # scripts/dev.sh 自动从 macOS Keychain 注入 secrets
 ```
 
+### 登录 Cookie 与签名密钥
+
+管理员、活动准入和用户身份 Cookie 均使用 HMAC-SHA256 签名，绑定 Cookie 名和服务端校验的过期时间。旧的 `1` 标记和裸 UID 会被拒绝，需要重新登录；用户可用已有恢复链接或 VIP 凭据恢复身份。
+
+开发前，使用本机 `secret` CLI 配置 `dams-session-secret`，保存至少 32 字节的独立随机密钥。`scripts/dev.sh` 在启动时读取为 `SESSION_SECRET`。禁止复用公开的活动密码、管理员口令，或写入 `.env`、源码和日志。缺失或过短的密钥会拒绝认证和签发 Cookie。
+
+未来发布前，需经发布授权运行 `scripts/cf-secrets-push.sh`，将它配置为 Worker 的运行时 secret `SESSION_SECRET`。密钥无需注入客户端或构建变量。轮换密钥会让所有旧会话失效；下一届活动应轮换密钥。代码审阅和本地测试不需要生产密钥。
+
+### 构建依赖约束
+
+`package.json` 对 `@node-minify/core` 的 `glob` 使用同主版本 `^10.5.0` 覆盖，修复 OpenNext 构建链旧版 `glob` CLI 的命令注入公告。更新或移除覆盖前，应重新检查锁文件及 `npm audit --omit=dev`。
+
 ## 数据库 reset / 重建
 
 ### Reset（保留 schema，清空数据）

@@ -2,6 +2,7 @@ import 'server-only'
 import { cookies } from 'next/headers'
 import { getServerSupabase } from './supabase/server'
 import { cookieExpiresAt } from './constants'
+import { signCookie, verifyCookie } from './session-cookie'
 import type { UserRow } from './types'
 
 export const COOKIE_UID = 'dams-uid'
@@ -24,17 +25,17 @@ function cookieOpts() {
 
 export async function readUidCookie(): Promise<string | null> {
   const c = await cookies()
-  return c.get(COOKIE_UID)?.value ?? null
+  return verifyCookie(COOKIE_UID, c.get(COOKIE_UID)?.value)
 }
 
 export async function readPwCookie(): Promise<boolean> {
   const c = await cookies()
-  return Boolean(c.get(COOKIE_PW)?.value)
+  return verifyCookie(COOKIE_PW, c.get(COOKIE_PW)?.value) === '1'
 }
 
 export async function readAdminCookie(): Promise<boolean> {
   const c = await cookies()
-  return Boolean(c.get(COOKIE_ADMIN)?.value)
+  return verifyCookie(COOKIE_ADMIN, c.get(COOKIE_ADMIN)?.value) === '1'
 }
 
 export async function readOnbDismissed(): Promise<boolean> {
@@ -49,17 +50,20 @@ export async function setOnbDismissed() {
 
 export async function setAdminCookie() {
   const c = await cookies()
-  c.set(COOKIE_ADMIN, '1', cookieOpts())
+  const opts = cookieOpts()
+  c.set(COOKIE_ADMIN, signCookie(COOKIE_ADMIN, '1', opts.expires), opts)
 }
 
 export async function setPwCookie() {
   const c = await cookies()
-  c.set(COOKIE_PW, '1', cookieOpts())
+  const opts = cookieOpts()
+  c.set(COOKIE_PW, signCookie(COOKIE_PW, '1', opts.expires), opts)
 }
 
 export async function setUidCookie(uid: string) {
   const c = await cookies()
-  c.set(COOKIE_UID, uid, cookieOpts())
+  const opts = cookieOpts()
+  c.set(COOKIE_UID, signCookie(COOKIE_UID, uid, opts.expires), opts)
 }
 
 export async function clearAllCookies() {
