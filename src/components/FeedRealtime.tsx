@@ -52,7 +52,7 @@ export function FeedRealtime() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'replies' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
+      // migration 0028 将选票变更转成 posts.poll_updated_at 的公开失效通知。
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_state' }, bump)
       .subscribe()
 

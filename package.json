@@ -16,14 +16,14 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
-    "@opennextjs/cloudflare": "^1.19.5",
+    "@opennextjs/cloudflare": "1.20.13",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
     "lucide-react": "^1.14.0",
-    "next": "16.2.4",
+    "next": "16.4.2",
     "qrcode": "^1.5.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.2.9",
+    "react-dom": "19.2.9",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
@@ -35,14 +35,19 @@
     "@types/uuid": "^10.0.0",
     "esbuild": "^0.28.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.4.2",
     "server-only": "^0.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.5",
-    "wrangler": "^4.87.0"
+    "wrangler": "4.151.3"
   },
   "optionalDependencies": {
     "@cloudflare/workerd-darwin-arm64": "^1.20260503.1"
+  },
+  "overrides": {
+    "@node-minify/core": {
+      "glob": "^10.5.0"
+    }
   }
 }

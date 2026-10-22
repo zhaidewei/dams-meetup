@@ -132,6 +132,7 @@ grep -rn "14期\|刘爵铭\|杨杰\|McCain\|Delft" src/ public/ docs/ | grep -v 
 | 名字 | 在哪 | 改不改 |
 |---|---|---|
 | `dams-event-password` | Keychain (`secret`) → Worker (`wrangler secret put EVENT_PASSWORD`) | **每届必改** |
+| `dams-session-secret` | Keychain (`secret`) → Worker (`SESSION_SECRET`) | **每届轮换**；至少 32 字节的独立随机密钥，轮换后重新登录 |
 | `supabase-dams-url` / `-anon` / `-srv` | Keychain | 一般不改 |
 | `supabase-dams-db-password` | Keychain | 一般不改 |
 | `deepseek-dams-key` | Keychain → Worker | 一般不改，过期就转 |

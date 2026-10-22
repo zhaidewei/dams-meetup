@@ -16,6 +16,7 @@ export NEXT_PUBLIC_SUPABASE_ANON_KEY="$(secret get supabase-dams-anon)"
 export SUPABASE_SERVICE_ROLE_KEY="$(secret get supabase-dams-srv)"
 export DEEPSEEK_API_KEY="$(secret get deepseek-dams-key)"
 export ADMIN_TOKEN="$(secret get dams-admin-token)"
+export SESSION_SECRET="$(secret get dams-session-secret)"
 
 # --- Non-secret config ---
 export NEXT_PUBLIC_EVENT_NAME="荷兰华人数据群 Meetup 第14期"

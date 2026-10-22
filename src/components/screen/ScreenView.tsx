@@ -116,12 +116,11 @@ export function ScreenView({
 
     // replies 任何 slot 都不展示 → 不订。
     // likes 仅 QA 模式按赞排序问题时需要，其他 mode 不订。
-    // posts/poll_votes/event_state 是常开依赖（新 poll/question/mode 切换）。
+    // posts/event_state 是常开依赖；选票通过 posts.poll_updated_at 通知刷新。
     const sb = getBrowserSupabase()
     let chain = sb
       .channel('screen-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_state' }, bump)
     if (screenMode === 'qa') {
       chain = chain.on(
@@ -392,6 +391,7 @@ function PollSlot({
 }) {
   const totalVotes = post.poll_total_votes ?? 0
   const counts = post.poll_option_counts ?? {}
+  const showCounts = post.poll_option_counts !== undefined
   const options = post.poll_options ?? []
 
   const remainingMs = post.poll_deadline
@@ -422,19 +422,19 @@ function PollSlot({
               key={opt.id}
               className="relative overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-zinc-800"
             >
-              <div
+              {showCounts && <div
                 aria-hidden
                 className="absolute inset-y-0 left-0 bg-blue-500/35"
                 style={{ width: `${pct}%` }}
-              />
+              />}
               <div className="relative flex items-center gap-4 px-6 py-4">
                 <span className="flex-1 text-2xl text-white">{opt.label}</span>
-                <span className="shrink-0 text-2xl font-semibold tabular-nums text-zinc-200">
+                {showCounts && <span className="shrink-0 text-2xl font-semibold tabular-nums text-zinc-200">
                   {pct}%
-                </span>
-                <span className="shrink-0 w-16 text-right text-base tabular-nums text-zinc-400">
+                </span>}
+                {showCounts && <span className="shrink-0 w-16 text-right text-base tabular-nums text-zinc-400">
                   {count} 票
-                </span>
+                </span>}
               </div>
             </div>
           )
@@ -445,7 +445,7 @@ function PollSlot({
         <span>
           {totalVotes} 票 · {post.poll_multi ? '多选' : '单选'}
         </span>
-        <span>{remainingMs !== null ? formatRemaining(remainingMs) : '无截止'}</span>
+        <span>{!showCounts ? '投票截止后公布结果 · ' : ''}{remainingMs !== null ? formatRemaining(remainingMs) : '无截止'}</span>
       </div>
     </div>
       <QrPanel qrSlot={qrSlot} password={password} siteHost={siteHost} />

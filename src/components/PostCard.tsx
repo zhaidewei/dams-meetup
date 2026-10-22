@@ -256,7 +256,7 @@ export function PostCard({ post, viewerId, viewerCanDm, viewerIsAdmin = false }:
           closed={isPollClosed(post.poll_deadline)}
           canClose={isMine}
           totalVotes={post.poll_total_votes ?? 0}
-          optionCounts={post.poll_option_counts ?? {}}
+          optionCounts={post.poll_option_counts}
           myVoteOptions={post.poll_my_vote_options ?? []}
         />
       )}

@@ -15,7 +15,25 @@
 npm run dev     # scripts/dev.sh 自动从 macOS Keychain 注入 secrets
 ```
 
+### 登录 Cookie 与签名密钥
+
+管理员、活动准入和用户身份 Cookie 均使用 HMAC-SHA256 签名，绑定 Cookie 名和服务端校验的过期时间。旧的 `1` 标记和裸 UID 会被拒绝，需要重新登录；用户可用已有恢复链接或 VIP 凭据恢复身份。
+
+开发前，使用本机 `secret` CLI 配置 `dams-session-secret`，保存至少 32 字节的独立随机密钥。`scripts/dev.sh` 在启动时读取为 `SESSION_SECRET`。禁止复用公开的活动密码、管理员口令，或写入 `.env`、源码和日志。缺失或过短的密钥会拒绝认证和签发 Cookie。
+
+未来发布前，需经发布授权运行 `scripts/cf-secrets-push.sh`，将它配置为 Worker 的运行时 secret `SESSION_SECRET`。密钥无需注入客户端或构建变量。轮换密钥会让所有旧会话失效；下一届活动应轮换密钥。代码审阅和本地测试不需要生产密钥。
+
+### 构建依赖约束
+
+`package.json` 对 `@node-minify/core` 的 `glob` 使用同主版本 `^10.5.0` 覆盖，修复 OpenNext 构建链旧版 `glob` CLI 的命令注入公告。更新或移除覆盖前，应重新检查锁文件及 `npm audit --omit=dev`。
+
 ## 数据库 reset / 重建
+
+### 隐私修复迁移（待发布）
+
+`0028_private_contacts_and_poll_results.sql` 在公开视图中隐藏未公开的联系方式，并将浏览器角色对该视图的权限限定为只读，防止改写隐私开关；撤销原始选票访问，将选票 Realtime 广播替换为公开帖子的刷新时间。服务端同时在返回 feed／私信资料前脱敏，投票计数仅在已投票、已截止或结果公开时返回；投影页在不可见时显示截止后公布结果，不显示虚假零票。
+
+本 PR 未执行线上迁移或部署。未来获准发布时，应先在数据库应用该迁移，再发布应用；旧客户端需刷新以切换到帖子通知。迁移本身不修改用户保存的联系方式或选票。历史 `schema-snapshot.sql` 保留原件，恢复快照后必须再应用 `0028`，不可把旧快照当作已修复版本。
 
 ### Reset（保留 schema，清空数据）
 
@@ -26,7 +44,7 @@ npm run dev     # scripts/dev.sh 自动从 macOS Keychain 注入 secrets
 
 ### 从快照恢复 / 在新项目里重建 schema
 
-[`supabase/schema-snapshot.sql`](./supabase/schema-snapshot.sql) 是当前生产库 `public` schema 的 pg_dump（含 functions / triggers / RLS policies / publications），用 `supabase` CLI 跑的（本机 `pg_dump` 15 与 Supabase PG 17 版本不匹配）。
+[`supabase/schema-snapshot.sql`](./supabase/schema-snapshot.sql) 是修复前 `public` schema 的历史 pg_dump，保留原件，不含 `0028` 的隐私修复。它由 `supabase` CLI 导出（本机 `pg_dump` 15 与 Supabase PG 17 版本不匹配）；恢复后须应用后续迁移。
 
 #### 场景 A：往**同一个 Supabase 项目**恢复（drop 干净之后）
 
@@ -35,6 +53,7 @@ npm run dev     # scripts/dev.sh 自动从 macOS Keychain 注入 secrets
 drop schema public cascade;
 create schema public;
 -- 然后粘贴 supabase/schema-snapshot.sql 全部内容
+-- 最后应用 supabase/migrations/0028_private_contacts_and_poll_results.sql
 ```
 
 #### 场景 B：迁到**新的 Supabase 项目**（如老项目已删）
@@ -45,12 +64,12 @@ create schema public;
    supabase db push --db-url "postgresql://postgres.<NEW-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres" \
      --file supabase/schema-snapshot.sql
    ```
-   或者 Dashboard → SQL Editor 粘贴 `schema-snapshot.sql` 跑
+   或者 Dashboard → SQL Editor 粘贴 `schema-snapshot.sql` 跑。随后应用 [`0028_private_contacts_and_poll_results.sql`](./supabase/migrations/0028_private_contacts_and_poll_results.sql)。
 3. **重建 pg_cron 调度**（snapshot 不含 `cron.job` 行）：
    按顺序在 SQL Editor 跑 [`supabase/migrations/0009_match_cron.sql`](./supabase/migrations/0009_match_cron.sql)
    → [`0025_match_cron_phased.sql`](./supabase/migrations/0025_match_cron_phased.sql)
    → [`0027_match_cron_pre_slowdown.sql`](./supabase/migrations/0027_match_cron_pre_slowdown.sql)
-4. **Dashboard → Database → Publications**：进 `supabase_realtime`，把里面每张表 toggle 一下（关-开）。不做这一步 Realtime 不会重载，订阅成功但永远收不到 broadcast（CLAUDE.md 里记的坑）
+4. **Dashboard → Database → Publications**：如需重载 `supabase_realtime`，仅切换已经公开的表；保持 `poll_votes` 关闭，选票变化由 `posts.poll_updated_at` 通知。不要重新开启私密选票广播。
 5. **重 deploy edge function**：
    ```bash
    supabase functions deploy match --project-ref <NEW-REF>
