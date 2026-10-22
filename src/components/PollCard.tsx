@@ -20,7 +20,7 @@ type Props = {
   closed: boolean
   canClose: boolean
   totalVotes: number
-  optionCounts: Record<number, number>
+  optionCounts: Record<number, number> | undefined
   myVoteOptions: number[]
 }
 
@@ -40,7 +40,7 @@ export function PollCard({
   myVoteOptions,
 }: Props) {
   const hasVoted = myVoteOptions.length > 0
-  const showCounts = closed || hasVoted || !hideResults
+  const showCounts = optionCounts !== undefined && (closed || hasVoted || !hideResults)
   const [state, formAction, isPending] = useActionState(voteAction, initial)
   const [closeState, closeFormAction, isClosing] = useActionState(
     closePollAction,
@@ -55,7 +55,7 @@ export function PollCard({
       <input type="hidden" name="post_id" value={postId} />
       <div className="space-y-1.5">
         {options.map((opt) => {
-          const count = optionCounts[opt.id] ?? 0
+          const count = optionCounts?.[opt.id] ?? 0
           const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0
           const isMine = myVoteOptions.includes(opt.id)
 

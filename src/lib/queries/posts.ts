@@ -1,5 +1,6 @@
 import 'server-only'
 import { getServerSupabase } from '@/lib/supabase/server'
+import { redactPrivateContact } from '@/lib/privacy'
 import type { PostRow, PublicUserDisplay } from '@/lib/types'
 import type { SectionId } from '@/lib/sections'
 
@@ -160,7 +161,7 @@ export async function fetchFeed(
   }
 
   return (postsRes.data ?? []).map((row) => {
-    const author = unnestRelation(row.author) as AuthorMini
+    const author = redactPrivateContact(unnestRelation(row.author) as AuthorMini)
     const repliesRaw = (row.replies ?? []) as Array<{
       id: number
       user_id: string | null
@@ -186,9 +187,9 @@ export async function fetchFeed(
         created_at: r.created_at,
         updated_at: r.updated_at,
         is_ai: r.is_ai,
-        author: r.author ? (unnestRelation(r.author) as ReplyAuthorMini) : null,
+        author: r.author ? redactPrivateContact(unnestRelation(r.author) as ReplyAuthorMini) : null,
         mentioned_user: r.mentioned_user
-          ? (unnestRelation(r.mentioned_user) as MentionedUserMini)
+          ? redactPrivateContact(unnestRelation(r.mentioned_user) as MentionedUserMini)
           : null,
       }))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -205,8 +206,12 @@ export async function fetchFeed(
     if (row.type === 'poll') {
       const agg = pollAgg.get(row.id as number)
       post.poll_total_votes = agg?.total ?? 0
-      post.poll_option_counts = agg?.counts ?? {}
       post.poll_my_vote_options = agg?.mine ?? []
+      const closed = row.poll_deadline != null && Date.parse(row.poll_deadline) <= Date.now()
+      // 不把隐藏结果传入 RSC / Server Action 响应；客户端隐藏不是权限检查。
+      if (closed || post.poll_my_vote_options.length > 0 || !row.poll_hide_results) {
+        post.poll_option_counts = agg?.counts ?? {}
+      }
     }
     return post
   })

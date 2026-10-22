@@ -1,5 +1,6 @@
 import 'server-only'
 import { getServerSupabase } from '@/lib/supabase/server'
+import { redactPrivateContact } from '@/lib/privacy'
 import type { DmMessageRow, PublicUserDisplay } from '@/lib/types'
 
 export type DmThreadSummary = {
@@ -45,7 +46,7 @@ export async function listMyThreads(viewerId: string): Promise<DmThreadSummary[]
   ])
 
   const userById = new Map<string, PublicUserDisplay>()
-  for (const u of (users ?? []) as PublicUserDisplay[]) userById.set(u.id, u)
+  for (const u of (users ?? []) as PublicUserDisplay[]) userById.set(u.id, redactPrivateContact(u))
 
   const lastByThread = new Map<number, { body: string; created_at: string; sender_id: string }>()
   const unreadByThread = new Map<number, number>()
@@ -128,7 +129,7 @@ export async function fetchThread(
 
   return {
     thread_id: threadId,
-    other: (other ?? {
+    other: redactPrivateContact((other ?? {
       id: otherId,
       nickname: null,
       company: null,
@@ -137,7 +138,7 @@ export async function fetchThread(
       is_vip: false,
       vip_name: null,
       vip_title: null,
-    }) as PublicUserDisplay,
+    }) as PublicUserDisplay),
     messages: (messages ?? []) as DmMessageRow[],
   }
 }
