@@ -1,4 +1,5 @@
 import 'server-only'
+import { ADMIN_COOKIE_NAME } from './session-cookie-crypto'
 import { cookies } from 'next/headers'
 import { getServerSupabase } from './supabase/server'
 import { cookieExpiresAt } from './constants'
@@ -7,7 +8,7 @@ import type { UserRow } from './types'
 
 export const COOKIE_UID = 'dams-uid'
 export const COOKIE_PW = 'dams-pw-ok'
-export const COOKIE_ADMIN = 'dams-admin-ok'
+export const COOKIE_ADMIN = ADMIN_COOKIE_NAME
 // /feed 顶部 onboarding banner 的 dismissed 状态。bump 后缀（v2 → v3 ...）让老用户重看。
 // 用 httpOnly cookie 而不是 localStorage：iOS Safari ITP 7-day script-writable storage cap
 // 会清掉 localStorage，cookie 不受影响。
