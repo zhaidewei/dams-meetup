@@ -29,13 +29,14 @@ const nextConfig: NextConfig = {
       { source: '/ppt',                 destination: dest, permanent: false },
       { source: '/vip-login',           destination: dest, permanent: false },
       { source: '/admin',               destination: dest, permanent: false },
-      { source: '/admin/:path*',        destination: dest, permanent: false },
       { source: '/recover',             destination: dest, permanent: false },
       { source: '/auto-login',          destination: dest, permanent: false },
     ]
   },
 }
 
-initOpenNextCloudflareForDev()
+if (process.env.NODE_ENV === 'development') {
+  initOpenNextCloudflareForDev()
+}
 
 export default nextConfig

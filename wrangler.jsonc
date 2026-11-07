@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "cloudflare/worker.ts",
   "name": "dams-meetup",
   "account_id": "f1dc30bb93206c310ab2b840baceb857",
   "compatibility_date": "2026-04-01",
@@ -12,6 +12,20 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    { "binding": "ACTIVITY_DB", "database_name": "dams-meetup-15", "database_id": "173b8d5f-db22-404c-85e4-e61683a6b877" }
+  ],
+  "ratelimits": [
+    { "name": "ACTIVITY_LOGIN_LIMIT", "namespace_id": "2026111415", "simple": { "limit": 15, "period": 60 } }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "ACTIVITY_UPDATES", "class_name": "ActivityUpdates" }
+    ]
+  },
+  "migrations": [
+    { "tag": "activity-updates-v1", "new_sqlite_classes": ["ActivityUpdates"] }
+  ],
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",

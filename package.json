@@ -27,6 +27,7 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261107.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
@@ -36,6 +37,7 @@
     "esbuild": "^0.28.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "miniflare": "5.20261019.1-beta",
     "server-only": "^0.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
