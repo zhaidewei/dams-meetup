@@ -3,7 +3,7 @@ import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
 import type { FeedSnapshot, StaffSnapshot } from '../src/lib/meetup15/discussion'
-import type { ScreenSnapshot } from '../src/lib/meetup15/polls'
+import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -21,10 +21,10 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     stdin: {
       contents: `
         import { handleDiscussion } from './cloudflare/meetup-discussion'
-        import { handlePolls } from './cloudflare/meetup-polls'
+        import { handleProjection } from './cloudflare/meetup-projection'
         export { ActivityUpdates } from './cloudflare/activity'
         export default { fetch(request, env) {
-          const handle = new URL(request.url).pathname === '/api/polls/screen' ? handlePolls : handleDiscussion
+          const handle = new URL(request.url).pathname.startsWith('/api/screen') ? handleProjection : handleDiscussion
           return handle(request, env, () => ${now})
         } }
       `,
@@ -44,8 +44,18 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     runtime.dispatchFetch(path + suffix, { headers: { Cookie: cookie } })
   const feed = async (cookie: string, query = '') => await (await read(cookie, query)).json() as FeedSnapshot
   const staff = async () => await (await read(admin, '/admin')).json() as StaffSnapshot
-  const readScreen = (cookie: string) => runtime.dispatchFetch(origin + '/api/polls/screen', { headers: { Cookie: cookie } })
-  const screen = async () => await (await readScreen(admin)).json() as ScreenSnapshot
+  const readScreen = (cookie: string) => runtime.dispatchFetch(origin + '/api/screen', { headers: { Cookie: cookie } })
+  const screen = async () => await (await readScreen(admin)).json() as ProjectionView
+  const projection = async () => await (await runtime.dispatchFetch(origin + '/api/screen/admin', {
+    headers: { Cookie: admin },
+  })).json() as ProjectionAdminSnapshot
+  const preview = (query: string, cookie = admin) => runtime.dispatchFetch(origin + '/api/screen/preview?' + query, {
+    headers: { Cookie: cookie },
+  })
+  const switchScreen = (input: object, cookie = admin, from = origin) => runtime.dispatchFetch(origin + '/api/screen/admin', {
+    method: 'POST', headers: { Cookie: cookie, Origin: from, 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
   const activeQa = async () => {
     const snapshot = await screen()
     if (snapshot.mode !== 'qa') throw new Error('Expected Q&A on the projection')
@@ -67,7 +77,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     for (const file of (await readdir('migrations')).sort()) {
       const sql = await readFile('migrations/' + file, 'utf8')
       // 以语句起始词为分界，保留触发器内的分号。
-      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT)\b)/)
+      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE)\b)/)
       await db.batch(statements.map((statement) => db.prepare(statement)))
     }
     await db.batch([
@@ -78,6 +88,17 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
 
     expect((await read('')).status).toBe(401)
     expect((await readScreen(alice)).status).toBe(401)
+    expect((await screen()).mode).toBe('hidden')
+    expect((await projection()).rounds).toEqual([])
+    expect((await preview('mode=agenda', alice)).status).toBe(401)
+    expect((await switchScreen({ mode: 'agenda', revision: 0 }, alice)).status).toBe(401)
+    expect((await switchScreen({ mode: 'agenda', revision: 0 }, admin, 'https://other.example')).status).toBe(403)
+    expect((await preview('mode=agenda')).status).toBe(200)
+    expect((await screen()).mode).toBe('hidden')
+    expect((await switchScreen({ mode: 'agenda', revision: 0 })).status).toBe(204)
+    expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: '13:30' })
+    expect((await switchScreen({ mode: 'raffle', revision: 0 })).status).toBe(409)
+    expect((await screen()).mode).toBe('agenda')
     expect((await read(admin, '/screen')).status).toBe(404)
     expect((await connect('')).status).toBe(401)
     expect((await command(alice, { action: 'section', section: 'expert' }, '/admin')).status).toBe(401)
@@ -149,11 +170,35 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect(second.id).not.toBe(first.id)
     expect(await activeQa()).toMatchObject({ round: { id: second.id }, questions: [] })
     expect(await activeQa()).not.toHaveProperty('rounds')
+    expect((await projection()).rounds.map((round) => round.id)).toEqual([second.id, first.id])
     expect(order(await feed(alice, '?section=expert&round=' + first.id))).toEqual([newer.id, older.id])
     await ok(admin, { action: 'end', roundId: second.id }, '/admin')
-    expect((await screen()).mode).toBe('live')
+    expect((await screen()).mode).toBe('hidden')
     expect((await command(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')).status).toBe(409)
     expect((await staff()).rounds).toHaveLength(2)
+
+    const { revision } = await projection()
+    const historical = await preview('mode=qa&roundId=' + first.id)
+    expect(historical.status).toBe(200)
+    expect(await historical.json()).toMatchObject({ mode: 'qa', round: { id: first.id } })
+    expect((await screen()).mode).toBe('hidden')
+    expect((await switchScreen({ mode: 'qa', roundId: 999, revision })).status).toBe(409)
+    const screenChanged = new Promise((resolve) => {
+      screenSocket.addEventListener('message', (event) => {
+        if (event.data === 'screen.updated') resolve(event.data)
+      })
+    })
+    expect((await switchScreen({ mode: 'qa', roundId: first.id, revision })).status).toBe(204)
+    await expect(screenChanged).resolves.toBe('screen.updated')
+    expect(order(await activeQa())).toEqual([newer.id, older.id])
+    expect((await activeQa()).round.closedAt).not.toBeNull()
+    expect((await feed(alice, '?section=expert')).activeRound).toBeNull()
+    expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: '历史轮次' })).status).toBe(409)
+    expect((await switchScreen({ mode: 'raffle', revision: (await projection()).revision })).status).toBe(204)
+    expect(await screen()).toMatchObject({ mode: 'raffle', lottery: null })
+    await db.prepare("UPDATE activity_state SET screen_lottery = ? WHERE id = 1")
+      .bind(JSON.stringify({ phase: 'winner', winner: '演示观众' })).run()
+    expect(await screen()).toMatchObject({ mode: 'raffle', lottery: { phase: 'winner', winner: '演示观众' } })
     attendeeSocket.close(1000)
     screenSocket.close(1000)
   } finally {

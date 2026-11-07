@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 
 type ScreenState = { open: false } | { open: true; password: string; qrPath: string }
 
-export function AdmissionScreen() {
+export function AdmissionScreen({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<ScreenState>({ open: false })
   const [qrImage, setQrImage] = useState<{ url: string; image: string } | null>(null)
   const qrPath = state.open ? state.qrPath : null
@@ -47,10 +47,10 @@ export function AdmissionScreen() {
 
   return state.open ? (
     <section className="space-y-4">
-      <p className="text-xl">扫码入场，或在活动首页输入现场密码</p>
+      <p className={compact ? "text-sm" : "text-xl"}>扫码入场，或在活动首页输入现场密码</p>
       {qrImage?.url === state.qrPath &&
-        <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320} className="mx-auto" />}
-      <p className="font-mono text-3xl font-semibold tracking-wider">{state.password}</p>
+        <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320} className={compact ? "mx-auto h-auto w-24" : "mx-auto h-auto w-48 md:w-56"} />}
+      <p className={compact ? "font-mono text-base" : "font-mono text-3xl font-semibold tracking-wider"}>{state.password}</p>
     </section>
   ) : (
     <p>观众入口当前关闭。</p>

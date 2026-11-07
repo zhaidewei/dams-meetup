@@ -45,14 +45,18 @@ async function readContext(db: D1Database, now: number) {
   }
 }
 
-async function readQuestions(db: D1Database, round: QuestionRound | null, viewer: string) {
-  if (!round) return []
-  const { results } = await db.prepare(`
+function questionsQuery(db: D1Database, roundId: number, viewer: string) {
+  return db.prepare(`
     SELECT ${ITEM_FIELDS}
     FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
     WHERE d.round_id = ?
     ORDER BY d.answered, likes DESC, d.created_at, d.id`
-  ).bind(viewer, viewer, round.id).all<ItemRow>()
+  ).bind(viewer, viewer, roundId)
+}
+
+async function readQuestions(db: D1Database, round: QuestionRound | null, viewer: string) {
+  if (!round) return []
+  const { results } = await questionsQuery(db, round.id, viewer).all<ItemRow>()
   return results.map(item)
 }
 
@@ -97,7 +101,17 @@ export async function readDiscussionAdmin(db: D1Database, now: number): Promise<
   return { ...context, viewedRound: context.activeRound, questions, guests: guests.results }
 }
 
-export async function readActiveQa(db: D1Database) {
-  const round = await db.prepare(`${ROUNDS} WHERE r.closed_at IS NULL`).first<QuestionRound>()
-  return round ? { round, questions: await readQuestions(db, round, '') } : null
+export function readProjectionRounds(db: D1Database) {
+  return db.prepare(`${ROUNDS} ORDER BY (r.closed_at IS NULL) DESC, r.opened_at DESC, r.id DESC`)
+}
+
+export async function readProjectionRound(db: D1Database, roundId: number, revision?: number) {
+  const roundQuery = revision === undefined
+    ? db.prepare(`${ROUNDS} WHERE r.id = ?`).bind(roundId)
+    : db.prepare(`${ROUNDS} WHERE r.id = ? AND EXISTS (
+        SELECT 1 FROM activity_state WHERE id = 1 AND projection_revision = ?
+      )`).bind(roundId, revision)
+  const [rounds, questions] = await db.batch([roundQuery, questionsQuery(db, roundId, '')])
+  const round = rounds.results[0] as QuestionRound | undefined
+  return round ? { round, questions: (questions.results as unknown as ItemRow[]).map(item) } : null
 }

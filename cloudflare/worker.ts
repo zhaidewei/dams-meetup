@@ -5,7 +5,7 @@ import { handleActivityRequest, type ActivityEnv } from './activity'
 
 import { handleMeetupAccess } from './meetup-access'
 import { handleDiscussion } from './meetup-discussion'
-import { handlePolls } from './meetup-polls'
+import { handleProjection } from './meetup-projection'
 
 export { ActivityUpdates } from './activity'
 
@@ -20,7 +20,8 @@ const worker = {
     if (pathname === '/api/discussion' || pathname.startsWith('/api/discussion/')) {
       return handleDiscussion(request, env)
     }
-    if (pathname === '/api/polls' || pathname.startsWith('/api/polls/')) return handlePolls(request, env)
+    if (pathname === '/api/polls' || pathname.startsWith('/api/polls/')) return new Response(null, { status: 404 })
+    if (pathname === '/api/screen' || pathname.startsWith('/api/screen/')) return handleProjection(request, env)
     return next.fetch(request, env, context)
   },
 }
