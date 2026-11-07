@@ -3,14 +3,16 @@
 import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import type { ProjectionView } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
+import { RaffleScreen } from './RaffleScreen'
 import { useDiscussion } from './useDiscussion'
 import { useRaffleResolution } from './useRaffleResolution'
 
 export function ScreenContent({ data, compact = false }: { data: ProjectionView; compact?: boolean }) {
   if (data.mode === 'hidden') return null
   const heading = compact ? 'text-lg' : 'text-3xl md:text-5xl'
+  const screenWidth = data.mode === 'raffle' ? 'max-w-[96rem]' : 'max-w-6xl'
   return (
-    <div className={compact ? 'w-full space-y-3 text-sm' : 'mx-auto w-full max-w-6xl space-y-6 text-lg'}>
+    <div className={compact ? 'w-full space-y-3 text-sm' : `mx-auto w-full ${screenWidth} space-y-6 text-lg`}>
       <p className="font-medium text-teal-300">{MEETUP_NAME}</p>
       {data.mode === 'agenda' && (
         <section aria-label="议程展示" className={compact ? 'space-y-3' : 'space-y-5'}>
@@ -49,17 +51,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
           ) : <p className="text-zinc-300">本轮还没有问题。</p>}
         </section>
       )}
-      {data.mode === 'raffle' && (
-        <section aria-label="现场抽奖" className="space-y-4">
-          <h1 className={heading}>现场抽奖</h1>
-          {data.lottery?.phase === 'winner' && <p className="break-words">恭喜 {data.lottery.winner}！</p>}
-          {data.lottery?.phase === 'drawing' && (
-            <p className="motion-safe:animate-pulse">抽奖进行中 · {data.lottery.candidateCount} 位候选人</p>
-          )}
-          {data.lottery?.phase === 'empty' && <p>本轮没有符合条件的候选人。</p>}
-          {!data.lottery && <p>等待主持人开启抽奖</p>}
-        </section>
-      )}
+      {data.mode === 'raffle' && <RaffleScreen data={data} compact={compact} />}
     </div>
   )
 }

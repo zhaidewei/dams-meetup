@@ -3,6 +3,9 @@ export type LotteryScreen =
   | { phase: 'winner'; winner: string }
   | { phase: 'empty' }
 
+export type RaffleCandidateView = { name: string; weight: number; won: boolean }
+export type RaffleRound = { id: number; finishedAt: number; winner: string | null }
+
 export type RaffleAdminSnapshot = {
   latestId: number
   result: LotteryScreen | null

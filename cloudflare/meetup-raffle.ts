@@ -13,16 +13,45 @@ const ACTIVE_SECONDS = 4 * 60 * 60
 type Candidate = { id: string; name: string; weight: number }
 type Draw = { id: number; readyAt: number; finishedAt: number | null; winner: string | null; candidateCount: number }
 
+const DRAW_FIELDS = `id, ready_at AS readyAt, finished_at AS finishedAt, winner_name AS winner,
+  json_array_length(candidates) AS candidateCount`
+
+function drawResult(draw: Draw | null): LotteryScreen | null {
+  if (!draw) return null
+  if (draw.finishedAt === null) return { phase: 'drawing', readyAt: draw.readyAt, candidateCount: draw.candidateCount }
+  return draw.winner ? { phase: 'winner', winner: draw.winner } : { phase: 'empty' }
+}
+
 export async function latestRaffle(db: D1Database) {
   const draw = await db.prepare(`
-    SELECT id, ready_at AS readyAt, finished_at AS finishedAt, winner_name AS winner,
-      json_array_length(candidates) AS candidateCount
-    FROM meetup15_raffles ORDER BY id DESC LIMIT 1
+    SELECT ${DRAW_FIELDS} FROM meetup15_raffles ORDER BY id DESC LIMIT 1
   `).first<Draw>()
-  const result: LotteryScreen | null = !draw ? null : draw.finishedAt === null
-    ? { phase: 'drawing', readyAt: draw.readyAt, candidateCount: draw.candidateCount }
-    : draw.winner ? { phase: 'winner', winner: draw.winner } : { phase: 'empty' }
+  const result = drawResult(draw)
   return { latestId: draw?.id ?? 0, result, refreshAt: result?.phase === 'drawing' ? result.readyAt : null }
+}
+
+export function readRaffleRounds(db: D1Database) {
+  return db.prepare(`
+    SELECT id, finished_at AS finishedAt, winner_name AS winner
+    FROM meetup15_raffles WHERE finished_at IS NOT NULL ORDER BY id DESC
+  `)
+}
+
+export async function readRaffleProjection(db: D1Database, raffleId?: number) {
+  const query = `SELECT ${DRAW_FIELDS}, candidates, winner_id AS winnerId FROM meetup15_raffles`
+  const draw = await (raffleId === undefined
+    ? db.prepare(`${query} ORDER BY id DESC LIMIT 1`)
+    : db.prepare(`${query} WHERE id = ? AND finished_at IS NOT NULL`).bind(raffleId))
+    .first<Draw & { candidates: string; winnerId: string | null }>()
+  if (!draw && raffleId !== undefined) return null
+  const lottery = drawResult(draw)
+  const pool: Candidate[] = draw ? JSON.parse(draw.candidates) : []
+  return {
+    raffleId: draw?.id ?? null,
+    lottery,
+    refreshAt: lottery?.phase === 'drawing' ? lottery.readyAt : null,
+    candidates: pool.map(({ id, name, weight }) => ({ name, weight, won: id === draw?.winnerId })),
+  }
 }
 
 function updates(env: ActivityEnv) {
@@ -58,7 +87,7 @@ async function startDraw(env: ActivityEnv, latestId: number, weighted: boolean, 
       SELECT candidates, ?, CASE WHEN candidate_count = 0 THEN ? END FROM snapshot
       WHERE COALESCE((SELECT MAX(id) FROM meetup15_raffles), 0) = ?
         AND NOT EXISTS (SELECT 1 FROM meetup15_raffles WHERE finished_at IS NULL)
-        AND EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND projection_mode = 'raffle')
+        AND EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND projection_mode = 'raffle' AND projection_raffle_id IS NULL)
       RETURNING id, finished_at AS finishedAt
   `).bind(Number(weighted), cutoff, Number(requireParticipation), readyAt, now, latestId)
     .first<{ id: number; finishedAt: number | null }>()

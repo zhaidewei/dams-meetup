@@ -161,8 +161,28 @@ it('keeps contact and message views private and commits one prize and message ac
     const pool = JSON.parse(second!.candidates) as { id: string; weight: number }[]
     expect(pool.map(candidate => candidate.id).sort()).toEqual([winner?.id === 'alice' ? 'bob' : 'alice', 'charlie'])
     expect(pool.every(candidate => candidate.weight === 1)).toBe(true)
+    expect((await request(`screen/preview?mode=raffle&raffleId=${second!.id}`, admin)).status).toBe(404)
+    expect((await request('screen/admin', admin, { mode: 'raffle', raffleId: second!.id, revision: 1 })).status).toBe(409)
+    const history = await request(`screen/preview?mode=raffle&raffleId=${draw!.id}`, admin)
+    expect(await history.json()).toMatchObject({
+      raffleId: draw!.id,
+      lottery: { phase: 'winner', winner: winner?.name },
+      candidates: expect.arrayContaining([
+        { name: 'Alice', weight: 3, won: winner?.id === 'alice' },
+        { name: 'Bob', weight: 1, won: winner?.id === 'bob' },
+      ]),
+    })
+    expect(await (await request('screen', admin)).json()).toMatchObject({ raffleId: second!.id })
+    expect((await request('screen/admin', admin, { mode: 'raffle', raffleId: draw!.id, revision: 1 })).status).toBe(204)
     await db.prepare('UPDATE meetup15_raffles SET ready_at = ? WHERE id = ?').bind(Date.now() - 10, second!.id).run()
     expect((await request('raffle', admin, { action: 'finish' })).status).toBe(204)
+    expect(await (await request('screen', admin)).json()).toMatchObject({ raffleId: draw!.id })
+    expect(await (await request('screen/admin', admin)).json()).toMatchObject({
+      raffleRounds: [{ id: second!.id }, { id: draw!.id }],
+    })
+    expect((await request('raffle', admin, { ...start, latestId: second!.id })).status).toBe(409)
+    expect((await request('screen/admin', admin, { mode: 'raffle', revision: 2 })).status).toBe(204)
+    expect(await (await request('screen', admin)).json()).toMatchObject({ raffleId: second!.id })
     await db.prepare("UPDATE meetup15_members SET last_seen_at = 0").run()
     expect((await request('raffle', admin, { ...start, latestId: second!.id, weighted: false })).status).toBe(204)
     expect(await (await request('screen', admin)).json()).toMatchObject({ lottery: { phase: 'empty' } })

@@ -9,7 +9,7 @@ import { ScreenContent } from './MeetupScreen'
 import { RaffleControls } from './RaffleControls'
 import { useDiscussion } from './useDiscussion'
 
-type Draft = { mode: ProjectionMode; roundId?: number }
+type Draft = { mode: ProjectionMode; roundId?: number; raffleId?: number }
 export type VersionedDraft = Draft & { baseRevision: number }
 
 const roundTime = new Intl.DateTimeFormat('zh-CN', {
@@ -24,11 +24,12 @@ function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
   onReset: () => void
   onConfirm: (selection: ProjectionSelection) => void
 }) {
-  const selection = draft.mode === 'qa'
-    ? draft.roundId ? { mode: 'qa' as const, roundId: draft.roundId } : null
-    : { mode: draft.mode }
+  const selection: ProjectionSelection | null = draft.mode === 'qa'
+    ? draft.roundId ? { mode: 'qa', roundId: draft.roundId } : null
+    : draft.mode === 'raffle' ? { mode: 'raffle', raffleId: draft.raffleId } : { mode: draft.mode }
   const query = new URLSearchParams({ mode: selection?.mode ?? 'hidden' })
   if (selection?.mode === 'qa') query.set('roundId', String(selection.roundId))
+  if (selection?.mode === 'raffle' && selection.raffleId !== undefined) query.set('raffleId', String(selection.raffleId))
   const { data, error } = useDiscussion<ProjectionView>(`/api/screen/preview?${query}`, 'projection')
   return (
     <section className="min-w-0 space-y-3 rounded-xl border border-zinc-200 p-4" aria-label="画面预览">
@@ -67,7 +68,9 @@ export function ProjectionAdmin({ draft, setDraft }: {
   const activeRound = data.rounds.find((round) => round.closedAt === null)
   const selected = draft ?? current
   const selectedRoundId = selected.mode === 'qa' ? selected.roundId : undefined
-  const changed = selected.mode !== current.mode || selectedRoundId !== currentRoundId
+  const currentRaffleId = current.mode === 'raffle' ? current.raffleId : undefined
+  const selectedRaffleId = selected.mode === 'raffle' ? selected.raffleId : undefined
+  const changed = selected.mode !== current.mode || selectedRoundId !== currentRoundId || selectedRaffleId !== currentRaffleId
   const revision = data.revision
   const stale = draft !== null && draft.baseRevision !== revision
 
@@ -76,6 +79,7 @@ export function ProjectionAdmin({ draft, setDraft }: {
     setDraft({
       mode,
       roundId: mode === 'qa' ? selectedRoundId ?? currentRoundId ?? activeRound?.id : undefined,
+      raffleId: mode === 'raffle' ? selectedRaffleId : undefined,
       baseRevision: revision,
     })
   }
@@ -87,6 +91,7 @@ export function ProjectionAdmin({ draft, setDraft }: {
         <p role="status" className="rounded-full bg-teal-50 px-3 py-1 text-sm text-teal-900">
           {current.mode === 'hidden' ? '大屏状态 · 已隐藏' : `正在投屏 · ${PROJECTION_MODES[current.mode]}`}
           {currentRound && ` · ${currentRound.guest}${currentRound.closedAt !== null ? '（回看）' : ''}`}
+          {current.mode === 'raffle' && (currentRaffleId ? ` · 第 ${currentRaffleId} 轮（回看）` : ' · 跟随最新一轮')}
         </p>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
@@ -100,7 +105,27 @@ export function ProjectionAdmin({ draft, setDraft }: {
                 aria-pressed={selected.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
             ))}
           </div>
-          {selected.mode === 'raffle' && current.mode === 'raffle' && <RaffleControls />}
+          {selected.mode === 'raffle' && (
+            <div className="space-y-3 border-t border-zinc-200 pt-3">
+              <div className="space-y-1">
+                <label htmlFor="raffle-round" className="block text-sm">选择抽奖轮次</label>
+                <select id="raffle-round" className={discussionInput} value={selectedRaffleId ?? ''}
+                  disabled={pending} onChange={(event) => setDraft({
+                    mode: 'raffle', raffleId: event.target.value ? Number(event.target.value) : undefined, baseRevision: revision,
+                  })}>
+                  <option value="">跟随最新一轮</option>
+                  {data.raffleRounds.map(round => (
+                    <option key={round.id} value={round.id}>
+                      第 {round.id} 轮 · {round.winner ?? '无中奖者'} · {roundTime.format(round.finishedAt)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedRaffleId === undefined && current.mode === 'raffle' && currentRaffleId === undefined && <RaffleControls />}
+              {selectedRaffleId === undefined && currentRaffleId !== undefined &&
+                <p className="text-sm text-zinc-600">确认切回最新一轮后即可开始抽奖。</p>}
+            </div>
+          )}
           {selected.mode === 'qa' && (
             <div className="space-y-1 border-t border-zinc-200 pt-3">
               <label htmlFor="projection-round" className="block text-sm">选择问答轮次</label>
