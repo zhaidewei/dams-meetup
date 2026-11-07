@@ -1,0 +1,88 @@
+import { ADMISSION_END, isMeetupSection } from '../src/lib/meetup15/event'
+import type { Member } from '../src/lib/meetup15/identity'
+
+type Input = Record<string, unknown>
+const invalid = { error: '请检查输入后重试。', status: 400 }
+const unavailable = { error: '投票已截止或不可用。', status: 409 }
+
+function pollId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+export async function writePoll(db: D1Database, member: Member, input: Input, databaseTime: number | null) {
+  const { action, id } = input
+  if (action === 'create') {
+    if (member.role !== 'guest') return { error: '只有嘉宾可以发起投票。', status: 403 }
+    const { section, title, options, multiple, hidden } = input
+    if (!isMeetupSection(section) || typeof title !== 'string' || typeof multiple !== 'boolean' ||
+        typeof hidden !== 'boolean' || !Array.isArray(options) || options.length < 2 || options.length > 6 ||
+        !options.every((option) => typeof option === 'string' && option.trim() && option.trim().length <= 120)) {
+      return invalid
+    }
+    const cleanOptions = options.map((option: string) => option.trim())
+    if (!title.trim() || title.trim().length > 300 || new Set(cleanOptions).size !== cleanOptions.length) return invalid
+    const deadline = ADMISSION_END / 1000
+    const result = await db.prepare(`
+      INSERT INTO meetup15_polls (author_id, section, title, options, multiple, hidden, deadline)
+      SELECT ?, ?, ?, ?, ?, ?, ? WHERE COALESCE(?, unixepoch()) < ?`
+    ).bind(member.id, section, title.trim(), JSON.stringify(cleanOptions), Number(multiple), Number(hidden),
+      deadline, databaseTime, deadline).run()
+    return result.meta.changes ? { changed: true } : unavailable
+  }
+
+  if (!pollId(id)) return invalid
+  if (action === 'close') {
+    if (member.role !== 'guest') return { error: '只有投票发起人可以结束投票。', status: 403 }
+    const result = await db.prepare(`
+      UPDATE meetup15_polls SET closed_at = COALESCE(?, unixepoch())
+      WHERE id = ? AND author_id = ? AND closed_at IS NULL AND deadline > COALESCE(?, unixepoch())`
+    ).bind(databaseTime, id, member.id, databaseTime).run()
+    return result.meta.changes ? { changed: true } : unavailable
+  }
+
+  if (action !== 'vote' || member.role !== 'attendee') {
+    return { error: '请使用观众身份投票。', status: 403 }
+  }
+  const { choices } = input
+  if (!Array.isArray(choices) || choices.length < 1 || choices.length > 6 ||
+      !choices.every((choice) => Number.isInteger(choice) && choice >= 0 && choice < 6) ||
+      new Set(choices).size !== choices.length) return invalid
+
+  const result = await db.prepare(`
+    INSERT INTO meetup15_ballots (poll_id, member_id, choices)
+    SELECT id, ?, ? FROM meetup15_polls
+    WHERE id = ? AND closed_at IS NULL AND deadline > COALESCE(?, unixepoch())
+      AND json_array_length(options) > ? AND (multiple = 1 OR ? = 1)
+    ON CONFLICT (poll_id, member_id) DO UPDATE SET choices = excluded.choices`
+  ).bind(member.id, JSON.stringify(choices), id, databaseTime, Math.max(...choices), choices.length).run()
+  return result.meta.changes ? { changed: true } : unavailable
+}
+
+export async function writeScreen(db: D1Database, input: Input, databaseTime: number | null) {
+  const { action, section, id } = input
+  let statement: D1PreparedStatement
+  switch (action) {
+    case 'intro':
+      statement = db.prepare("UPDATE activity_state SET screen_mode = 'intro' WHERE id = 1 AND reveal_poll_id IS NULL")
+      break
+    case 'live':
+      statement = db.prepare("UPDATE activity_state SET screen_mode = 'live', reveal_poll_id = NULL WHERE id = 1")
+      break
+    case 'filter':
+      if (section !== null && !isMeetupSection(section)) return invalid
+      statement = db.prepare('UPDATE activity_state SET screen_poll_section = ? WHERE id = 1').bind(section)
+      break
+    case 'reveal':
+      if (!pollId(id)) return invalid
+      statement = db.prepare(`
+        UPDATE activity_state SET reveal_poll_id = ?
+        WHERE id = 1 AND reveal_poll_id IS NULL AND EXISTS (
+          SELECT 1 FROM meetup15_polls WHERE id = ? AND hidden = 1 AND (closed_at IS NOT NULL OR deadline <= COALESCE(?, unixepoch()))
+        )`).bind(id, id, databaseTime)
+      break
+    default:
+      return invalid
+  }
+  const result = await statement.run()
+  return result.meta.changes ? { changed: true } : { error: '当前无法切换大屏。请检查投票状态。', status: 409 }
+}

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
@@ -52,7 +52,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
 
   try {
     const db = await runtime.getD1Database('ACTIVITY_DB')
-    for (const file of ['0001_activity_state.sql', '0002_meetup15_members.sql', '0003_meetup15_discussion.sql']) {
+    for (const file of (await readdir('migrations')).sort()) {
       const sql = await readFile('migrations/' + file, 'utf8')
       // 以语句起始词为分界，保留触发器内的分号。
       const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT)\b)/)

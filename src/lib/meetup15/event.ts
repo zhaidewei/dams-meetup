@@ -97,8 +97,7 @@ export const MEETUP_DATE = `${eventDate} ${firstSlot.start}–${lastSlot.end} CE
 export const ADMISSION_END = agendaTime(lastSlot.end)
 
 export function meetupSectionAt(now = Date.now()): MeetupSection {
-  return MEETUP_AGENDA.find(({ start, end }) => agendaTime(start) <= now && now < agendaTime(end))
-    ?.section ?? 'lounge'
+  return meetupAgendaAt(now)?.section ?? 'lounge'
 }
 
 export function isMeetupSection(value: unknown): value is MeetupSection {
@@ -113,4 +112,13 @@ export function nextMeetupSectionChange(now: number): number | null {
     }
   }
   return null
+}
+
+export function meetupAgendaAt(now: number) {
+  return MEETUP_AGENDA.find(({ start, end }) => agendaTime(start) <= now && now < agendaTime(end))
+}
+
+export function nextMeetupAgendaChange(now: number) {
+  const boundaries = MEETUP_AGENDA.flatMap(({ start, end }) => [agendaTime(start), agendaTime(end)])
+  return boundaries.find((boundary) => boundary > now) ?? null
 }

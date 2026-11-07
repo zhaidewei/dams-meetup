@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { DiscussionContext, MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
+import type { MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
 
-export function useDiscussion<T extends DiscussionContext>(url: string) {
+export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
+  url: string, topic: 'discussion' | 'poll' | 'both' = 'discussion',
+) {
   const [view, setView] = useState<{ url: string; data: T | null; error: string } | null>(null)
   const [pending, setPending] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -70,7 +72,9 @@ export function useDiscussion<T extends DiscussionContext>(url: string) {
       address.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       socket = new WebSocket(address)
       socket.onopen = schedule
-      socket.onmessage = schedule
+      socket.onmessage = ({ data }) => {
+        if (topic === 'both' || data === (topic === 'poll' ? 'poll.updated' : 'activity.updated')) schedule()
+      }
       socket.onclose = () => {
         if (!controller.signal.aborted) retry = setTimeout(connect, 3000)
       }
@@ -93,9 +97,9 @@ export function useDiscussion<T extends DiscussionContext>(url: string) {
       clearInterval(fallback)
       window.removeEventListener('online', schedule)
     }
-  }, [url])
+  }, [url, topic])
 
-  async function submit(command: MemberCommand | StaffCommand) {
+  async function submit(command: Command) {
     setPending(true)
     setActionError('')
     try {

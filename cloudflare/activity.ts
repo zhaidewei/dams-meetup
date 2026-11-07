@@ -27,9 +27,9 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
     return new Response(null, { status: 101, webSocket: client })
   }
 
-  publish(): void {
+  publish(event: 'activity.updated' | 'poll.updated' = 'activity.updated'): void {
     for (const socket of this.ctx.getWebSockets()) {
-      if (socket.readyState === WebSocket.OPEN) socket.send('activity.updated')
+      if (socket.readyState === WebSocket.OPEN) socket.send(event)
     }
   }
 
