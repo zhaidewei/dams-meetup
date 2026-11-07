@@ -1,3 +1,8 @@
+export const RAFFLE_ACTIVE_HOURS = 4
+export const RAFFLE_WEIGHT_RULE = '每人基础 1 份，发过帖和收到过他人回复各加 1 份。'
+
+export type RaffleRules = { weighted: boolean; requireParticipation: boolean }
+
 export type LotteryScreen =
   | { phase: 'drawing'; readyAt: number; candidateCount: number }
   | { phase: 'winner'; winner: string }
@@ -12,4 +17,4 @@ export type RaffleAdminSnapshot = {
   refreshAt: number | null
 }
 
-export type RaffleCommand = { action: 'start'; weighted: boolean; requireParticipation: boolean; latestId: number }
+export type RaffleCommand = RaffleRules & { action: 'start'; latestId: number }

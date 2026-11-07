@@ -2,13 +2,13 @@ import { randomInt } from 'node:crypto'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { requestCookie } from '../src/lib/meetup15/identity'
-import type { LotteryScreen } from '../src/lib/meetup15/raffle'
+import { RAFFLE_ACTIVE_HOURS, type LotteryScreen } from '../src/lib/meetup15/raffle'
 import type { ActivityEnv } from './activity'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const failure = (status: number, error: string) => Response.json({ error }, { status, headers })
 const ANIMATION_MS = 5000
-const ACTIVE_SECONDS = 4 * 60 * 60
+const ACTIVE_SECONDS = RAFFLE_ACTIVE_HOURS * 60 * 60
 
 type Candidate = { id: string; name: string; weight: number }
 type Draw = { id: number; readyAt: number; finishedAt: number | null; winner: string | null; candidateCount: number }
@@ -38,19 +38,24 @@ export function readRaffleRounds(db: D1Database) {
 }
 
 export async function readRaffleProjection(db: D1Database, raffleId?: number) {
-  const query = `SELECT ${DRAW_FIELDS}, candidates, winner_id AS winnerId FROM meetup15_raffles`
+  const query = `SELECT ${DRAW_FIELDS}, candidates, winner_id AS winnerId, weighted,
+    require_participation AS requireParticipation FROM meetup15_raffles`
   const draw = await (raffleId === undefined
     ? db.prepare(`${query} ORDER BY id DESC LIMIT 1`)
     : db.prepare(`${query} WHERE id = ? AND finished_at IS NOT NULL`).bind(raffleId))
-    .first<Draw & { candidates: string; winnerId: string | null }>()
+    .first<Draw & { candidates: string; winnerId: string | null; weighted: number | null; requireParticipation: number | null }>()
   if (!draw && raffleId !== undefined) return null
   const lottery = drawResult(draw)
   const pool: Candidate[] = draw ? JSON.parse(draw.candidates) : []
+  const rules = draw && draw.weighted !== null && draw.requireParticipation !== null
+    ? { weighted: Boolean(draw.weighted), requireParticipation: Boolean(draw.requireParticipation) }
+    : null
   return {
     raffleId: draw?.id ?? null,
     lottery,
     refreshAt: lottery?.phase === 'drawing' ? lottery.readyAt : null,
     candidates: pool.map(({ id, name, weight }) => ({ name, weight, won: id === draw?.winnerId })),
+    rules,
   }
 }
 
@@ -83,13 +88,13 @@ async function startDraw(env: ActivityEnv, latestId: number, weighted: boolean, 
         SELECT json_group_array(json_object('id', id, 'name', name, 'weight', weight)) AS candidates,
           COUNT(*) AS candidate_count FROM pool
       )
-      INSERT INTO meetup15_raffles (candidates, ready_at, finished_at)
-      SELECT candidates, ?, CASE WHEN candidate_count = 0 THEN ? END FROM snapshot
+      INSERT INTO meetup15_raffles (candidates, ready_at, finished_at, weighted, require_participation)
+      SELECT candidates, ?, CASE WHEN candidate_count = 0 THEN ? END, ?, ? FROM snapshot
       WHERE COALESCE((SELECT MAX(id) FROM meetup15_raffles), 0) = ?
         AND NOT EXISTS (SELECT 1 FROM meetup15_raffles WHERE finished_at IS NULL)
         AND EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND projection_mode = 'raffle' AND projection_raffle_id IS NULL)
       RETURNING id, finished_at AS finishedAt
-  `).bind(Number(weighted), cutoff, Number(requireParticipation), readyAt, now, latestId)
+  `).bind(Number(weighted), cutoff, Number(requireParticipation), readyAt, now, Number(weighted), Number(requireParticipation), latestId)
     .first<{ id: number; finishedAt: number | null }>()
   if (!draw) return failure(409, '抽奖状态已变化，请核对后重试。')
   const screen = updates(env)

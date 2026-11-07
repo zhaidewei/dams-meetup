@@ -140,6 +140,7 @@ it('keeps contact and message views private and commits one prize and message ac
     expect(draw?.winner_id).toBeNull()
     expect(await (await request('screen', admin)).json()).toMatchObject({
       mode: 'raffle', lottery: { phase: 'drawing', candidateCount: 2 },
+      rules: { weighted: true, requireParticipation: true },
     })
     await db.prepare("UPDATE meetup15_members SET display_name = '已改名', last_seen_at = 0 WHERE id IN ('alice','bob')").run()
     await db.prepare('UPDATE meetup15_raffles SET ready_at = ? WHERE id = ?').bind(Date.now() - 10, draw!.id).run()
@@ -167,12 +168,15 @@ it('keeps contact and message views private and commits one prize and message ac
     expect(await history.json()).toMatchObject({
       raffleId: draw!.id,
       lottery: { phase: 'winner', winner: winner?.name },
+      rules: { weighted: true, requireParticipation: true },
       candidates: expect.arrayContaining([
         { name: 'Alice', weight: 3, won: winner?.id === 'alice' },
         { name: 'Bob', weight: 1, won: winner?.id === 'bob' },
       ]),
     })
-    expect(await (await request('screen', admin)).json()).toMatchObject({ raffleId: second!.id })
+    expect(await (await request('screen', admin)).json()).toMatchObject({
+      raffleId: second!.id, rules: { weighted: false, requireParticipation: false },
+    })
     expect((await request('screen/admin', admin, { mode: 'raffle', raffleId: draw!.id, revision: 1 })).status).toBe(204)
     await db.prepare('UPDATE meetup15_raffles SET ready_at = ? WHERE id = ?').bind(Date.now() - 10, second!.id).run()
     expect((await request('raffle', admin, { action: 'finish' })).status).toBe(204)
@@ -185,7 +189,13 @@ it('keeps contact and message views private and commits one prize and message ac
     expect(await (await request('screen', admin)).json()).toMatchObject({ raffleId: second!.id })
     await db.prepare("UPDATE meetup15_members SET last_seen_at = 0").run()
     expect((await request('raffle', admin, { ...start, latestId: second!.id, weighted: false })).status).toBe(204)
-    expect(await (await request('screen', admin)).json()).toMatchObject({ lottery: { phase: 'empty' } })
+    expect(await (await request('screen', admin)).json()).toMatchObject({
+      lottery: { phase: 'empty' }, rules: { weighted: false, requireParticipation: true },
+    })
+    const legacy = await db.prepare("INSERT INTO meetup15_raffles (candidates, ready_at, finished_at) VALUES ('[]', ?, ?) RETURNING id")
+      .bind(now, now).first<number>('id')
+    expect(await (await request(`screen/preview?mode=raffle&raffleId=${legacy}`, admin)).json())
+      .toMatchObject({ lottery: { phase: 'empty' }, rules: null })
   } finally {
     await runtime.dispose()
   }

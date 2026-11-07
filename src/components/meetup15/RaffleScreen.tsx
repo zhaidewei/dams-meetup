@@ -1,5 +1,5 @@
 import type { ProjectionView } from '@/lib/meetup15/projection'
-import type { RaffleCandidateView } from '@/lib/meetup15/raffle'
+import { RAFFLE_ACTIVE_HOURS, RAFFLE_WEIGHT_RULE, type RaffleCandidateView } from '@/lib/meetup15/raffle'
 
 const CELL_WIDTH = 88
 const CELL_HEIGHT = 80
@@ -45,7 +45,7 @@ function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
 }
 
 export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, { mode: 'raffle' }>; compact: boolean }) {
-  const { lottery, candidates, raffleId } = data
+  const { lottery, candidates, raffleId, rules } = data
   return (
     <section aria-label="现场抽奖" className="overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#17473f,#061713_75%)]">
       <div className={compact ? 'space-y-2 p-3' : 'space-y-3 px-4 py-6'}>
@@ -62,6 +62,18 @@ export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, 
         {lottery?.phase === 'empty' && <p>本轮没有符合条件的候选人。</p>}
         {!lottery && <p>等待主持人开启抽奖</p>}
       </div>
+      <section aria-labelledby="raffle-rules-title" className={`mx-auto mb-3 w-fit max-w-[95%] space-y-1 rounded-lg bg-black/25 px-4 py-2 text-teal-50 ${compact ? 'text-xs' : 'text-base'}`}>
+        <h2 id="raffle-rules-title" className="font-semibold text-white">抽奖规则</h2>
+        <p>最近 {RAFFLE_ACTIVE_HOURS} 小时内活跃的观众可参加。嘉宾和本场已中奖者除外，每轮最多抽出 1 人。</p>
+        {rules ? (
+          <>
+            <p>{rules.requireParticipation ? '本轮要求至少发过一次帖或回复。' : '本轮无发帖或回复要求。'}</p>
+            <p>{rules.weighted ? `按互动加权。 ${RAFFLE_WEIGHT_RULE}` : '等概率抽取。每位候选人的中奖概率相同。'}</p>
+          </>
+        ) : (
+          <p>{raffleId === null ? '参与门槛和抽取方式由主持人设定。' : '该轮未记录参与门槛与抽取方式。'}</p>
+        )}
+      </section>
       {candidates.length > 0 && <RafflePool candidates={candidates} />}
     </section>
   )
