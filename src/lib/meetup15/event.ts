@@ -100,3 +100,17 @@ export function meetupSectionAt(now = Date.now()): MeetupSection {
   return MEETUP_AGENDA.find(({ start, end }) => agendaTime(start) <= now && now < agendaTime(end))
     ?.section ?? 'lounge'
 }
+
+export function isMeetupSection(value: unknown): value is MeetupSection {
+  return typeof value === 'string' && Object.hasOwn(MEETUP_SECTIONS, value)
+}
+
+export function nextMeetupSectionChange(now: number): number | null {
+  for (const slot of MEETUP_AGENDA) {
+    for (const time of [slot.start, slot.end]) {
+      const boundary = agendaTime(time)
+      if (boundary > now && meetupSectionAt(boundary - 1) !== meetupSectionAt(boundary)) return boundary
+    }
+  }
+  return null
+}

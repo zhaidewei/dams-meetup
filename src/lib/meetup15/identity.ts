@@ -64,3 +64,9 @@ export function equalSecret(received: string, expected: string) {
   const digest = (value: string) => createHash('sha256').update(value).digest()
   return timingSafeEqual(digest(received), digest(expected))
 }
+
+export function requestCookie(request: Request, name: string) {
+  return request.headers.get('Cookie')?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1)
+}

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { AdmissionScreen } from '@/components/meetup15/AdmissionScreen'
+import { DiscussionScreen } from '@/components/meetup15/DiscussionScreen'
 import { MEETUP_NAME, MEETUP_THEME } from '@/lib/meetup15/event'
 import { isMeetupAdmin } from '@/lib/meetup15/server'
 
@@ -13,7 +13,7 @@ export default async function ScreenPage() {
       <div className="space-y-7">
         <p className="text-lg">{MEETUP_NAME}</p>
         <h1 className="text-3xl font-semibold md:text-6xl">{MEETUP_THEME}</h1>
-        <AdmissionScreen />
+        <DiscussionScreen />
       </div>
     </main>
   )

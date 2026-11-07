@@ -3,17 +3,11 @@ import { ACTIVITY_ADMIN_COOKIE, signSessionCookie, verifySessionCookie } from '.
 import { ADMISSION_END, INTERACTION_END } from '../src/lib/meetup15/event'
 import {
   admissionCredentials, equalSecret, findMember, getMember, isAdmissionOpen,
-  matchesRecoveryToken, MEMBER_COOKIE,
+  matchesRecoveryToken, MEMBER_COOKIE, requestCookie,
 } from '../src/lib/meetup15/identity'
 import type { ActivityEnv } from './activity'
 
 const noStore = { 'Cache-Control': 'private, no-store' }
-
-function requestCookie(request: Request, name: string) {
-  return request.headers.get('Cookie')?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1)
-}
 
 function redirect(path: string) {
   return new Response(null, { status: 303, headers: { ...noStore, Location: path } })

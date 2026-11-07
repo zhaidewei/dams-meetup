@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { isMeetupAdmin } from '@/lib/meetup15/server'
+import { DiscussionAdmin } from '@/components/meetup15/DiscussionAdmin'
 import { ActivityControls } from './ActivityControls'
 
 export const metadata = { title: '第 15 期 Meetup · 主办方入场控制' }
@@ -17,6 +18,7 @@ export default async function ActivityAdminPage({
       {signedIn ? (
         <>
           <ActivityControls />
+          <DiscussionAdmin />
           <Link href="/screen" className="block text-sm underline">打开现场大屏</Link>
           <section className="space-y-3 border-t border-zinc-200 pt-5">
             <h2 className="text-lg font-semibold">配置嘉宾账号</h2>
