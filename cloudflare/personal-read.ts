@@ -32,7 +32,7 @@ export async function personalOverview(db: D1Database, member: Member): Promise<
       WHERE ${REPLY_TO_VIEWER} ORDER BY r.id DESC LIMIT 50
     `).bind(member.id, member.id),
     db.prepare(`
-      SELECT t.id, t.member_b IS NULL AS system,
+      SELECT t.id, other.id AS contactId, t.member_b IS NULL AS system,
         CASE WHEN t.member_b IS NULL THEN '主办方通知' ELSE COALESCE(other.display_name, '现场观众') END AS name,
         last.body, last.id AS latestId, EXISTS(SELECT 1 FROM meetup15_dm_messages m
           WHERE m.thread_id = t.id AND m.sender_id IS NOT ? AND m.id > MAX(COALESCE(v.read_through, 0), COALESCE(v.hidden_through, 0))) AS unread

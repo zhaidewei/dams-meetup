@@ -15,7 +15,6 @@ const views = { profile: '资料', posts: '我的帖子', replies: '收到的回
 
 export function PersonalPanel({ initialMessages }: { initialMessages: boolean }) {
   const [view, setView] = useState<View>(initialMessages ? 'messages' : 'profile')
-  const [thread, setThread] = useState<number | null>(null)
   const { data, pending, error, submit } = useDiscussion<PersonalSnapshot, PersonalCommand>('/api/personal', 'personal')
   const lastRead = useRef(0)
   const replyThrough = data?.replies.find(reply => reply.unread)?.id ?? 0
@@ -39,14 +38,12 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
 
   const unreadReplies = data.replies.some(reply => reply.unread)
   const unreadMessages = data.threads.some(item => item.unread)
-  const selected = data.threads.find(item => item.id === thread)
-  if (thread !== null && !selected) setThread(null)
   return (
     <div className="space-y-4">
       <nav className="flex flex-wrap gap-2" aria-label="个人页">
         {(Object.keys(views) as View[]).map((item) => (
           <button key={item} type="button" className={discussionButton} aria-pressed={view === item}
-            onClick={() => { setView(item); setThread(null) }}>
+            onClick={() => setView(item)}>
             {views[item]}{((item === 'replies' && unreadReplies) || (item === 'messages' && unreadMessages)) && ' · 有未读'}
           </button>
         ))}
@@ -68,22 +65,7 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
       )}
       {view === 'posts' && <PersonalItems items={data.posts} empty="你还没有发帖。" />}
       {view === 'replies' && <PersonalItems items={data.replies} empty="你还没有收到回复。" />}
-      {view === 'messages' && (selected
-        ? <Thread key={selected.id} summary={selected} onBack={() => setThread(null)} />
-        : <ul className="space-y-2">
-          {!data.threads.length && <li>你还没有私信。可以点讨论区里的头像发私信。</li>}
-          {data.threads.map(item => (
-            <li key={item.id}>
-              <button className={`${discussionButton} w-full text-left`} onClick={() => setThread(item.id)}>
-                <span className="block font-semibold">
-                  {Boolean(item.system) && <OfficialBadge />}
-                  {item.name}{Boolean(item.unread) && ' · 有未读'}
-                </span>
-                <span className="block truncate text-sm text-zinc-600">{item.body}</span>
-              </button>
-            </li>
-          ))}
-        </ul>)}
+      {view === 'messages' && <MessageList threads={data.threads} />}
     </div>
   )
 }
@@ -100,7 +82,52 @@ function PersonalItems({ items, empty }: { items: PersonalItem[]; empty: string 
   </ul>
 }
 
-function Thread({ summary, onBack }: { summary: ThreadSummary; onBack: () => void }) {
+function contactKey(thread: ThreadSummary) {
+  return thread.contactId ?? 'system'
+}
+
+function MessageList({ threads }: { threads: ThreadSummary[] }) {
+  const [openContact, setOpenContact] = useState<string | null>(null)
+  if (openContact !== null && !threads.some(thread => contactKey(thread) === openContact)) setOpenContact(null)
+
+  if (!threads.length) return <p>你还没有私信。可以点讨论区里的头像发私信。</p>
+  return (
+    <ul aria-label="私信联系人" className="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+      {threads.map(thread => {
+        const key = contactKey(thread)
+        const open = openContact === key
+        const panelId = `dm-contact-${thread.id}`
+        return (
+          <li key={key}>
+            <button type="button" aria-expanded={open} aria-controls={panelId}
+              className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-700 sm:px-4"
+              onClick={() => setOpenContact(open ? null : key)}>
+              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-100 text-sm font-semibold text-teal-900">
+                {thread.system ? '官' : Array.from(thread.name)[0]}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                  {Boolean(thread.system) && <OfficialBadge />}
+                  <span className="truncate">{thread.name}</span>
+                  {Boolean(thread.unread) && <span className="shrink-0 rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-800">未读</span>}
+                </span>
+                {!open && <span className="mt-0.5 block truncate text-sm text-zinc-600">{thread.body}</span>}
+              </span>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className={`size-5 shrink-0 text-zinc-500 ${open ? 'rotate-180' : ''}`}>
+                <path d="m5 8 5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <div id={panelId} hidden={!open}>
+              {open && <Thread summary={thread} onDelete={() => setOpenContact(current => current === key ? null : current)} />}
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function Thread({ summary, onDelete }: { summary: ThreadSummary; onDelete: () => void }) {
   const [pages, setPages] = useState<number[]>([])
   const lastRead = useRef(0)
   const lastShown = useRef(0)
@@ -117,22 +144,17 @@ function Thread({ summary, onBack }: { summary: ThreadSummary; onBack: () => voi
     }
   }, [before, shownThrough, submit, through])
   return (
-    <section className="space-y-3" aria-label="私信会话">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" className={discussionButton} onClick={onBack}>返回私信列表</button>
-        <button type="button" className={discussionButton} disabled={!data || !shownThrough || pending}
-          onClick={async () => {
-            if (await submit({ action: 'thread-delete', through: Math.max(lastShown.current, shownThrough) })) onBack()
-          }}>删除会话</button>
-      </div>
-      <h2 className="text-lg font-semibold">{Boolean(summary.system) && <OfficialBadge />}{summary.name}</h2>
+    <section className="space-y-3 border-t border-zinc-100 bg-zinc-50 px-3 py-3 sm:px-4" aria-label={`与 ${summary.name} 的私信`}>
       {error && <p role="alert">{error}</p>}
+      {!data && !error && <p role="status" className="text-sm text-zinc-600">正在读取私信…</p>}
       {data && <>
         <ul className="space-y-2">
           {data.messages.map(message => (
-            <li className="rounded border border-zinc-200 p-3" key={message.id}>
-              <p className="text-xs font-semibold">{data.system && <OfficialBadge />}{message.mine ? '我' : data.name}</p>
-              <p className="whitespace-pre-wrap break-words">{message.body}</p>
+            <li className={`flex ${message.mine ? 'justify-end' : 'justify-start'}`} key={message.id}>
+              <div className={`min-w-0 max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.mine ? 'bg-teal-100 text-teal-950' : 'border border-zinc-200 bg-white'}`}>
+                <span className="sr-only">{message.mine ? '我' : data.name}</span>
+                <p className="whitespace-pre-wrap wrap-anywhere">{message.body}</p>
+              </div>
             </li>
           ))}
         </ul>
@@ -143,6 +165,12 @@ function Thread({ summary, onBack }: { summary: ThreadSummary; onBack: () => voi
         {!before && !data.system && (data.named
           ? <DiscussionComposer label="私信正文" action="发送私信" pending={pending} onSubmit={(body) => submit({ action: 'send', body })} />
           : <p>先到<Link className="underline" href="/me">「我」填写昵称</Link>，即可发送私信。</p>)}
+        <div className="flex justify-end">
+          <button type="button" className="rounded px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-200 disabled:opacity-50"
+            disabled={!shownThrough || pending} onClick={async () => {
+              if (await submit({ action: 'thread-delete', through: Math.max(lastShown.current, shownThrough) })) onDelete()
+            }}>删除会话</button>
+        </div>
       </>}
     </section>
   )

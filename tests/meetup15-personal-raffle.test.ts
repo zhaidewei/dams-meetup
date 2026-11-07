@@ -103,6 +103,8 @@ it('keeps contact and message views private and commits one prize and message ac
     const [a, b] = await Promise.all([overview(alice), overview(bob)])
     const first = a.threads[0]
     expect(b.threads[0].id).toBe(first.id)
+    expect(first.contactId).toBe('bob')
+    expect(b.threads[0].contactId).toBe('alice')
     expect(first.unread).toBe(1)
     expect((await request(`personal?thread=${first.id}`, charlie)).status).toBe(404)
     expect((await thread(alice, first.id)).messages.map(message => message.body)).toEqual(['第一条', '第二条'])
@@ -116,6 +118,13 @@ it('keeps contact and message views private and commits one prize and message ac
     const lastId = (await overview(alice)).threads[0].latestId
     expect((await request(`personal?thread=${first.id}`, alice, { action: 'thread-delete', through: lastId })).status).toBe(204)
     expect((await overview(alice)).threads).toEqual([])
+    expect((await request('personal', charlie, { action: 'profile', name: 'Bob', contact: '', contactPublic: false, revision: 0 })).status).toBe(204)
+    expect((await request('personal?member=alice', bob, { action: 'send', body: 'Bob 的消息' })).status).toBe(204)
+    expect((await request('personal?member=alice', charlie, { action: 'send', body: '另一位 Bob 的消息' })).status).toBe(204)
+    expect((await overview(alice)).threads.map(({ contactId, name }) => ({ contactId, name }))).toEqual([
+      { contactId: 'charlie', name: 'Bob' },
+      { contactId: 'bob', name: 'Bob' },
+    ])
 
     expect((await request('screen/admin', admin, { mode: 'raffle', revision: 0 })).status).toBe(204)
     const start = { action: 'start', weighted: true, requireParticipation: true, latestId: 0 }
@@ -143,7 +152,7 @@ it('keeps contact and message views private and commits one prize and message ac
     })
     expect(await db.prepare('SELECT COUNT(*) FROM meetup15_dm_messages WHERE raffle_id IS NOT NULL').first<number>('COUNT(*)')).toBe(1)
     const notice = (await overview(member(winner!.id))).threads.find(item => item.system)
-    expect(notice).toMatchObject({ name: '主办方通知', unread: 1, body: expect.stringContaining('中奖') })
+    expect(notice).toMatchObject({ contactId: null, name: '主办方通知', unread: 1, body: expect.stringContaining('中奖') })
     expect((await request(`personal?thread=${notice!.id}`, charlie)).status).toBe(404)
     await db.prepare("UPDATE meetup15_members SET last_seen_at = ? WHERE id IN ('alice','bob','charlie')").bind(seconds).run()
     expect((await request('raffle', admin, { ...start, latestId: draw!.id, weighted: false, requireParticipation: false })).status).toBe(204)

@@ -13,6 +13,7 @@ export type PersonalItem = {
 
 export type ThreadSummary = {
   id: number
+  contactId: string | null
   name: string
   system: number
   body: string
