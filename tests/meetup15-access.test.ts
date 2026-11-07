@@ -6,7 +6,7 @@ import { admissionCredentials, MEMBER_COOKIE, recoveryPath } from '../src/lib/me
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 
 it('isolates members and gates both first-entry methods without blocking guests or recovery', async () => {
-  const now = Date.parse('2026-11-07T12:00:00Z')
+  const now = Date.now()
   const secret = 'fixture-session-secret-for-meetup-15-only'
   const origin = 'http://localhost'
   const admin = `${ACTIVITY_ADMIN_COOKIE}=${signSessionCookie(
@@ -16,7 +16,16 @@ it('isolates members and gates both first-entry methods without blocking guests 
     stdin: {
       contents: `
         import { handleMeetupAccess } from './cloudflare/meetup-access'
-        export default { fetch: (request, env) => handleMeetupAccess(request, env, ${now}) }
+        import { setAdmissionEnd } from './src/lib/meetup15/event'
+        export default {
+          fetch(request, env) {
+            if (request.headers.has('X-Test-Deadline-Passed')) {
+              setAdmissionEnd(${now} - 1000)
+              return handleMeetupAccess(request, env, ${now} - 2000)
+            }
+            return handleMeetupAccess(request, env, ${now})
+          }
+        }
       `,
       resolveDir: process.cwd(),
     },
@@ -24,6 +33,19 @@ it('isolates members and gates both first-entry methods without blocking guests 
     format: 'esm',
     platform: 'node',
     write: false,
+    plugins: [{
+      name: 'fixture-event-window',
+      setup(build) {
+        build.onLoad({ filter: /meetup15\/event\.ts$/ }, () => ({
+          contents: `
+            export let ADMISSION_END = ${now} + 60_000
+            export const INTERACTION_END = ${now} + 120_000
+            export function setAdmissionEnd(value) { ADMISSION_END = value }
+          `,
+          loader: 'js',
+        }))
+      },
+    }],
   })
   const runtime = new Miniflare(convertV4MiniflareOptions({
     modules: [{ type: 'ESModule', path: 'meetup.mjs', contents: bundled.outputFiles[0].text }],
@@ -37,9 +59,9 @@ it('isolates members and gates both first-entry methods without blocking guests 
     },
   }))
 
-  const post = (path: string, fields: Record<string, string>, cookie = '') =>
+  const post = (path: string, fields: Record<string, string>, cookie = '', extraHeaders = {}) =>
     runtime.dispatchFetch(`${origin}/api/meetup/${path}`, {
-      method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: cookie },
+      method: 'POST', redirect: 'manual', headers: { Origin: origin, Cookie: cookie, ...extraHeaders },
       body: new URLSearchParams(fields),
     })
   const screen = (cookie = '') => runtime.dispatchFetch(`${origin}/api/meetup/screen`, {
@@ -105,6 +127,13 @@ it('isolates members and gates both first-entry methods without blocking guests 
     expect((await post('recover', { id: id!, token: 'legacy' })).headers.get('Location')).toBe('/?entry=recovery')
     const old = `dams-uid=${signSessionCookie('dams-uid', id!, new Date(now + 60_000), secret)}`
     expect((await post('enter', manual, old)).headers.get('Location')).toBe('/?entry=closed')
+    // 请求开始时未截止，SQLite 执行时已截止，手动开关仍开启。
+    await db.prepare('UPDATE activity_state SET admission_open = 1').run()
+    for (const entry of [manual, qr]) {
+      const rejected = await post('enter', entry, '', { 'X-Test-Deadline-Passed': '1' })
+      expect(rejected.headers.get('Location')).toBe('/?entry=closed')
+      expect(cookie(rejected)).toBe('')
+    }
     expect((await db.prepare('SELECT COUNT(*) AS count FROM meetup15_members').first())?.count).toBe(3)
   } finally {
     await runtime.dispose()

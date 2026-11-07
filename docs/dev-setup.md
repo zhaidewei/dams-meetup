@@ -1,145 +1,40 @@
-# 本地开发环境
+# 第 15 期开发与发布
 
-> 适用：macOS + zsh + Node 20+。其它平台需自行替换 Keychain 部分。
+## 本机开发
 
----
-
-## 1. 一次性准备
-
-### 1.1 装依赖
+使用 Node.js 22。首次启动前安装锁定的依赖。
 
 ```bash
-cd ~/dams-meetup
-npm install
-```
-
-### 1.2 凭据放进 macOS Keychain
-
-不写 `.env.local`、不 commit 凭据。所有 secret 通过 `~/.local/bin/secret` 命令存到 Keychain。
-
-需要的条目（运行 `secret list` 查看）：
-
-| 名称 | 来源 |
-|---|---|
-| `dams-event-password` | 主办方设定的活动密码 |
-| `supabase-dams-url` | Supabase project URL |
-| `supabase-dams-anon` | Supabase `anon public` key |
-| `supabase-dams-srv` | Supabase `service_role` key |
-| `supabase-dams-public-key` | Supabase 新版 publishable key（暂未用） |
-| `supabase-dams-db-password` | Supabase DB 密码（仅 SQL Editor 用） |
-| `deepseek-dams-key` | DeepSeek API key（撮合用，未接） |
-
-新增条目：
-```bash
-secret add <name> "<描述>"
-# 交互式隐藏输入
-```
-
-### 1.3 应用 SQL migrations 到 Supabase
-
-migrations 在 `supabase/migrations/` 下：
-- `0001_schema.sql` — 主表
-- `0002_realtime.sql` — Realtime publication
-- `0003_vip_login.sql` — VIP 登录改造
-
-**目前是手动应用**：去 Supabase 控制台 → SQL Editor，按顺序粘贴执行。
-
-CLAUDE.md 已记录三份都已应用到生产 DB。
-
----
-
-## 2. 日常启动
-
-```bash
-cd ~/dams-meetup
-npm run dev   # 等价于 ./scripts/dev.sh
-```
-
-`scripts/dev.sh` 做的事：
-1. 检查 `secret` CLI 存在
-2. 从 Keychain 读出所有 secret，export 成环境变量
-3. export 非 secret 的 `NEXT_PUBLIC_EVENT_*`
-4. `exec npx next dev "$@"`
-
-启动后访问 `http://localhost:3000`，输密码进 `/feed`。
-
----
-
-## 3. 检查类命令
-
-```bash
-npm run typecheck    # tsc --noEmit
-npm run lint         # eslint
-```
-
----
-
-## 4. 常见坑
-
-### 4.1 Turbopack 检测到外部 workspace
-
-如果 dev 报 monorepo 相关错（找不到 next、workspace 冲突），原因是 home 目录有顶层 `package.json` / `node_modules` / `package-lock.json`。
-
-**已知 workaround**（CLAUDE.md "Known quirks" 节）：
-```bash
-mkdir -p ~/.home-pkg-backup
-mv ~/package.json ~/package-lock.json ~/node_modules ~/.home-pkg-backup/
-```
-
-dev 稳定后再考虑还原。
-
-### 4.2 改 env 后行为没变
-
-清掉 `.next` 缓存：
-```bash
-rm -rf .next
+npm ci
 npm run dev
 ```
 
-### 4.3 cookie 域名不对
+打开 `http://127.0.0.1:3000`。启动命令会把 `migrations/` 应用到本机 D1，构建 Worker 并监听回环地址。管理员在 `/admin` 使用测试密码 `dams-local-admin`。开闸后到 `/screen` 查看本机测试二维码和入场密码。启动和测试只需要本机的测试值。本机站点沿用本届活动时间，11 月 14 日 18:00 CET 后停止首次入场。自动化入场测试使用独立的测试时间，可在活动结束后继续运行。
 
-`.env.local` 模式跑 dev 时，cookie 默认 `secure=false`（因为 NODE_ENV=development）。如果用 ngrok / 域名代理，注意 secure 设置。
-
-### 4.4 看不到自己的帖子
-
-发完帖在 `/feed` 没看到？
-- F12 → Cookies → 检查 `dams-uid`
-- Supabase 控制台查 `posts` 表，是否新插入的 user_id 跟 cookie 一致
-- 多半是 ensureUser 没生效，看 server logs
-
----
-
-## 5. 常用 SQL 调试片段
-
-去 Supabase SQL Editor 跑：
-
-```sql
--- 全场用户数 + 在线（5min 内有动作）
-select count(*) total,
-       count(*) filter (where last_seen_at > now() - interval '5 min') online
-from users;
-
--- 最近 10 条帖子
-select id, type, body, created_at, user_id from posts
-order by created_at desc limit 10;
-
--- 我的帖子（替换 UID）
-select * from posts where user_id = '<uid>' order by created_at desc;
-
--- VIP 列表
-select username, vip_name, vip_title, user_id from vip_tokens;
-
--- 重置某个 VIP 绑定（测试用）
-update vip_tokens set user_id = null, used_at = null where username = 'xxx';
-```
-
----
-
-## 6. 测试
+本地 D1 默认保存在 `.wrangler/state`。可以用 `DAMS_DEV_STATE_DIR` 指向新目录以从空库开始，用 `DAMS_DEV_PORT` 指定空闲端口。修改源码后重启 `npm run dev` 以重新构建。`npm run preview` 使用同一条启动路径。
 
 ```bash
-npm test           # 跑 vitest
-npm run test:watch # 监听模式
+npm test
+npm run typecheck
+npm run lint
 ```
 
-详见 `docs/testing.md`（如果之后扩展）；当前测试范围见 `vitest.config.ts` + `*.test.ts` 文件。
+默认测试使用隔离的 D1 测试库。第 14 期 Supabase 连通性测试需显式执行 `DAMS_TEST_LEGACY_SUPABASE=1 npm test`。
+
+## 生产发布
+
+生产 Worker 为 `dams-meetup`，服务 `live.nl-dams.com`。在 Cloudflare 上确认 `ACTIVITY_DB` 绑定到 `dams-meetup-15`。管理员密码和会话签名密钥通过 Worker 的加密运行时变量 `ADMIN_TOKEN`、`SESSION_SECRET` 提供。
+
+1. 在合并前核对目标 D1 的待执行迁移。对本次发布新增的迁移，使用有权限的 Cloudflare 身份应用并回读。命令按数据库名称定位目标。 [Cloudflare D1 迁移](https://developers.cloudflare.com/d1/reference/migrations/)
+   ```bash
+   npx wrangler d1 migrations list dams-meetup-15 --remote
+   npx wrangler d1 migrations apply dams-meetup-15 --remote
+   npx wrangler d1 migrations list dams-meetup-15 --remote
+   npx wrangler d1 execute dams-meetup-15 --remote \
+     --command 'SELECT name FROM d1_migrations ORDER BY id; SELECT id, admission_open, revision FROM activity_state WHERE id = 1;'
+   ```
+   最后一次列表应显示没有待执行迁移，查询应返回对应的迁移记录及活动状态。活动开始前确认 `admission_open=0`。也可在同一个 D1 的 Cloudflare Console 执行只读回查。
+2. GitHub 检查通过后合并到 `main`，等待 Workers Builds 自动部署。部署列表应显示合并提交对应的 Worker 版本承接生产流量。自动发布不可用时，在确认同样的 D1 前置条件后从目标提交运行 `npm run deploy`。
+3. 在生产域名打开 `/agenda` 和 `/admin`，验证议程可公开浏览，并核对入场开关符合现场状态。
+
+第 14 期的 Supabase、旧凭据及重置流程保留在 [第 14 期上线手册归档](./next-event-bootstrap.md)。

@@ -1,35 +1,22 @@
 # dams-meetup
 
-荷兰华人数据群 Meetup 现场互动 app。Next.js 16 + Supabase + Cloudflare Workers。
-当前部署在 `live.nl-dams.com`，正处于「再见态」（所有 UI 路由 308 → `/summary`）。
-
-完整架构 / 开发笔记见：
-- [`CLAUDE.md`](./CLAUDE.md) — 架构决策、stack、踩坑记录、任务队列
-- [`docs/architecture.md`](./docs/architecture.md) / [`docs/schema.md`](./docs/schema.md)
-- [`docs/next-event-bootstrap.md`](./docs/next-event-bootstrap.md) — 把再见态翻回 live 活动的 10 步
-- [`docs/summary-2026-05-09/`](./docs/summary-2026-05-09/) — 第 14 期数据复盘归档
-
-## Dev
+荷兰华人数据社群 Meetup 现场互动站。第 15 期使用 Next.js、Cloudflare Workers、D1 和 Durable Objects。
 
 ```bash
-npm run dev     # scripts/dev.sh 自动从 macOS Keychain 注入 secrets
+npm ci
+npm run dev
+npm test
 ```
 
-### 登录 Cookie 与签名密钥
+本机开发和生产 D1 迁移见 [第 15 期开发与发布](./docs/dev-setup.md)。第 14 期的启动和重置步骤见 [上线手册归档](./docs/next-event-bootstrap.md)，历史结果见 [第 14 期活动复盘](./docs/summary-2026-05-09/)。
 
-管理员、活动准入和用户身份 Cookie 均使用 HMAC-SHA256 签名，绑定 Cookie 名和服务端校验的过期时间。旧的 `1` 标记和裸 UID 会被拒绝，需要重新登录；用户可用已有恢复链接或 VIP 凭据恢复身份。
-
-开发前，使用本机 `secret` CLI 配置 `dams-session-secret`，保存至少 32 字节的独立随机密钥。`scripts/dev.sh` 在启动时读取为 `SESSION_SECRET`。禁止复用公开的活动密码、管理员口令，或写入 `.env`、源码和日志。缺失或过短的密钥会拒绝认证和签发 Cookie。
-
-未来发布前，需经发布授权运行 `scripts/cf-secrets-push.sh`，将它配置为 Worker 的运行时 secret `SESSION_SECRET`。密钥无需注入客户端或构建变量。轮换密钥会让所有旧会话失效；下一届活动应轮换密钥。代码审阅和本地测试不需要生产密钥。
-
-### 构建依赖约束
+## 构建依赖约束
 
 `package.json` 对 `@node-minify/core` 的 `glob` 使用同主版本 `^10.5.0` 覆盖，修复 OpenNext 构建链旧版 `glob` CLI 的命令注入公告。更新或移除覆盖前，应重新检查锁文件及 `npm audit --omit=dev`。
 
-## 数据库 reset / 重建
+## 第 14 期 Supabase 数据库归档
 
-### 隐私修复迁移（待发布）
+### 历史隐私修复迁移
 
 `0028_private_contacts_and_poll_results.sql` 在公开视图中隐藏未公开的联系方式，并将浏览器角色对该视图的权限限定为只读，防止改写隐私开关；撤销原始选票访问，将选票 Realtime 广播替换为公开帖子的刷新时间。服务端同时在返回 feed／私信资料前脱敏，投票计数仅在已投票、已截止或结果公开时返回；投影页在不可见时显示截止后公布结果，不显示虚假零票。
 
