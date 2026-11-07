@@ -26,8 +26,8 @@ it('keeps contact and message views private and commits one prize and message ac
         export { ActivityUpdates } from './cloudflare/activity'
         export default { fetch(request, env) {
           const path = new URL(request.url).pathname
-          if (path.startsWith('/api/personal')) return handlePersonal(request, env, ${now})
-          if (path === '/api/raffle') return handleRaffle(request, env, ${now})
+          if (path.startsWith('/api/personal')) return handlePersonal(request, env, () => ${now})
+          if (path === '/api/raffle') return handleRaffle(request, env, () => ${now})
           return handleProjection(request, env)
         } }
       `,

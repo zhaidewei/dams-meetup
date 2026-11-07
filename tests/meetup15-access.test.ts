@@ -21,9 +21,9 @@ it('isolates members and gates both first-entry methods without blocking guests 
           fetch(request, env) {
             if (request.headers.has('X-Test-Deadline-Passed')) {
               setAdmissionEnd(${now} - 1000)
-              return handleMeetupAccess(request, env, ${now} - 2000)
+              return handleMeetupAccess(request, env, () => ${now} - 2000)
             }
-            return handleMeetupAccess(request, env, ${now})
+            return handleMeetupAccess(request, env, () => ${now})
           }
         }
       `,
@@ -74,7 +74,7 @@ it('isolates members and gates both first-entry methods without blocking guests 
 
   try {
     const db = await runtime.getD1Database('ACTIVITY_DB')
-    const filenames = ['0001_activity_state.sql', '0002_meetup15_members.sql']
+    const filenames = ['0001_activity_state.sql', '0002_meetup15_members.sql', '0009_meetup15_summary.sql']
     for (const file of filenames) {
       const sql = await readFile(`migrations/${file}`, 'utf8')
       await db.batch(sql.split(';').map((statement) => statement.trim()).filter(Boolean)

@@ -92,6 +92,7 @@ async function startDraw(env: ActivityEnv, latestId: number, weighted: boolean, 
       SELECT candidates, ?, CASE WHEN candidate_count = 0 THEN ? END, ?, ? FROM snapshot
       WHERE COALESCE((SELECT MAX(id) FROM meetup15_raffles), 0) = ?
         AND NOT EXISTS (SELECT 1 FROM meetup15_raffles WHERE finished_at IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
         AND EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND projection_mode = 'raffle' AND projection_raffle_id IS NULL)
       RETURNING id, finished_at AS finishedAt
   `).bind(Number(weighted), cutoff, Number(requireParticipation), readyAt, now, Number(weighted), Number(requireParticipation), latestId)
@@ -138,7 +139,7 @@ export async function finishPendingRaffle(env: ActivityEnv, now = Date.now()) {
   return null
 }
 
-export async function handleRaffle(request: Request, env: ActivityEnv, now = Date.now()) {
+export async function handleRaffle(request: Request, env: ActivityEnv, clock = Date.now) {
   const url = new URL(request.url)
   if (verifySessionCookie(ACTIVITY_ADMIN_COOKIE, requestCookie(request, ACTIVITY_ADMIN_COOKIE), env.SESSION_SECRET) !== '1') {
     return failure(401, '请重新登录后继续。')
@@ -151,6 +152,7 @@ export async function handleRaffle(request: Request, env: ActivityEnv, now = Dat
     await updates(env).resolveRaffle()
     return new Response(null, { status: 204, headers })
   }
+  const now = clock()
   if (now >= INTERACTION_END) return failure(409, '本届互动区已关闭。')
   if (input?.action !== 'start' || typeof input.weighted !== 'boolean' ||
       typeof input.requireParticipation !== 'boolean' || typeof input.latestId !== 'number' ||

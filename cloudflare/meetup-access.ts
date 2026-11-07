@@ -43,13 +43,14 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
     return redirect('/admin/activity?guest=invalid')
   }
   const salt = randomBytes(16).toString('hex')
-  await env.ACTIVITY_DB.prepare(
+  const saved = await env.ACTIVITY_DB.prepare(
     `INSERT INTO meetup15_members (id, role, display_name, title, username, password_hash)
-     VALUES (?, 'guest', ?, ?, ?, ?)
+     SELECT ?, 'guest', ?, ?, ?, ?
+     WHERE NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
      ON CONFLICT (username) DO UPDATE SET
        display_name = excluded.display_name, title = excluded.title, password_hash = excluded.password_hash`,
   ).bind(randomUUID(), displayName, title || null, username, `${salt}:${guestHash(password, salt)}`).run()
-  return redirect('/admin/activity?guest=saved')
+  return redirect(saved.meta.changes ? '/admin/activity?guest=saved' : '/?entry=ended')
 }
 
 async function loginGuest(form: FormData, env: ActivityEnv, secret: string) {
@@ -89,7 +90,7 @@ async function enter(
   return member ? memberRedirect(member.id, secret) : redirect('/?entry=closed')
 }
 
-export async function handleMeetupAccess(request: Request, env: ActivityEnv, now = Date.now()) {
+export async function handleMeetupAccess(request: Request, env: ActivityEnv, clock = Date.now) {
   const url = new URL(request.url)
   const action = url.pathname.slice('/api/meetup/'.length)
   const secret = env.SESSION_SECRET
@@ -99,7 +100,7 @@ export async function handleMeetupAccess(request: Request, env: ActivityEnv, now
   if (action === 'screen') {
     if (request.method !== 'GET') return new Response(null, { status: 405 })
     if (!admin || !secret) return new Response(null, { status: 401, headers: noStore })
-    if (!await isAdmissionOpen(env, now)) return Response.json({ open: false }, { headers: noStore })
+    if (!await isAdmissionOpen(env, clock())) return Response.json({ open: false }, { headers: noStore })
     const { password, qr } = admissionCredentials(secret)
     const qrPath = `/auto-login#${new URLSearchParams({ qr })}`
     return Response.json({ open: true, password, qrPath }, { headers: noStore })
@@ -112,7 +113,7 @@ export async function handleMeetupAccess(request: Request, env: ActivityEnv, now
   if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
   if (action === 'guests' && !admin) return new Response(null, { status: 401 })
   if (!secret) return new Response(null, { status: 503 })
-  if (now >= INTERACTION_END) return redirect('/?entry=ended')
+  if (clock() >= INTERACTION_END) return redirect('/?entry=ended')
 
   if (action !== 'guests') {
     const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
@@ -124,6 +125,8 @@ export async function handleMeetupAccess(request: Request, env: ActivityEnv, now
   }
   const form = await request.formData().catch(() => null)
   if (!form) return new Response(null, { status: 400 })
+  const now = clock()
+  if (now >= INTERACTION_END) return redirect('/?entry=ended')
   if (action === 'guests') return registerGuest(form, env)
   if (action === 'guest-login') return loginGuest(form, env, secret)
   if (action === 'enter') return enter(form, env, secret, request, now)

@@ -9,6 +9,7 @@ export const MEMBER_COOKIE = 'dams-meetup-15-member'
 export type MeetupEnv = {
   ACTIVITY_DB: D1Database
   SESSION_SECRET?: string
+  DAMS_LOCAL_MEETUP_TIME?: string
 }
 
 export type Member = {

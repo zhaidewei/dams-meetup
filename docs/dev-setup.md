@@ -13,6 +13,8 @@ npm run dev
 
 本地 D1 默认保存在 `.wrangler/state`。可以用 `DAMS_DEV_STATE_DIR` 指向新目录以从空库开始，用 `DAMS_DEV_PORT` 指定空闲端口。修改源码后重启 `npm run dev` 以重新构建。`npm run preview` 使用同一条启动路径。
 
+验收会后边界时，给本机启动命令加上 `DAMS_LOCAL_MEETUP_TIME=2026-11-14T18:00:00+01:00` 或 `DAMS_LOCAL_MEETUP_TIME=2026-11-21T18:00:00+01:00`。使用独立的本机 D1 测试上传和清理。
+
 ```bash
 npm test
 npm run typecheck
@@ -38,3 +40,9 @@ npm run lint
 3. 在生产域名打开 `/agenda` 和 `/admin`，验证议程可公开浏览，并核对入场开关符合现场状态。
 
 第 14 期的 Supabase、旧凭据及重置流程保留在 [第 14 期上线手册归档](./next-event-bootstrap.md)。
+
+## 会后复盘与归档
+
+- `/summary` 指向最新一期，当前是 `/summary/15`。第 14 期复盘固定在 `/summary/14`。
+- 活动结束后，在主办方控制台的「复盘与归档」上传自行制作的 JSON。支持 `attendees`、`posts`、`replies`、`questions` 和 `raffleRounds`，可只提供其中部分字段，值须为非负整数。
+- 互动关闭后打开公开复盘核对，确认归档，再点击「清理本届互动数据」。清理后保留公开复盘和默认关闭的活动状态。正式开闸前的彩排与压测数据清理另行验收。

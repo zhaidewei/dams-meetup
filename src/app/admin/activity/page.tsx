@@ -3,6 +3,7 @@ import { isMeetupAdmin } from '@/lib/meetup15/server'
 import { DiscussionAdmin } from '@/components/meetup15/DiscussionAdmin'
 import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
+import { SummaryControls } from './SummaryControls'
 
 export const metadata = { title: '第 15 期 Meetup · 主办方控制台' }
 
@@ -12,14 +13,15 @@ const ADMIN_TABS = {
   agenda: '议程',
   qa: '嘉宾问答',
   guests: '嘉宾',
+  summary: '复盘与归档',
 } as const
 
 export default async function ActivityAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; guest?: string; tab?: string }>
+  searchParams: Promise<{ error?: string; guest?: string; tab?: string; summary?: string }>
 }) {
-  const [signedIn, { error, guest, tab }] = await Promise.all([isMeetupAdmin(), searchParams])
+  const [signedIn, { error, guest, tab, summary }] = await Promise.all([isMeetupAdmin(), searchParams])
   const selected = tab && Object.hasOwn(ADMIN_TABS, tab) ? tab : guest ? 'guests' : 'screen'
 
   return (
@@ -42,6 +44,7 @@ export default async function ActivityAdminPage({
           {selected === 'entry' && <ActivityControls />}
           {selected === 'agenda' && <DiscussionAdmin view="agenda" />}
           {selected === 'qa' && <DiscussionAdmin view="qa" />}
+          {selected === 'summary' && <SummaryControls status={summary} />}
           {selected === 'guests' && <section className="max-w-lg space-y-3">
             <h2 className="text-lg font-semibold">配置嘉宾账号</h2>
             <p className="text-sm text-zinc-600">用相同用户名保存，会更新姓名、头衔和密码，保留嘉宾身份。</p>
