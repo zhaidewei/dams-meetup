@@ -27,7 +27,10 @@ export function AdmissionScreen() {
     let timer: ReturnType<typeof setTimeout>
     async function read() {
       try {
-        const response = await fetch('/api/meetup/screen', { cache: 'no-store', signal: controller.signal })
+        const response = await fetch('/api/meetup/screen', {
+          cache: 'no-store',
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(3000)]),
+        })
         const next = response.ok ? await response.json<ScreenState>() : { open: false } as const
         if (!controller.signal.aborted) setState(next)
       } catch {

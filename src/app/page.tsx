@@ -42,7 +42,14 @@ export default async function HomePage({ searchParams }: {
             </div>
           </form>
         ) : (
-          <p>{phase !== 'event' ? '观众入场已结束。' : '观众入口暂未开放。'}</p>
+          <>
+            <p>{phase !== 'event' ? '观众入场已结束。' : '观众入口暂未开放。'}</p>
+            {phase === 'event' && (
+              <form action="/">
+                <button className="text-sm font-medium text-teal-900 underline">刷新入场状态</button>
+              </form>
+            )}
+          </>
         )}
         <p className="flex flex-wrap gap-4 text-sm">
           {phase !== 'closed' && <Link href="/vip-login" className="underline">嘉宾登录</Link>}
