@@ -5,6 +5,9 @@ import type { Member } from '../src/lib/meetup15/identity'
 import { isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
 
 const PAGE_SIZE = 30
+const ROUNDS = `
+  SELECT r.id, m.display_name AS guest, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt
+  FROM meetup15_qa_rounds r JOIN meetup15_members m ON m.id = r.guest_id`
 const ITEM_FIELDS = `
   d.id, d.kind, COALESCE(m.display_name, '现场观众') AS author,
   d.author_id = ? AS mine, d.body, d.tags,
@@ -28,10 +31,7 @@ function item(row: ItemRow): DiscussionItem {
 async function readContext(db: D1Database, now: number) {
   const [settings, rounds] = await db.batch([
     db.prepare('SELECT section_override FROM activity_state WHERE id = 1'),
-    db.prepare(`
-      SELECT r.id, m.display_name AS guest, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt
-      FROM meetup15_qa_rounds r JOIN meetup15_members m ON m.id = r.guest_id
-      ORDER BY r.id DESC`),
+    db.prepare(`${ROUNDS} ORDER BY r.id DESC`),
   ])
   const override = (settings.results[0] as { section_override?: unknown } | undefined)?.section_override
   const section = isMeetupSection(override) ? override : null
@@ -87,14 +87,17 @@ export async function readFeed(db: D1Database, member: Member, url: URL, now: nu
   return { ...context, nickname: member.display_name, section, viewedRound, questions, items: items.map(item), nextBefore }
 }
 
-export async function readStaff(db: D1Database, now: number, view: 'admin' | 'screen'): Promise<StaffSnapshot> {
+export async function readDiscussionAdmin(db: D1Database, now: number): Promise<StaffSnapshot> {
   const context = await readContext(db, now)
   const [questions, guests] = await Promise.all([
     readQuestions(db, context.activeRound, ''),
-    view === 'admin'
-      ? db.prepare("SELECT id, display_name AS name FROM meetup15_members WHERE role = 'guest' ORDER BY name, id")
-        .all<StaffSnapshot['guests'][number]>().then((result) => result.results)
-      : [],
+    db.prepare("SELECT id, display_name AS name FROM meetup15_members WHERE role = 'guest' ORDER BY name, id")
+      .all<StaffSnapshot['guests'][number]>(),
   ])
-  return { ...context, viewedRound: context.activeRound, questions, guests }
+  return { ...context, viewedRound: context.activeRound, questions, guests: guests.results }
+}
+
+export async function readActiveQa(db: D1Database) {
+  const round = await db.prepare(`${ROUNDS} WHERE r.closed_at IS NULL`).first<QuestionRound>()
+  return round ? { round, questions: await readQuestions(db, round, '') } : null
 }

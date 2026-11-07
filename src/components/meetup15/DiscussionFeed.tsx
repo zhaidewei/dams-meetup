@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import type { DiscussionItem, FeedSnapshot, MemberCommand } from '@/lib/meetup15/discussion'
 import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
+import { PollFeed } from './PollFeed'
 import { useDiscussion } from './useDiscussion'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
@@ -134,6 +135,7 @@ export function DiscussionFeed() {
       </nav>
       <p className="text-sm text-zinc-600">现场板块 · {MEETUP_SECTIONS[data.currentSection]}</p>
       <h2 className="text-xl font-semibold">{MEETUP_SECTIONS[data.section]}</h2>
+      <PollFeed section={data.section} />
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {!named && (
         <form className="space-y-2 rounded border border-zinc-200 p-3" onSubmit={setNickname}>

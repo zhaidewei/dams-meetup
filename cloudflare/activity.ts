@@ -2,6 +2,7 @@
 
 import { DurableObject } from 'cloudflare:workers'
 import { ADMISSION_END } from '../src/lib/meetup15/event'
+import type { PollUpdate } from '../src/lib/meetup15/polls'
 import { loginActivityAdmin } from './activity-session'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -27,9 +28,9 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
     return new Response(null, { status: 101, webSocket: client })
   }
 
-  publish(): void {
+  publish(event: 'activity.updated' | PollUpdate = 'activity.updated'): void {
     for (const socket of this.ctx.getWebSockets()) {
-      if (socket.readyState === WebSocket.OPEN) socket.send('activity.updated')
+      if (socket.readyState === WebSocket.OPEN) socket.send(event)
     }
   }
 

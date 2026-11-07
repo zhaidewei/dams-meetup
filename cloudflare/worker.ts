@@ -5,6 +5,7 @@ import { handleActivityRequest, type ActivityEnv } from './activity'
 
 import { handleMeetupAccess } from './meetup-access'
 import { handleDiscussion } from './meetup-discussion'
+import { handlePolls } from './meetup-polls'
 
 export { ActivityUpdates } from './activity'
 
@@ -19,6 +20,7 @@ const worker = {
     if (pathname === '/api/discussion' || pathname.startsWith('/api/discussion/')) {
       return handleDiscussion(request, env)
     }
+    if (pathname === '/api/polls' || pathname.startsWith('/api/polls/')) return handlePolls(request, env)
     return next.fetch(request, env, context)
   },
 }

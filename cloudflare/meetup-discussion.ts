@@ -2,7 +2,7 @@ import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { getMember, MEMBER_COOKIE, requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
-import { readFeed, readStaff } from './discussion-read'
+import { readFeed, readDiscussionAdmin } from './discussion-read'
 import { writeMember, writeStaff } from './discussion-write'
 
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -26,8 +26,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   const view = path === '/api/discussion/admin' ? 'admin'
-    : path === '/api/discussion/screen' ? 'screen'
-      : path === '/api/discussion' ? 'feed' : null
+    : path === '/api/discussion' ? 'feed' : null
   if (!view) return new Response(null, { status: 404, headers })
   const member = view === 'feed' ? await getMember(env, requestCookie(request, MEMBER_COOKIE), now) : null
   if (view === 'feed' ? !member : !admin) {
@@ -35,11 +34,16 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   if (request.method === 'GET') {
+    if (member) {
+      const seenAt = Math.floor(now / 1000)
+      await db.prepare('UPDATE meetup15_members SET last_seen_at = ? WHERE id = ? AND COALESCE(last_seen_at, 0) <= ?')
+        .bind(seenAt, member.id, seenAt - 30).run()
+    }
     const snapshot = member ? await readFeed(db, member, url, now)
-      : await readStaff(db, now, view === 'admin' ? 'admin' : 'screen')
+      : await readDiscussionAdmin(db, now)
     return Response.json(snapshot, { headers })
   }
-  if (request.method !== 'POST' || view === 'screen') {
+  if (request.method !== 'POST') {
     return new Response(null, { status: 405, headers })
   }
   if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403, headers })
