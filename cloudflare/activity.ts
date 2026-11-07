@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { DurableObject } from 'cloudflare:workers'
+import { ADMISSION_END } from '../src/lib/meetup15/event'
 import { loginActivityAdmin } from './activity-session'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -10,6 +11,7 @@ export interface ActivityEnv {
   SESSION_SECRET?: string
   ADMIN_TOKEN?: string
   ACTIVITY_LOGIN_LIMIT: RateLimit
+  ACTIVITY_ENTRY_LIMIT: RateLimit
 }
 
 type ActivityState = { admission_open: number; revision: number }
@@ -40,7 +42,7 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
   }
 }
 
-export async function handleActivityRequest(request: Request, env: ActivityEnv): Promise<Response> {
+export async function handleActivityRequest(request: Request, env: ActivityEnv, now = Date.now()): Promise<Response> {
   const url = new URL(request.url)
   if (url.pathname === '/api/activity/session') return loginActivityAdmin(request, env)
 
@@ -65,6 +67,7 @@ export async function handleActivityRequest(request: Request, env: ActivityEnv):
     const body = await request.json<{ admissionOpen?: unknown }>().catch(() => null)
     if (typeof body?.admissionOpen !== 'boolean') return new Response(null, { status: 400 })
 
+    if (body.admissionOpen && now >= ADMISSION_END) return new Response(null, { status: 409 })
     const open = Number(body.admissionOpen)
     updated = await env.ACTIVITY_DB.prepare(
       `UPDATE activity_state SET admission_open = ?, revision = revision + 1
@@ -90,7 +93,7 @@ export async function handleActivityRequest(request: Request, env: ActivityEnv):
   }
 
   return Response.json(
-    { admissionOpen: state.admission_open === 1, revision: state.revision },
+    { admissionOpen: state.admission_open === 1 && now < ADMISSION_END, revision: state.revision },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

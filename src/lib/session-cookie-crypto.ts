@@ -33,6 +33,7 @@ export function verifySessionCookie(
   name: string,
   token: string | undefined,
   key: string | undefined,
+  now = Date.now(),
 ): string | null {
   if (!validKey(key) || !token || token.length > MAX_TOKEN_LENGTH) return null
   const parts = token.split('.')
@@ -49,7 +50,7 @@ export function verifySessionCookie(
     if (!data || typeof data !== 'object') return null
     const { value, expiresAt } = data as Record<string, unknown>
     if (typeof value !== 'string' || !value || !Number.isSafeInteger(expiresAt)) return null
-    if ((expiresAt as number) <= Date.now()) return null
+    if ((expiresAt as number) <= now) return null
     return value
   } catch {
     return null

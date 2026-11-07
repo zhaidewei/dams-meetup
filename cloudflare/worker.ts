@@ -3,6 +3,8 @@
 import next from '../.open-next/worker.js'
 import { handleActivityRequest, type ActivityEnv } from './activity'
 
+import { handleMeetupAccess } from './meetup-access'
+
 export { ActivityUpdates } from './activity'
 
 const worker = {
@@ -12,6 +14,7 @@ const worker = {
         pathname === '/api/activity/session') {
       return handleActivityRequest(request, env)
     }
+    if (pathname.startsWith('/api/meetup/')) return handleMeetupAccess(request, env)
     return next.fetch(request, env, context)
   },
 }
