@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID, scryptSync } from 'node:crypto'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie, verifySessionCookie } from '../src/lib/session-cookie-crypto'
-import { INTERACTION_END } from '../src/lib/meetup15/event'
+import { ADMISSION_END, INTERACTION_END } from '../src/lib/meetup15/event'
 import {
   admissionCredentials, equalSecret, findMember, getMember, isAdmissionOpen,
   matchesRecoveryToken, MEMBER_COOKIE,
@@ -85,12 +85,13 @@ async function enter(
     method === 'password' && equalSecret(value.replace(/[\s-]/g, '').toUpperCase(), password.replaceAll('-', ''))
   if (!valid) return redirect('/?entry=invalid')
 
-  // 在插入身份的同一条 SQL 检查开关，避免验证凭据期间关闸后仍创建新身份。
+  // 插入时同时检查手动开关和数据库当前时间，覆盖关闸或跨截止时间的在途请求。
   const member = await env.ACTIVITY_DB.prepare(
     `INSERT INTO meetup15_members (id, role)
-     SELECT ?, 'attendee' FROM activity_state WHERE id = 1 AND admission_open = 1
+     SELECT ?, 'attendee' FROM activity_state
+     WHERE id = 1 AND admission_open = 1 AND unixepoch() < ?
      RETURNING id`,
-  ).bind(randomUUID()).first<{ id: string }>()
+  ).bind(randomUUID(), ADMISSION_END / 1000).first<{ id: string }>()
   return member ? memberRedirect(member.id, secret) : redirect('/?entry=closed')
 }
 

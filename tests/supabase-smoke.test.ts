@@ -3,8 +3,7 @@ import { describe, it, expect } from 'vitest'
 // Smoke test: verify SUPABASE_URL + SERVICE_ROLE_KEY actually reach a live DB.
 // Skipped automatically when env vars are missing (CI without secrets).
 //
-// To run locally with env loaded: `npm test` (uses scripts/test.sh which injects
-// secrets from macOS Keychain). Plain `vitest run` will skip this test.
+// 第 14 期连通性回查使用 `DAMS_TEST_LEGACY_SUPABASE=1 npm test`。
 
 const haveEnv =
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&

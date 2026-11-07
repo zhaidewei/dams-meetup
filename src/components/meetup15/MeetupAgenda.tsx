@@ -28,9 +28,9 @@ export function MeetupAgenda() {
     <section aria-labelledby="agenda-title" className="space-y-5">
       <h2 id="agenda-title" className="text-2xl font-semibold">活动议程</h2>
       <ol className="divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-        {MEETUP_AGENDA.map(({ time, title, details }) => (
-          <li key={time} className="grid gap-2 px-5 py-4 sm:grid-cols-[8rem_1fr]">
-            <span className="text-sm font-medium tabular-nums text-teal-800">{time}</span>
+        {MEETUP_AGENDA.map(({ start, end, title, details }) => (
+          <li key={start} className="grid gap-2 px-5 py-4 sm:grid-cols-[8rem_1fr]">
+            <span className="text-sm font-medium tabular-nums text-teal-800">{start}–{end}</span>
             <div className="space-y-2">
               <h3 className="font-semibold">{title}</h3>
               {details && (

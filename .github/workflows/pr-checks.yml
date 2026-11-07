@@ -26,5 +26,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test (vitest; Supabase smoke self-skips without env)
+      - name: Test (Vitest and local D1)
         run: npm test
