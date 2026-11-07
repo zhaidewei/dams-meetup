@@ -3,6 +3,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { ADMISSION_END } from '../src/lib/meetup15/event'
 import { loginActivityAdmin } from './activity-session'
+import { finishPendingRaffle } from './meetup-raffle'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 
 export interface ActivityEnv {
@@ -33,11 +34,30 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
     }
   }
 
+  async scheduleRaffle(readyAt: number): Promise<void> {
+    const alarm = await this.ctx.storage.getAlarm()
+    if (alarm === null || readyAt < alarm) await this.ctx.storage.setAlarm(readyAt)
+  }
+
+  async resolveRaffle(): Promise<void> {
+    const readyAt = await finishPendingRaffle(this.env)
+    if (readyAt !== null) await this.scheduleRaffle(readyAt)
+    else this.publish('screen.updated')
+  }
+
+  async alarm(): Promise<void> {
+    await this.resolveRaffle()
+  }
+
   webSocketMessage(socket: WebSocket): void {
     socket.close(1008, 'Read-only stream')
   }
 
   webSocketClose(socket: WebSocket, code: number, reason: string): void {
+    if (code === 1005 || code === 1006 || code === 1015) {
+      socket.close()
+      return
+    }
     socket.close(code, reason)
   }
 }

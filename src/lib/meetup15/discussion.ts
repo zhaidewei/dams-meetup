@@ -6,6 +6,7 @@ export type DiscussionItem = {
   id: number
   kind: 'post' | 'reply' | 'question'
   author: string
+  authorId: string
   mine: boolean
   body: string
   tags: string[]

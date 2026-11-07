@@ -4,6 +4,7 @@ import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/
 import type { ProjectionView } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
 import { useDiscussion } from './useDiscussion'
+import { useRaffleResolution } from './useRaffleResolution'
 
 export function ScreenContent({ data, compact = false }: { data: ProjectionView; compact?: boolean }) {
   if (data.mode === 'hidden') return null
@@ -51,9 +52,12 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
       {data.mode === 'raffle' && (
         <section aria-label="现场抽奖" className="space-y-4">
           <h1 className={heading}>现场抽奖</h1>
-          {data.lottery?.phase === 'winner'
-            ? <p className="break-words">恭喜 {data.lottery.winner}！</p>
-            : <p>{data.lottery?.phase === 'drawing' ? '抽奖进行中' : '等待主持人开启抽奖'}</p>}
+          {data.lottery?.phase === 'winner' && <p className="break-words">恭喜 {data.lottery.winner}！</p>}
+          {data.lottery?.phase === 'drawing' && (
+            <p className="motion-safe:animate-pulse">抽奖进行中 · {data.lottery.candidateCount} 位候选人</p>
+          )}
+          {data.lottery?.phase === 'empty' && <p>本轮没有符合条件的候选人。</p>}
+          {!data.lottery && <p>等待主持人开启抽奖</p>}
         </section>
       )}
     </div>
@@ -62,5 +66,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
 
 export function MeetupScreen() {
   const { data } = useDiscussion<ProjectionView>('/api/screen', 'projection')
+  const readyAt = data?.mode === 'raffle' && data.lottery?.phase === 'drawing' ? data.lottery.readyAt : null
+  useRaffleResolution(readyAt)
   return data ? <ScreenContent data={data} /> : null
 }

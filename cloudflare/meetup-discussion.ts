@@ -34,11 +34,6 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   if (request.method === 'GET') {
-    if (member) {
-      const seenAt = Math.floor(now / 1000)
-      await db.prepare('UPDATE meetup15_members SET last_seen_at = ? WHERE id = ? AND COALESCE(last_seen_at, 0) <= ?')
-        .bind(seenAt, member.id, seenAt - 30).run()
-    }
     const snapshot = member ? await readFeed(db, member, url, now)
       : await readDiscussionAdmin(db, now)
     return Response.json(snapshot, { headers })

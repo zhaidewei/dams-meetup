@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { DiscussionFeed } from '@/components/meetup15/DiscussionFeed'
 import { MeetupNav } from '@/components/meetup15/MeetupAgenda'
+import { MeetupPresence } from '@/components/meetup15/MeetupPresence'
 import { currentMember } from '@/lib/meetup15/server'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,7 @@ export default async function FeedPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-5 py-8">
+      <MeetupPresence />
       <MeetupNav />
       <h1 className="text-2xl font-semibold">第 15 期互动区</h1>
       <p role="status">{member.role === 'guest'

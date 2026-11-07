@@ -6,6 +6,7 @@ import { PROJECTION_MODES, type ProjectionAdminSnapshot, type ProjectionCommand,
   type ProjectionSelection, type ProjectionView } from '@/lib/meetup15/projection'
 import { discussionButton, discussionInput } from './DiscussionComposer'
 import { ScreenContent } from './MeetupScreen'
+import { RaffleControls } from './RaffleControls'
 import { useDiscussion } from './useDiscussion'
 
 type Draft = { mode: ProjectionMode; roundId?: number }
@@ -99,6 +100,7 @@ export function ProjectionAdmin({ draft, setDraft }: {
                 aria-pressed={selected.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
             ))}
           </div>
+          {selected.mode === 'raffle' && current.mode === 'raffle' && <RaffleControls />}
           {selected.mode === 'qa' && (
             <div className="space-y-1 border-t border-zinc-200 pt-3">
               <label htmlFor="projection-round" className="block text-sm">选择问答轮次</label>

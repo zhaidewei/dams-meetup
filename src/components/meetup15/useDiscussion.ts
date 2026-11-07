@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
 
 export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
-  url: string, topic: 'discussion' | 'projection' = 'discussion',
+  url: string, topic: 'discussion' | 'projection' | 'personal' = 'discussion',
 ) {
   const [view, setView] = useState<{ url: string; data: T | null; error: string } | null>(null)
   const [pending, setPending] = useState(false)
@@ -68,7 +68,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     }
 
     function connect() {
-      const address = new URL('/api/discussion/updates', window.location.href)
+      const address = new URL(topic === 'personal' ? '/api/personal/updates' : '/api/discussion/updates', window.location.href)
       address.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       socket = new WebSocket(address)
       socket.onopen = schedule
@@ -103,7 +103,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     setPending(true)
     setActionError('')
     try {
-      const response = await fetch(url.split('?')[0], {
+      const response = await fetch(topic === 'personal' ? url : url.split('?')[0], {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command), signal: AbortSignal.timeout(8000),
       })

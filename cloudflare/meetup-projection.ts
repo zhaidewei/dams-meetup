@@ -1,10 +1,11 @@
-import { PROJECTION_MODES, type LotteryScreen, type ProjectionAdminSnapshot,
+import { PROJECTION_MODES, type ProjectionAdminSnapshot,
   type ProjectionMode, type ProjectionSelection, type ProjectionView } from '../src/lib/meetup15/projection'
 import { meetupAgendaAt, nextMeetupAgendaChange } from '../src/lib/meetup15/event'
 import { requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
 import { readProjectionRound, readProjectionRounds } from './discussion-read'
+import { latestRaffle } from './meetup-raffle'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 
@@ -12,13 +13,12 @@ type StateRow = {
   mode: ProjectionMode
   roundId: number | null
   revision: number
-  lottery: string | null
 }
 
 function stateQuery(db: D1Database) {
   return db.prepare(`
     SELECT projection_mode AS mode, projection_round_id AS roundId,
-      projection_revision AS revision, screen_lottery AS lottery
+      projection_revision AS revision
     FROM activity_state WHERE id = 1`)
 }
 
@@ -34,22 +34,8 @@ function parseSelection(mode: unknown, roundId: unknown): ProjectionSelection | 
   return { mode, roundId }
 }
 
-function parseLottery(raw: string | null): LotteryScreen | null {
-  if (!raw) return null
-  try {
-    const value = JSON.parse(raw) as Partial<{ phase: string; winner: unknown }> | null
-    if (value?.phase === 'drawing') return { phase: 'drawing' }
-    if (value?.phase === 'winner' && typeof value.winner === 'string' && value.winner.trim()) {
-      return { phase: 'winner', winner: value.winner }
-    }
-  } catch {
-    return null
-  }
-  return null
-}
-
 async function readView(
-  db: D1Database, selection: ProjectionSelection, lottery: string | null, now: number, revision?: number,
+  db: D1Database, selection: ProjectionSelection, now: number, revision?: number,
 ): Promise<ProjectionView | null> {
   switch (selection.mode) {
     case 'hidden': return { mode: 'hidden', refreshAt: null }
@@ -60,7 +46,10 @@ async function readView(
       const qa = await readProjectionRound(db, selection.roundId, revision)
       return qa ? { mode: 'qa', ...qa, refreshAt: null } : null
     }
-    case 'raffle': return { mode: 'raffle', lottery: parseLottery(lottery), refreshAt: null }
+    case 'raffle': {
+      const raffle = await latestRaffle(db)
+      return { mode: 'raffle', lottery: raffle.result, refreshAt: raffle.refreshAt }
+    }
   }
 }
 
@@ -90,7 +79,7 @@ export async function handleProjection(request: Request, env: ActivityEnv, clock
       if (!selection) return new Response(null, { status: 400, headers })
       const row = await stateQuery(db).first<StateRow>()
       if (!row) return new Response(null, { status: 503, headers })
-      const view = await readView(db, selection, row.lottery, clock())
+      const view = await readView(db, selection, clock())
       return view ? Response.json(view, { headers }) : new Response(null, { status: 404, headers })
     }
 
@@ -98,7 +87,7 @@ export async function handleProjection(request: Request, env: ActivityEnv, clock
     for (let attempt = 0; attempt < 2; attempt++) {
       const row = await stateQuery(db).first<StateRow>()
       if (!row) break
-      const view = await readView(db, selectionFrom(row), row.lottery, clock(), row.revision)
+      const view = await readView(db, selectionFrom(row), clock(), row.revision)
       if (view) return Response.json(view, { headers })
     }
     return new Response(null, { status: 503, headers })

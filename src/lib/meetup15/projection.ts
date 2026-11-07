@@ -1,4 +1,5 @@
 import type { DiscussionItem, QuestionRound } from './discussion'
+import type { LotteryScreen } from './raffle'
 
 export const PROJECTION_MODES = {
   hidden: '隐藏大屏',
@@ -11,8 +12,6 @@ export type ProjectionMode = keyof typeof PROJECTION_MODES
 export type ProjectionSelection =
   | { mode: Exclude<ProjectionMode, 'qa'> }
   | { mode: 'qa'; roundId: number }
-
-export type LotteryScreen = { phase: 'drawing' } | { phase: 'winner'; winner: string }
 
 export type ProjectionView = { refreshAt: number | null } & (
   | { mode: 'hidden' }
