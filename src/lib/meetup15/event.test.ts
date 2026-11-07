@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { ADMISSION_END, MEETUP_AGENDA, meetupSectionAt } from './event'
+import { ADMISSION_END, MEETUP_AGENDA, meetupSectionAt, nextMeetupSectionChange } from './event'
 
 it('uses the public agenda boundaries to switch discussion sections in Amsterdam time', () => {
   const cases = [
@@ -17,5 +17,8 @@ it('uses the public agenda boundaries to switch discussion sections in Amsterdam
   for (const [localTime, expected] of cases) {
     expect(meetupSectionAt(Date.parse(`2026-11-14T${localTime}+01:00`))).toBe(expected)
   }
+  expect(nextMeetupSectionChange(Date.parse('2026-11-14T12:45:00+01:00')))
+    .toBe(Date.parse('2026-11-14T13:30:00+01:00'))
+  expect(nextMeetupSectionChange(Date.parse('2026-11-14T17:30:00+01:00'))).toBeNull()
   expect(ADMISSION_END).toBe(Date.parse('2026-11-14T17:00:00Z'))
 })

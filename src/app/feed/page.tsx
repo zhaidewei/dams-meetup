@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { DiscussionFeed } from '@/components/meetup15/DiscussionFeed'
 import { MeetupNav } from '@/components/meetup15/MeetupAgenda'
 import { currentMember } from '@/lib/meetup15/server'
 
@@ -16,10 +17,7 @@ export default async function FeedPage() {
       <p role="status">{member.role === 'guest'
         ? `已作为嘉宾登录 · ${member.display_name}${member.title ? `，${member.title}` : ''}`
         : '你已入场，可以浏览活动内容。'}</p>
-      <section aria-label="公共讨论区" className="rounded-2xl border border-zinc-200 bg-white p-5">
-        <h2 className="font-semibold">公共讨论区</h2>
-        <p className="mt-2 text-sm text-zinc-600">暂无讨论。</p>
-      </section>
+      <DiscussionFeed />
     </main>
   )
 }
