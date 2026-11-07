@@ -96,7 +96,12 @@ it('isolates members and gates both first-entry methods without blocking guests 
 
     const link = new URL(recoveryPath(id!, secret), origin)
     const params = new URLSearchParams(link.hash.slice(1))
-    expect(memberId(cookie(await post('recover', { id: params.get('u')!, token: params.get('t')! })))).toBe(id)
+    const recovery = { id: params.get('u')!, token: params.get('t')! }
+    expect(memberId(cookie(await post('recover', recovery)))).toBe(id)
+    const rejectedSwitch = await post('recover', recovery, attendeeB)
+    expect(rejectedSwitch.headers.get('Location')).toBe('/?entry=already')
+    expect(cookie(rejectedSwitch)).toBe('')
+    expect((await post('recover', recovery, attendeeA)).headers.get('Location')).toBe('/feed')
     expect((await post('recover', { id: id!, token: 'legacy' })).headers.get('Location')).toBe('/?entry=recovery')
     const old = `dams-uid=${signSessionCookie('dams-uid', id!, new Date(now + 60_000), secret)}`
     expect((await post('enter', manual, old)).headers.get('Location')).toBe('/?entry=closed')

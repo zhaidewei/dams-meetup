@@ -138,6 +138,8 @@ export async function handleMeetupAccess(request: Request, env: ActivityEnv, now
   if (!/^[\da-f-]{36}$/.test(id) || token.length !== 43 || !matchesRecoveryToken(id, token, secret)) {
     return redirect('/?entry=recovery')
   }
+  const existing = await getMember(env, requestCookie(request, MEMBER_COOKIE), now)
+  if (existing) return redirect(existing.id === id ? '/feed' : '/?entry=already')
   const member = await findMember(env, id)
   return member?.role === 'attendee' ? memberRedirect(id, secret) : redirect('/?entry=recovery')
 }
