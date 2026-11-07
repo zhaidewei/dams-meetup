@@ -1,4 +1,5 @@
 import type { DiscussionItem, QuestionRound } from './discussion'
+import type { LotteryScreen, RaffleCandidateView, RaffleRound, RaffleRules } from './raffle'
 
 export const PROJECTION_MODES = {
   hidden: '隐藏大屏',
@@ -9,22 +10,22 @@ export const PROJECTION_MODES = {
 
 export type ProjectionMode = keyof typeof PROJECTION_MODES
 export type ProjectionSelection =
-  | { mode: Exclude<ProjectionMode, 'qa'> }
+  | { mode: 'hidden' | 'agenda' }
+  | { mode: 'raffle'; raffleId?: number }
   | { mode: 'qa'; roundId: number }
-
-export type LotteryScreen = { phase: 'drawing' } | { phase: 'winner'; winner: string }
 
 export type ProjectionView = { refreshAt: number | null } & (
   | { mode: 'hidden' }
   | { mode: 'agenda'; currentStart: string | null }
   | { mode: 'qa'; round: QuestionRound; questions: DiscussionItem[] }
-  | { mode: 'raffle'; lottery: LotteryScreen | null }
+  | { mode: 'raffle'; lottery: LotteryScreen | null; raffleId: number | null; candidates: RaffleCandidateView[]; rules: RaffleRules | null }
 )
 
 export type ProjectionAdminSnapshot = {
   selection: ProjectionSelection
   revision: number
   rounds: QuestionRound[]
+  raffleRounds: RaffleRound[]
   refreshAt: null
 }
 

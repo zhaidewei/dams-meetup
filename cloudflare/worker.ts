@@ -6,6 +6,8 @@ import { handleActivityRequest, type ActivityEnv } from './activity'
 import { handleMeetupAccess } from './meetup-access'
 import { handleDiscussion } from './meetup-discussion'
 import { handleProjection } from './meetup-projection'
+import { handlePersonal } from './meetup-personal'
+import { handleRaffle } from './meetup-raffle'
 
 export { ActivityUpdates } from './activity'
 
@@ -17,6 +19,8 @@ const worker = {
       return handleActivityRequest(request, env)
     }
     if (pathname.startsWith('/api/meetup/')) return handleMeetupAccess(request, env)
+    if (pathname === '/api/raffle') return handleRaffle(request, env)
+    if (pathname === '/api/personal' || pathname.startsWith('/api/personal/')) return handlePersonal(request, env)
     if (pathname === '/api/discussion' || pathname.startsWith('/api/discussion/')) {
       return handleDiscussion(request, env)
     }

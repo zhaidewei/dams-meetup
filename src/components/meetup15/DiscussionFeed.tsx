@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import type { DiscussionItem, FeedSnapshot, MemberCommand } from '@/lib/meetup15/discussion'
 import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
+import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
 import { useDiscussion } from './useDiscussion'
 
@@ -28,7 +29,7 @@ function PostCard({ post, replies, named, pending, submit }: {
     const canReply = named && item.parentId === null
     return (
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-zinc-600">{item.author}</p>
+        <MemberBadge id={item.authorId} name={item.author} mine={item.mine} />
         {editor?.kind === 'edit' && editor.id === item.id ? (
           <DiscussionComposer label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
             pending={pending} initialBody={item.body} initialTags={isPost ? item.tags : undefined} onCancel={cancel}
@@ -173,7 +174,8 @@ export function DiscussionFeed() {
                   {data.questions.map((question) => (
                     <li key={question.id} className="rounded border border-teal-100 bg-white p-3">
                       <p className="whitespace-pre-wrap break-words">{question.body}</p>
-                      <p className="text-xs text-zinc-600">{question.author} · {question.answered ? '已答' : '未答'}</p>
+                      <MemberBadge id={question.authorId} name={question.author} mine={question.mine} />
+                      <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>
                       {liveRound ? (
                         <button className={discussionButton} aria-pressed={question.liked} disabled={pending}
                           onClick={() => void submit({ action: 'like', id: question.id, liked: !question.liked })}>

@@ -9,7 +9,7 @@ const ROUNDS = `
   SELECT r.id, m.display_name AS guest, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt
   FROM meetup15_qa_rounds r JOIN meetup15_members m ON m.id = r.guest_id`
 const ITEM_FIELDS = `
-  d.id, d.kind, COALESCE(m.display_name, '现场观众') AS author,
+  d.id, d.kind, d.author_id AS authorId, COALESCE(m.display_name, '现场观众') AS author,
   d.author_id = ? AS mine, d.body, d.tags,
   d.post_id AS postId, d.parent_reply_id AS parentId, d.answered,
   (SELECT COUNT(*) FROM meetup15_discussion_likes l WHERE l.item_id = d.id) AS likes,

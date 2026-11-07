@@ -196,9 +196,6 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: '历史轮次' })).status).toBe(409)
     expect((await switchScreen({ mode: 'raffle', revision: (await projection()).revision })).status).toBe(204)
     expect(await screen()).toMatchObject({ mode: 'raffle', lottery: null })
-    await db.prepare("UPDATE activity_state SET screen_lottery = ? WHERE id = 1")
-      .bind(JSON.stringify({ phase: 'winner', winner: '演示观众' })).run()
-    expect(await screen()).toMatchObject({ mode: 'raffle', lottery: { phase: 'winner', winner: '演示观众' } })
     attendeeSocket.close(1000)
     screenSocket.close(1000)
   } finally {
