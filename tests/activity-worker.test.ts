@@ -21,6 +21,7 @@ it('initializes a closed event, publishes committed changes and restores state o
     write: false,
   })
   const secret = 'fixture-key-for-local-worker-testing-only'
+  const adminPassword = 'fixture-admin-password'
   const runtime = new Miniflare(convertV4MiniflareOptions({
     modules: [{ type: 'ESModule', path: 'activity.mjs', contents: entry.outputFiles[0].text }],
     compatibilityDate: '2026-04-01',
@@ -29,14 +30,19 @@ it('initializes a closed event, publishes committed changes and restores state o
     durableObjects: {
       ACTIVITY_UPDATES: { className: 'ActivityUpdates', useSQLite: true },
     },
-    bindings: { SESSION_SECRET: secret },
+    bindings: { SESSION_SECRET: secret, ADMIN_TOKEN: adminPassword },
+    ratelimits: { ACTIVITY_LOGIN_LIMIT: { namespace_id: '1001', simple: { limit: 15, period: 60 } } },
   }))
 
   const origin = 'http://localhost'
   const url = `${origin}/api/activity`
-  const token = signSessionCookie(ADMIN_COOKIE_NAME, '1', new Date(Date.now() + 60_000), secret)
-  const cookie = `${ADMIN_COOKIE_NAME}=${token}`
-  const headers = { Cookie: cookie, Origin: origin }
+  const login = (password: string, requestOrigin = origin) => runtime.dispatchFetch(`${url}/session`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { Origin: requestOrigin },
+    body: new URLSearchParams({ token: password }),
+  })
+  const headers = { Cookie: '', Origin: origin }
   const change = (admissionOpen: boolean) => runtime.dispatchFetch(url, {
     method: 'PATCH',
     headers,
@@ -51,16 +57,29 @@ it('initializes a closed event, publishes committed changes and restores state o
     const db = await runtime.getD1Database('ACTIVITY_DB')
     await db.batch(migration.split(';').map((sql) => sql.trim()).filter(Boolean).map((sql) => db.prepare(sql)))
     expect((await runtime.dispatchFetch(url)).status).toBe(401)
+    expect((await login(adminPassword, 'https://other.example')).status).toBe(403)
+    const rejected = await login('incorrect')
+    expect(rejected.headers.get('Location')).toBe('/admin/activity?error=1')
+    expect(rejected.headers.get('Set-Cookie')).toBeNull()
+    const loggedIn = await login(adminPassword)
+    expect(loggedIn.status).toBe(303)
+    expect(loggedIn.headers.get('Location')).toBe('/admin/activity')
+    expect(loggedIn.headers.get('Set-Cookie')).toMatch(/^dams-meetup-15-admin=.*; Secure; HttpOnly; SameSite=Lax$/)
+    headers.Cookie = loggedIn.headers.get('Set-Cookie')!.split(';', 1)[0]
+    const oldToken = signSessionCookie(ADMIN_COOKIE_NAME, '1', new Date(Date.now() + 60_000), secret)
+    expect((await runtime.dispatchFetch(url, {
+      headers: { Cookie: `${ADMIN_COOKIE_NAME}=${oldToken}` },
+    })).status).toBe(401)
     expect((await runtime.dispatchFetch(`${url}/updates`, {
       headers: { Upgrade: 'websocket', Origin: origin },
     })).status).toBe(401)
     expect((await runtime.dispatchFetch(url, {
       method: 'PATCH',
-      headers: { Cookie: cookie, Origin: 'https://other.example' },
+      headers: { Cookie: headers.Cookie, Origin: 'https://other.example' },
       body: JSON.stringify({ admissionOpen: true }),
     })).status).toBe(403)
     expect((await runtime.dispatchFetch(`${url}/updates`, {
-      headers: { Cookie: cookie, Origin: 'https://other.example', Upgrade: 'websocket' },
+      headers: { Cookie: headers.Cookie, Origin: 'https://other.example', Upgrade: 'websocket' },
     })).status).toBe(403)
     expect(await (await runtime.dispatchFetch(url, { headers })).json())
       .toEqual({ admissionOpen: false, revision: 0 })

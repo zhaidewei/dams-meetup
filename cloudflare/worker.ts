@@ -8,7 +8,8 @@ export { ActivityUpdates } from './activity'
 const worker = {
   fetch(request: Request, env: ActivityEnv, context: ExecutionContext) {
     const { pathname } = new URL(request.url)
-    if (pathname === '/api/activity' || pathname === '/api/activity/updates') {
+    if (pathname === '/api/activity' || pathname === '/api/activity/updates' ||
+        pathname === '/api/activity/session') {
       return handleActivityRequest(request, env)
     }
     return next.fetch(request, env, context)

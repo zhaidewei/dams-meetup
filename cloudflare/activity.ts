@@ -1,12 +1,15 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { DurableObject } from 'cloudflare:workers'
-import { ADMIN_COOKIE_NAME, verifySessionCookie } from '../src/lib/session-cookie-crypto'
+import { loginActivityAdmin } from './activity-session'
+import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 
 export interface ActivityEnv {
   ACTIVITY_DB: D1Database
   ACTIVITY_UPDATES: DurableObjectNamespace<ActivityUpdates>
   SESSION_SECRET?: string
+  ADMIN_TOKEN?: string
+  ACTIVITY_LOGIN_LIMIT: RateLimit
 }
 
 type ActivityState = { admission_open: number; revision: number }
@@ -39,12 +42,14 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
 
 export async function handleActivityRequest(request: Request, env: ActivityEnv): Promise<Response> {
   const url = new URL(request.url)
+  if (url.pathname === '/api/activity/session') return loginActivityAdmin(request, env)
+
   const cookie = request.headers.get('Cookie')
     ?.split(';')
     .map((part) => part.trim())
-    .find((part) => part.startsWith(`${ADMIN_COOKIE_NAME}=`))
-    ?.slice(ADMIN_COOKIE_NAME.length + 1)
-  if (verifySessionCookie(ADMIN_COOKIE_NAME, cookie, env.SESSION_SECRET) !== '1') {
+    .find((part) => part.startsWith(`${ACTIVITY_ADMIN_COOKIE}=`))
+    ?.slice(ACTIVITY_ADMIN_COOKIE.length + 1)
+  if (verifySessionCookie(ACTIVITY_ADMIN_COOKIE, cookie, env.SESSION_SECRET) !== '1') {
     return new Response(null, { status: 401 })
   }
 

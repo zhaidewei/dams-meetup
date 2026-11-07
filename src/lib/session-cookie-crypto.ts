@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 const VERSION = 'v1'
 const MAX_TOKEN_LENGTH = 2048
 export const ADMIN_COOKIE_NAME = 'dams-admin-ok'
+export const ACTIVITY_ADMIN_COOKIE = 'dams-meetup-15-admin'
 
 function validKey(key: string | undefined): key is string {
   return Boolean(key && Buffer.byteLength(key, 'utf8') >= 32)
