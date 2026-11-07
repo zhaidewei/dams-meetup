@@ -10,7 +10,7 @@ it('initializes a closed event, publishes committed changes and restores state o
       contents: `
         import { handleActivityRequest } from './cloudflare/activity'
         export { ActivityUpdates } from './cloudflare/activity'
-        export default { fetch: handleActivityRequest }
+        export default { fetch: (request, env) => handleActivityRequest(request, env, Date.parse('2026-11-07T12:00:00Z')) }
       `,
       resolveDir: process.cwd(),
     },

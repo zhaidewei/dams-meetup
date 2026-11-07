@@ -16,7 +16,8 @@
     { "binding": "ACTIVITY_DB", "database_name": "dams-meetup-15", "database_id": "173b8d5f-db22-404c-85e4-e61683a6b877" }
   ],
   "ratelimits": [
-    { "name": "ACTIVITY_LOGIN_LIMIT", "namespace_id": "2026111415", "simple": { "limit": 15, "period": 60 } }
+    { "name": "ACTIVITY_LOGIN_LIMIT", "namespace_id": "2026111415", "simple": { "limit": 15, "period": 60 } },
+    { "name": "ACTIVITY_ENTRY_LIMIT", "namespace_id": "2026111416", "simple": { "limit": 600, "period": 60 } }
   ],
   "durable_objects": {
     "bindings": [

@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import { EVENT_NAME } from '@/lib/constants'
+import { MEETUP_NAME, MEETUP_THEME } from '@/lib/meetup15/event'
 
 export const metadata: Metadata = {
-  title: EVENT_NAME,
-  description: '现场互动讨论 — 帖子、投票、撮合',
+  title: MEETUP_NAME,
+  description: MEETUP_THEME,
 }
 
 export const viewport: Viewport = {
