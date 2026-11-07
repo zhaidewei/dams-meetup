@@ -4,7 +4,7 @@ import {
 } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import type { LotteryScreen, Poll, PollAdminSnapshot, PollFeedSnapshot, ScreenSnapshot } from '../src/lib/meetup15/polls'
-import { readStaff } from './discussion-read'
+import { readActiveQa } from './discussion-read'
 
 type Settings = {
   section_override: string | null
@@ -155,8 +155,8 @@ export async function readPollScreen(db: D1Database, now: number): Promise<Scree
   if (settings?.screen_mode === 'intro') return { ...base, mode: 'intro' }
   const lottery = lotteryState(settings?.screen_lottery)
   if (lottery) return { ...base, mode: 'lottery', lottery }
-  const staff = await readStaff(db, now, 'screen')
-  if (staff.activeRound) return { ...base, mode: 'qa', round: staff.activeRound, questions: staff.questions }
+  const qa = await readActiveQa(db)
+  if (qa) return { ...base, mode: 'qa', ...qa }
   const polls = await readPolls(db, now, 'carousel', settings?.screen_poll_section ?? context.section, null)
   return { ...base, mode: 'live', polls, refreshAt: earliest(base.refreshAt, nextPollDeadline(polls)) }
 }

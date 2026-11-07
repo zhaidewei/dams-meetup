@@ -95,6 +95,30 @@ it('enforces ballot and reveal rules across guest, attendee, control desk and pr
     await status(command(guest, multi))
     const early = (await feed(bob)).polls[0].id
     await status(control({ action: 'reveal', id: early }), 409)
+    const subscription = await runtime.dispatchFetch(origin + '/api/discussion/updates', {
+      headers: { Cookie: bob, Origin: origin, Upgrade: 'websocket', 'fixture-clock': String(now) },
+    })
+    const socket = subscription.webSocket!
+    socket.accept()
+    const events: string[] = []
+    const received = new Promise<void>((resolve) => {
+      socket.addEventListener('message', (event) => {
+        events.push(String(event.data))
+        if (event.data === 'screen.updated') resolve()
+      })
+    })
+    await status(command(alice, { action: 'vote', id: early, choices: [5, 1] }))
+    await status(command(alice, { action: 'vote', id: early, choices: [1, 5] }))
+    // 旧选票按勾选顺序存储，相同选项仍应跳过写入和通知。
+    await db.prepare("UPDATE meetup15_ballots SET choices = '[5,1]' WHERE poll_id = ? AND member_id = 'alice'").bind(early).run()
+    await status(command(alice, { action: 'vote', id: early, choices: [1, 5] }))
+    expect(await db.prepare("SELECT choices FROM meetup15_ballots WHERE poll_id = ? AND member_id = 'alice'")
+      .bind(early).first('choices')).toBe('[5,1]')
+    await status(control({ action: 'live' }))
+    await received
+    expect(events).toEqual(['poll.updated:lightning', 'screen.updated'])
+    socket.close(1000)
+    await status(command(alice, { action: 'vote', id: early, choices: [1] }))
     await status(command(alice, { action: 'vote', id: early, choices: [1, 5] }))
     expect((await feed(alice)).polls[0]).toMatchObject({ counts: [0, 1, 0, 0, 0, 1], ballot: [1, 5] })
     expect((await feed(bob)).polls[0].counts).toBeNull()

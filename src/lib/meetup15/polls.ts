@@ -1,6 +1,8 @@
 import type { StaffSnapshot } from './discussion'
 import type { MeetupSection } from './event'
 
+export type PollUpdate = `poll.updated:${MeetupSection}` | 'screen.updated'
+
 export type Poll = {
   id: number
   title: string

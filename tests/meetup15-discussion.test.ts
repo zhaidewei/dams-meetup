@@ -3,6 +3,7 @@ import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
 import type { FeedSnapshot, StaffSnapshot } from '../src/lib/meetup15/discussion'
+import type { ScreenSnapshot } from '../src/lib/meetup15/polls'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -20,8 +21,12 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     stdin: {
       contents: `
         import { handleDiscussion } from './cloudflare/meetup-discussion'
+        import { handlePolls } from './cloudflare/meetup-polls'
         export { ActivityUpdates } from './cloudflare/activity'
-        export default { fetch: (request, env) => handleDiscussion(request, env, () => ${now}) }
+        export default { fetch(request, env) {
+          const handle = new URL(request.url).pathname === '/api/polls/screen' ? handlePolls : handleDiscussion
+          return handle(request, env, () => ${now})
+        } }
       `,
       resolveDir: process.cwd(),
     },
@@ -38,7 +43,14 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
   const read = (cookie: string, suffix = '') =>
     runtime.dispatchFetch(path + suffix, { headers: { Cookie: cookie } })
   const feed = async (cookie: string, query = '') => await (await read(cookie, query)).json() as FeedSnapshot
-  const staff = async (view = 'admin') => await (await read(admin, '/' + view)).json() as StaffSnapshot
+  const staff = async () => await (await read(admin, '/admin')).json() as StaffSnapshot
+  const readScreen = (cookie: string) => runtime.dispatchFetch(origin + '/api/polls/screen', { headers: { Cookie: cookie } })
+  const screen = async () => await (await readScreen(admin)).json() as ScreenSnapshot
+  const activeQa = async () => {
+    const snapshot = await screen()
+    if (snapshot.mode !== 'qa') throw new Error('Expected Q&A on the projection')
+    return snapshot
+  }
   const command = (cookie: string, input: object, suffix = '', from = origin) =>
     runtime.dispatchFetch(path + suffix, {
       method: 'POST', headers: { Cookie: cookie, Origin: from, 'Content-Type': 'application/json' },
@@ -65,7 +77,8 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     ])
 
     expect((await read('')).status).toBe(401)
-    expect((await read(alice, '/screen')).status).toBe(401)
+    expect((await readScreen(alice)).status).toBe(401)
+    expect((await read(admin, '/screen')).status).toBe(404)
     expect((await connect('')).status).toBe(401)
     expect((await command(alice, { action: 'section', section: 'expert' }, '/admin')).status).toBe(401)
     expect((await command(alice, { action: 'post' }, '', 'https://another.example')).status).toBe(403)
@@ -109,10 +122,10 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     })).status).toBe(409)
     await ok(alice, { action: 'question', section: 'expert', roundId: first.id, body: '先问的问题' })
     await ok(bob, { action: 'question', section: 'expert', roundId: first.id, body: '后问的问题' })
-    const [older, newer] = (await staff('screen')).questions
+    const [older, newer] = (await activeQa()).questions
     expect([older.body, newer.body]).toEqual(['先问的问题', '后问的问题'])
     await ok(alice, { action: 'like', id: newer.id, liked: true })
-    expect((await staff('screen')).questions[0].id).toBe(newer.id)
+    expect((await activeQa()).questions[0].id).toBe(newer.id)
 
     const attendeeSocket = (await connect(alice)).webSocket!
     const screenSocket = (await connect(admin)).webSocket!
@@ -123,23 +136,24 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     })))
     await ok(admin, { action: 'answer', id: newer.id, answered: true }, '/admin')
     await expect(updates).resolves.toEqual(['activity.updated', 'activity.updated'])
-    const order = (snapshot: FeedSnapshot | StaffSnapshot) => snapshot.questions.map((q) => q.id)
-    expect(order(await staff('screen'))).toEqual([older.id, newer.id])
+    const order = (snapshot: Pick<FeedSnapshot, 'questions'>) => snapshot.questions.map((q) => q.id)
+    expect(order(await activeQa())).toEqual([older.id, newer.id])
     expect(order(await feed(alice, '?section=expert'))).toEqual([older.id, newer.id])
     await ok(admin, { action: 'answer', id: newer.id, answered: false }, '/admin')
-    expect(order(await staff('screen'))).toEqual([newer.id, older.id])
+    expect(order(await activeQa())).toEqual([newer.id, older.id])
 
     await ok(admin, { action: 'start', guestId: 'guest', activeRoundId: first.id, latestRoundId: first.id }, '/admin')
     expect((await command(admin, { action: 'start', guestId: 'guest', activeRoundId: first.id, latestRoundId: first.id }, '/admin')).status).toBe(409)
     const second = (await staff()).activeRound!
     expect(second).toMatchObject({ guest: first.guest, section: 'lightning' })
     expect(second.id).not.toBe(first.id)
-    expect((await staff('screen')).questions).toEqual([])
+    expect(await activeQa()).toMatchObject({ round: { id: second.id }, questions: [] })
+    expect(await activeQa()).not.toHaveProperty('rounds')
     expect(order(await feed(alice, '?section=expert&round=' + first.id))).toEqual([newer.id, older.id])
     await ok(admin, { action: 'end', roundId: second.id }, '/admin')
-    expect((await staff('screen')).activeRound).toBeNull()
+    expect((await screen()).mode).toBe('live')
     expect((await command(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')).status).toBe(409)
-    expect((await staff('screen')).rounds).toHaveLength(2)
+    expect((await staff()).rounds).toHaveLength(2)
     attendeeSocket.close(1000)
     screenSocket.close(1000)
   } finally {

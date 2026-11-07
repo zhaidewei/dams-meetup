@@ -40,10 +40,12 @@ export async function handlePolls(request: Request, env: ActivityEnv, clock?: ()
   const result = member ? await writePoll(db, member, input, databaseTime) : await writeScreen(db, input, databaseTime)
   if ('error' in result) return Response.json({ error: result.error }, { status: result.status, headers })
 
-  try {
-    await env.ACTIVITY_UPDATES.getByName('meetup-15-discussion').publish('poll.updated')
-  } catch (error) {
-    console.error('Poll update notification failed', error)
+  if (result.event) {
+    try {
+      await env.ACTIVITY_UPDATES.getByName('meetup-15-discussion').publish(result.event)
+    } catch (error) {
+      console.error('Poll update notification failed', error)
+    }
   }
   return new Response(null, { status: 204, headers })
 }

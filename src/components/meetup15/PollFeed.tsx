@@ -89,7 +89,7 @@ function Vote({ poll, pending, submit }: { poll: Poll; pending: boolean; submit:
 }
 
 export function PollFeed({ section }: { section: MeetupSection }) {
-  const { data, error, pending, submit } = useDiscussion<PollFeedSnapshot, PollCommand>(`/api/polls?section=${section}`, 'poll')
+  const { data, error, pending, submit } = useDiscussion<PollFeedSnapshot, PollCommand>(`/api/polls?section=${section}`, section)
   if (!data && !error) return null
   if (!error && data && !data.canCreate && !data.polls.length) return null
   return (

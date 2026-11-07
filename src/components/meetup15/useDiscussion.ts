@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
+import type { MeetupSection } from '@/lib/meetup15/event'
 
 export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
-  url: string, topic: 'discussion' | 'poll' | 'both' = 'discussion',
+  url: string, topic: 'discussion' | MeetupSection | 'both' = 'discussion',
 ) {
   const [view, setView] = useState<{ url: string; data: T | null; error: string } | null>(null)
   const [pending, setPending] = useState(false)
@@ -73,7 +74,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       socket = new WebSocket(address)
       socket.onopen = schedule
       socket.onmessage = ({ data }) => {
-        if (topic === 'both' || data === (topic === 'poll' ? 'poll.updated' : 'activity.updated')) schedule()
+        if (topic === 'both' || data === (topic === 'discussion' ? 'activity.updated' : `poll.updated:${topic}`)) schedule()
       }
       socket.onclose = () => {
         if (!controller.signal.aborted) retry = setTimeout(connect, 3000)
