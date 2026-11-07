@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import { PROJECTION_MODES, type ProjectionAdminSnapshot, type ProjectionCommand, type ProjectionMode,
   type ProjectionSelection, type ProjectionView } from '@/lib/meetup15/projection'
@@ -9,7 +9,7 @@ import { ScreenContent } from './MeetupScreen'
 import { useDiscussion } from './useDiscussion'
 
 type Draft = { mode: ProjectionMode; roundId?: number }
-type VersionedDraft = Draft & { baseRevision: number }
+export type VersionedDraft = Draft & { baseRevision: number }
 
 const roundTime = new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Europe/Amsterdam', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
@@ -53,9 +53,11 @@ function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
   )
 }
 
-export function ProjectionAdmin() {
+export function ProjectionAdmin({ draft, setDraft }: {
+  draft: VersionedDraft | null
+  setDraft: Dispatch<SetStateAction<VersionedDraft | null>>
+}) {
   const { data, error, pending, submit } = useDiscussion<ProjectionAdminSnapshot, ProjectionCommand>('/api/screen/admin', 'projection')
-  const [draft, setDraft] = useState<VersionedDraft | null>(null)
   if (!data) return <p role={error ? 'alert' : 'status'}>{error || '正在加载大屏控制…'}</p>
 
   const current = data.selection
@@ -63,7 +65,8 @@ export function ProjectionAdmin() {
   const currentRound = data.rounds.find((round) => round.id === currentRoundId)
   const activeRound = data.rounds.find((round) => round.closedAt === null)
   const selected = draft ?? current
-  const changed = selected.mode !== current.mode || (selected.mode === 'qa' && selected.roundId !== currentRoundId)
+  const selectedRoundId = selected.mode === 'qa' ? selected.roundId : undefined
+  const changed = selected.mode !== current.mode || selectedRoundId !== currentRoundId
   const revision = data.revision
   const stale = draft !== null && draft.baseRevision !== revision
 
@@ -71,7 +74,7 @@ export function ProjectionAdmin() {
     if (mode === selected.mode && !stale) return
     setDraft({
       mode,
-      roundId: mode === 'qa' ? currentRoundId ?? activeRound?.id : undefined,
+      roundId: mode === 'qa' ? selectedRoundId ?? currentRoundId ?? activeRound?.id : undefined,
       baseRevision: revision,
     })
   }
@@ -112,9 +115,12 @@ export function ProjectionAdmin() {
             </div>
           )}
         </section>
-        <DraftPreview draft={selected} changed={changed} stale={stale} pending={pending} onReset={() => setDraft(null)}
+        <DraftPreview key={draft?.baseRevision ?? revision} draft={selected} changed={changed} stale={stale} pending={pending}
+          onReset={() => setDraft(null)}
           onConfirm={async (selection) => {
-            if (draft && !stale && await submit({ ...selection, revision: draft.baseRevision })) setDraft(null)
+            if (draft && !stale && await submit({ ...selection, revision: draft.baseRevision })) {
+              setDraft((latest) => latest === draft ? null : latest)
+            }
           }} />
       </div>
     </section>

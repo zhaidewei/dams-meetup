@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { isMeetupAdmin } from '@/lib/meetup15/server'
 import { DiscussionAdmin } from '@/components/meetup15/DiscussionAdmin'
-import { ProjectionAdmin } from '@/components/meetup15/ProjectionAdmin'
+import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
 
 export const metadata = { title: '第 15 期 Meetup · 主办方控制台' }
@@ -38,11 +38,7 @@ export default async function ActivityAdminPage({
         )}
       </header>
       {signedIn ? (
-        <>
-          {selected === 'screen' && <>
-            <ProjectionAdmin />
-            <Link href="/screen" className="block text-sm underline" target="_blank" rel="noopener">打开现场大屏</Link>
-          </>}
+        <ActivityAdminPanels showProjection={selected === 'screen'}>
           {selected === 'entry' && <ActivityControls />}
           {selected === 'agenda' && <DiscussionAdmin view="agenda" />}
           {selected === 'qa' && <DiscussionAdmin view="qa" />}
@@ -79,7 +75,7 @@ export default async function ActivityAdminPage({
               <button className="rounded bg-zinc-900 px-4 py-2 text-white">保存嘉宾账号</button>
             </form>
           </section>}
-        </>
+        </ActivityAdminPanels>
       ) : (
         <form method="post" action="/api/activity/session" className="max-w-lg space-y-3">
           <h1 className="text-lg font-semibold">主办方登录</h1>
