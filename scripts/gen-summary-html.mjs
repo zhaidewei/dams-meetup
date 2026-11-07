@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Bake docs/summary-2026-05-09/index-light.html into src/app/summary/summary-html.ts
-// so the /summary route handler can serve it as a self-contained static HTML doc.
+// so /summary/14 can serve it as a self-contained static HTML doc.
 // The source file has its own <html><head><body><script>; we don't try to render
 // it through React — we wrap the bytes as a JS template literal and return them
 // as text/html. Backticks and ${ inside the source must be escaped so the outer

@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { MeetupAgenda, MeetupHeading, MeetupNav } from '@/components/meetup15/MeetupAgenda'
-import { meetupPhase } from '@/lib/meetup15/event'
+import { meetupNow, meetupPhase } from '@/lib/meetup15/event'
 import { isAdmissionOpen } from '@/lib/meetup15/identity'
 import { currentMember, meetupEnv } from '@/lib/meetup15/server'
+import { LATEST_SUMMARY_PATH } from '@/lib/meetup15/summary'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +19,13 @@ const feedback: Record<string, string> = {
 export default async function HomePage({ searchParams }: {
   searchParams: Promise<{ entry?: string }>
 }) {
+  const env = meetupEnv()
+  const now = meetupNow(env)
+  const phase = meetupPhase(now)
+  if (phase === 'closed') redirect(LATEST_SUMMARY_PATH)
   const [{ entry }, member, open] = await Promise.all([
-    searchParams, currentMember(), isAdmissionOpen(meetupEnv()),
+    searchParams, currentMember(now), isAdmissionOpen(env, now),
   ])
-  const phase = meetupPhase()
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-8 px-5 py-8 sm:py-12">
@@ -52,12 +57,12 @@ export default async function HomePage({ searchParams }: {
           </>
         )}
         <p className="flex flex-wrap gap-4 text-sm">
-          {phase !== 'closed' && <Link href="/vip-login" className="underline">嘉宾登录</Link>}
+          <Link href="/vip-login" className="underline">嘉宾登录</Link>
           <Link href="/admin" className="underline">工作人员入口</Link>
         </p>
       </section>
       <MeetupAgenda />
-      <Link className="text-sm text-teal-900 underline" href="/summary">查看第 14 期复盘</Link>
+      <Link className="text-sm text-teal-900 underline" href="/summary/14">查看第 14 期复盘</Link>
     </main>
   )
 }

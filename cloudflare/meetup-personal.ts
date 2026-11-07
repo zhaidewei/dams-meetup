@@ -1,4 +1,5 @@
 import { getMember, MEMBER_COOKIE, requestCookie, type Member } from '../src/lib/meetup15/identity'
+import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { MAX_DISCUSSION_BODY } from '../src/lib/meetup15/discussion'
 import { MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH } from '../src/lib/meetup15/personal'
 import type { ActivityEnv } from './activity'
@@ -33,8 +34,9 @@ async function updateProfile(db: D1Database, member: Member, input: Record<strin
   if (!result.meta.changes) return failure(409, '资料已在其他设备修改，请核对后再保存。')
 }
 
-export async function handlePersonal(request: Request, env: ActivityEnv, now = Date.now()) {
+export async function handlePersonal(request: Request, env: ActivityEnv, clock = Date.now) {
   const url = new URL(request.url)
+  const now = clock()
   const member = await getMember(env, requestCookie(request, MEMBER_COOKIE), now)
   if (!member) return failure(401, '请重新入场后继续。')
   const db = env.ACTIVITY_DB
@@ -72,6 +74,7 @@ export async function handlePersonal(request: Request, env: ActivityEnv, now = D
   if (request.headers.get('Origin') !== url.origin) return failure(403, '来源不正确。')
   const input = await request.json<Record<string, unknown>>().catch(() => null)
   if (!input || typeof input !== 'object' || Array.isArray(input)) return failure(400, '请检查输入后重试。')
+  if (clock() >= INTERACTION_END) return failure(401, '本届互动区已关闭。')
 
   switch (input.action) {
     case 'profile': {

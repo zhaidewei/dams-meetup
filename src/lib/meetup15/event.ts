@@ -4,6 +4,11 @@ export const MEETUP_VENUE = 'TU Delft Echo Building, A3 Meeting Room'
 export const MEETUP_ADDRESS = 'Van Mourik Broekmanweg 5, 2628 XE Delft'
 export const INTERACTION_END = Date.parse('2026-11-21T18:00:00+01:00')
 
+export function meetupNow(env: { DAMS_LOCAL_MEETUP_TIME?: string }) {
+  const previewTime = Date.parse(env.DAMS_LOCAL_MEETUP_TIME ?? '')
+  return Number.isFinite(previewTime) ? previewTime : Date.now()
+}
+
 export function meetupPhase(now = Date.now()) {
   if (now >= INTERACTION_END) return 'closed'
   return now >= ADMISSION_END ? 'recovery' : 'event'

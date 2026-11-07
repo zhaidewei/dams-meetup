@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { MEETUP_ADDRESS, MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_THEME, MEETUP_VENUE } from '@/lib/meetup15/event'
 
-export function MeetupNav() {
+export function MeetupNav({ closed = false }: { closed?: boolean }) {
   return (
     <nav aria-label="活动导航" className="flex flex-wrap gap-x-5 gap-y-2 border-b border-zinc-200 pb-4 text-sm font-medium">
       <Link href="/">活动首页</Link>
       <Link href="/agenda">完整议程</Link>
-      <Link href="/feed">互动区</Link>
-      <Link href="/me">我</Link>
+      {closed ? <Link href="/summary/15">活动复盘</Link> : <>
+        <Link href="/feed">互动区</Link>
+        <Link href="/me">我</Link>
+      </>}
     </nav>
   )
 }

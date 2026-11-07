@@ -2,14 +2,13 @@
 
 import { DurableObject } from 'cloudflare:workers'
 import { ADMISSION_END } from '../src/lib/meetup15/event'
+import type { MeetupEnv } from '../src/lib/meetup15/identity'
 import { loginActivityAdmin } from './activity-session'
 import { finishPendingRaffle } from './meetup-raffle'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 
-export interface ActivityEnv {
-  ACTIVITY_DB: D1Database
+export interface ActivityEnv extends MeetupEnv {
   ACTIVITY_UPDATES: DurableObjectNamespace<ActivityUpdates>
-  SESSION_SECRET?: string
   ADMIN_TOKEN?: string
   ACTIVITY_LOGIN_LIMIT: RateLimit
   ACTIVITY_ENTRY_LIMIT: RateLimit

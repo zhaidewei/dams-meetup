@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { meetupPhase } from '@/lib/meetup15/event'
+import { meetupNow, meetupPhase } from '@/lib/meetup15/event'
+import { meetupEnv } from '@/lib/meetup15/server'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: '嘉宾登录 · DAMS 第 15 期 Meetup' }
@@ -8,7 +9,7 @@ export const metadata = { title: '嘉宾登录 · DAMS 第 15 期 Meetup' }
 export default async function GuestLoginPage({ searchParams }: {
   searchParams: Promise<{ error?: string }>
 }) {
-  if (meetupPhase() === 'closed') redirect('/?entry=ended')
+  if (meetupPhase(meetupNow(meetupEnv())) === 'closed') redirect('/?entry=ended')
   const { error } = await searchParams
   return (
     <main className="mx-auto w-full max-w-md space-y-5 px-5 py-12">
