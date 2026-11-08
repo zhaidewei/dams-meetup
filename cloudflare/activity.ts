@@ -17,6 +17,8 @@ export interface ActivityEnv extends MeetupEnv {
 type ActivityState = { admission_open: number; revision: number }
 
 export class ActivityUpdates extends DurableObject<ActivityEnv> {
+  private discussionUpdateQueued = false
+
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return new Response(null, { status: 426 })
@@ -31,6 +33,15 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState === WebSocket.OPEN) socket.send(event)
     }
+  }
+
+  queueDiscussionUpdate(): void {
+    if (this.discussionUpdateQueued) return
+    this.discussionUpdateQueued = true
+    this.ctx.waitUntil(new Promise<void>(resolve => setTimeout(resolve, 80)).then(() => {
+      this.discussionUpdateQueued = false
+      this.publish()
+    }).catch(error => console.error('Discussion update notification failed', error)))
   }
 
   async scheduleRaffle(readyAt: number): Promise<void> {

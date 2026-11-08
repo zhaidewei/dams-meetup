@@ -7,7 +7,7 @@ import { writeMember, writeStaff } from './discussion-write'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 
-export async function handleDiscussion(request: Request, env: ActivityEnv, clock = Date.now) {
+export async function handleDiscussion(request: Request, env: ActivityEnv, clock = Date.now, execution?: ExecutionContext) {
   const url = new URL(request.url)
   const path = url.pathname
   const now = clock()
@@ -34,7 +34,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   if (request.method === 'GET') {
-    const snapshot = member ? await readFeed(db, member, url, now)
+    const snapshot = member ? await readFeed(db, member, url, now, execution)
       : await readDiscussionAdmin(db, now)
     return Response.json(snapshot, { headers })
   }
@@ -53,7 +53,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
 
   if (result.changed) {
     try {
-      await updates().publish()
+      await updates().queueDiscussionUpdate()
     } catch (error) {
       console.error('Discussion update notification failed', error)
     }

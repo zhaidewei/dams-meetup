@@ -147,6 +147,18 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect([older.body, newer.body]).toEqual(['先问的问题', '后问的问题'])
     await ok(alice, { action: 'like', id: newer.id, liked: true })
     expect((await activeQa()).questions[0].id).toBe(newer.id)
+    const [aliceQuestions, bobQuestions] = await Promise.all([
+      feed(alice, '?section=expert'), feed(bob, '?section=expert'),
+    ])
+    expect(aliceQuestions.questions[0]).toMatchObject({ id: newer.id, likes: 1, liked: true, mine: false })
+    expect(bobQuestions.questions[0]).toMatchObject({ id: newer.id, likes: 1, liked: false, mine: true })
+    expect(aliceQuestions.questions[0]).not.toHaveProperty('likedBy')
+    await db.prepare("UPDATE meetup15_members SET display_name = 'Bob 新昵称' WHERE id = 'bob'").run()
+    expect((await feed(alice, '?section=expert')).questions[0].author).toBe('Bob 新昵称')
+    await ok(alice, { action: 'like', id: newer.id, liked: false })
+    expect((await feed(alice, '?section=expert')).questions.find(item => item.id === newer.id))
+      .toMatchObject({ likes: 0, liked: false })
+    await ok(alice, { action: 'like', id: newer.id, liked: true })
 
     const attendeeSocket = (await connect(alice)).webSocket!
     const screenSocket = (await connect(admin)).webSocket!
