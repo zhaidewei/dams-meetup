@@ -26,7 +26,7 @@ const worker = {
     if (pathname === '/api/raffle') return handleRaffle(request, env, clock)
     if (pathname === '/api/personal' || pathname.startsWith('/api/personal/')) return handlePersonal(request, env, clock)
     if (pathname === '/api/discussion' || pathname.startsWith('/api/discussion/')) {
-      return handleDiscussion(request, env, clock)
+      return handleDiscussion(request, env, clock, context)
     }
     if (pathname === '/api/polls' || pathname.startsWith('/api/polls/')) return new Response(null, { status: 404 })
     if (pathname === '/api/screen' || pathname.startsWith('/api/screen/')) return handleProjection(request, env, clock)
