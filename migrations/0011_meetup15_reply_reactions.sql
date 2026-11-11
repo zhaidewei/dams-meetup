@@ -1,0 +1,8 @@
+CREATE TABLE meetup15_reply_reactions (
+  reply_id INTEGER NOT NULL REFERENCES meetup15_discussion(id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL CHECK (emoji IN ('👍', '❤️', '😂', '😮', '😢', '🙏')),
+  member_id TEXT NOT NULL REFERENCES meetup15_members(id) ON DELETE CASCADE,
+  PRIMARY KEY (reply_id, emoji, member_id)
+) WITHOUT ROWID;
+
+CREATE INDEX meetup15_reply_reactions_member ON meetup15_reply_reactions(member_id);

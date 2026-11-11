@@ -1,5 +1,5 @@
 import type {
-  DiscussionItem, FeedSnapshot, QuestionRound, StaffSnapshot,
+  DiscussionItem, FeedSnapshot, QuestionRound, ReplyReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
 import type { Member } from '../src/lib/meetup15/identity'
 import { isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
@@ -16,15 +16,17 @@ const ITEM_FIELDS = `
   (SELECT COUNT(*) FROM meetup15_discussion_likes l WHERE l.item_id = d.id) AS likes,
   EXISTS(SELECT 1 FROM meetup15_discussion_likes l WHERE l.item_id = d.id AND l.member_id = ?) AS liked`
 
-type ItemRow = Omit<DiscussionItem, 'tags' | 'mine' | 'liked' | 'answered'> & {
+type ItemRow = Omit<DiscussionItem, 'tags' | 'mine' | 'liked' | 'answered' | 'reactions'> & {
   tags: string
   mine: number
   liked: number
   answered: number
+  reactionData?: string | null
 }
 
-function item(row: ItemRow): DiscussionItem {
-  return { ...row, tags: JSON.parse(row.tags), mine: Boolean(row.mine),
+function item({ reactionData, ...row }: ItemRow): DiscussionItem {
+  const reactions = reactionData ? JSON.parse(reactionData) as ReplyReaction[] : undefined
+  return { ...row, reactions, tags: JSON.parse(row.tags), mine: Boolean(row.mine),
     liked: Boolean(row.liked), answered: Boolean(row.answered) }
 }
 
@@ -135,11 +137,17 @@ export async function readFeed(db: D1Database, member: Member, url: URL, now: nu
         WHERE kind = 'post' AND section = ? AND id < ?
         ORDER BY id DESC LIMIT ?
       )
-      SELECT ${ITEM_FIELDS}
+      SELECT ${ITEM_FIELDS}, CASE WHEN d.kind = 'reply' THEN (
+        SELECT json_group_array(json_object('emoji', emoji, 'count', total, 'reacted', json(own)))
+        FROM (
+          SELECT emoji, COUNT(*) AS total, CASE MAX(member_id = ?) WHEN 1 THEN 'true' ELSE 'false' END AS own
+          FROM meetup15_reply_reactions WHERE reply_id = d.id GROUP BY emoji
+        )
+      ) END AS reactionData
       FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
       WHERE d.id IN (SELECT id FROM page) OR d.post_id IN (SELECT id FROM page)
       ORDER BY d.id DESC`
-    ).bind(section, cursor, PAGE_SIZE + 1, viewer, viewer).all<ItemRow>(),
+    ).bind(section, cursor, PAGE_SIZE + 1, viewer, viewer, viewer).all<ItemRow>(),
   ])
   const extra = feed.results.filter((row) => row.kind === 'post')[PAGE_SIZE]
   const items = extra ? feed.results.filter((row) => row.id !== extra.id && row.postId !== extra.id) : feed.results

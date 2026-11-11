@@ -121,6 +121,27 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(bob, { action: 'edit', id: post.id, body: '他人的帖子' })).status).toBe(409)
     await ok(bob, { action: 'reply', postId: post.id, parentId: null, body: '一级回复' })
     const reply = (await feed(bob)).items.find((item) => item.kind === 'reply')!
+    const reaction = { action: 'reaction', id: reply.id, emoji: '👍', reacted: true }
+    const replyReactions = async (cookie: string) => (await feed(cookie)).items.find(item => item.id === reply.id)?.reactions
+    expect(await replyReactions(alice)).toEqual([])
+    expect((await command('', reaction)).status).toBe(401)
+    expect((await command(alice, { ...reaction, emoji: 'x' })).status).toBe(400)
+    await ok(alice, { ...reaction, id: post.id })
+    const observer = (await connect(alice)).webSocket!
+    observer.accept()
+    const reactionUpdate = new Promise(resolve => {
+      observer.addEventListener('message', event => resolve(event.data), { once: true })
+    })
+    await ok(bob, reaction)
+    await expect(reactionUpdate).resolves.toBe('activity.updated')
+    observer.close(1000)
+    expect(await replyReactions(alice)).toEqual([{ emoji: '👍', count: 1, reacted: false }])
+    await ok(alice, reaction)
+    await ok(alice, reaction)
+    expect(await replyReactions(bob)).toEqual([{ emoji: '👍', count: 2, reacted: true }])
+    await ok(alice, { ...reaction, reacted: false, memberId: 'bob' })
+    expect(await replyReactions(alice)).toEqual([{ emoji: '👍', count: 1, reacted: false }])
+    expect(await replyReactions(bob)).toEqual([{ emoji: '👍', count: 1, reacted: true }])
     await ok(alice, { action: 'reply', postId: post.id, parentId: reply.id, body: '子回复' })
     const child = (await feed(alice)).items.find((item) => item.parentId === reply.id)!
     expect((await command(bob, { action: 'reply', postId: post.id, parentId: child.id, body: '超深回复' })).status).toBe(409)
@@ -129,6 +150,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await feed(alice)).items.map((item) => item.body)).toContain('已编辑的回复')
     await ok(alice, { action: 'delete', id: child.id })
     await ok(bob, { action: 'delete', id: reply.id })
+    expect(await db.prepare('SELECT COUNT(*) AS total FROM meetup15_reply_reactions').first('total')).toBe(0)
     await ok(alice, { action: 'delete', id: post.id })
     expect((await feed(alice)).items).toEqual([])
 

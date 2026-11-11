@@ -5,6 +5,7 @@ import type { DiscussionItem, FeedSnapshot, MemberCommand } from '@/lib/meetup15
 import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
+import { ReplyReactions } from './ReplyReactions'
 import { useDiscussion } from './useDiscussion'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
@@ -67,6 +68,7 @@ function PostCard({ post, replies, named, pending, submit }: {
             </>
           )}
         </div>
+        {!isPost && <ReplyReactions item={item} pending={pending} submit={submit} />}
         {editor?.kind === 'reply' && editor.id === item.id && (
           <DiscussionComposer label={isPost ? '回复正文' : '子回复正文'} action="发表回复" pending={pending}
             onCancel={cancel} onSubmit={(body) => send({
