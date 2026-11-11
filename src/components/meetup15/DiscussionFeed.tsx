@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { DiscussionItem, FeedSnapshot, MemberCommand, ReplyPage } from '@/lib/meetup15/discussion'
@@ -9,7 +10,7 @@ import { DiscussionComposer, discussionButton, discussionInput } from './Discuss
 import { DiscussionReactions } from './DiscussionReactions'
 import { useDiscussion } from './useDiscussion'
 
-const feedButton = 'inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
+const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
 const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm font-medium text-slate-600 hover:bg-dams-wash aria-pressed:border-dams-blue aria-pressed:font-semibold aria-pressed:text-dams-hover'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
@@ -179,7 +180,7 @@ export function DiscussionFeed() {
   if (selected) params.set('section', selected)
   if (round) params.set('round', String(round))
   if (before) params.set('before', String(before))
-  const { data, error, pending, submit } = useDiscussion<FeedSnapshot>(`/api/discussion?${params}`)
+  const { data, error, pending, submit, retry, unauthorized } = useDiscussion<FeedSnapshot>(`/api/discussion?${params}`)
   const named = Boolean(data?.nickname)
 
   function choose(section: MeetupSection | null) {
@@ -194,28 +195,65 @@ export function DiscussionFeed() {
     await submit({ action: 'nickname', name })
   }
 
-  if (!data) return <p className="px-4 py-5 sm:px-6" role={error ? 'alert' : 'status'}>{error || '正在加载讨论区…'}</p>
+  const active = data?.activeRound
+  const navigation = (
+    <nav key="discussion-sections" aria-label="讨论板块" className="flex overflow-x-auto border-b border-dams-line px-2">
+      <button className={tabButton} aria-pressed={selected === null}
+        onClick={() => choose(null)}>跟随现场</button>
+      {Object.entries(MEETUP_SECTIONS).map(([key, label]) => (
+        <button key={key} className={tabButton} aria-pressed={selected === key}
+          onClick={() => choose(key as MeetupSection)}>
+          {label}
+          {active?.section === key && (
+            <span className="ml-2 rounded-full bg-dams-wash px-2 py-0.5 text-xs font-semibold text-dams-hover">问答中</span>
+          )}
+        </button>
+      ))}
+    </nav>
+  )
+  const feedback = error && (
+    <div className="flex flex-wrap items-center gap-2">
+      <p role="alert" className="text-sm text-red-700">{error}</p>
+      {unauthorized
+        ? <Link href="/" className="inline-flex min-h-11 items-center px-3 text-sm font-semibold text-dams-hover underline">重新入场</Link>
+        : <button type="button" className={discussionButton} onClick={() => void retry()}>重试</button>}
+    </div>
+  )
+  if (!data) return (
+    <div>
+      {navigation}
+      <div className="px-4 py-5 sm:px-6">
+        {feedback || <p role="status">正在加载讨论区…</p>}
+      </div>
+    </div>
+  )
 
-  const active = data.activeRound
   const viewed = data.viewedRound
   const liveRound = viewed !== null && viewed.id === active?.id
+  const qaSection = active ? MEETUP_SECTIONS[active.section] : null
   const posts = data.items.filter((entry) => entry.kind === 'post')
   return (
     <div>
-      <nav aria-label="讨论板块" className="flex overflow-x-auto border-b border-dams-line px-2">
-        <button className={tabButton} aria-pressed={selected === null}
-          onClick={() => choose(null)}>跟随现场</button>
-        {Object.entries(MEETUP_SECTIONS).map(([key, label]) => (
-          <button key={key} className={tabButton} aria-pressed={selected === key}
-            onClick={() => choose(key as MeetupSection)}>{label}</button>
-        ))}
-      </nav>
+      {active && !liveRound && (
+        <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dams-selection bg-dams-wash px-4 py-3 sm:mx-6">
+          <div>
+            <p className="text-sm font-semibold text-dams-hover">问答进行中 · {active.guest}</p>
+            <p className="text-sm text-slate-700">{qaSection}</p>
+          </div>
+          <button className="min-h-11 rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue"
+            onClick={() => choose(active.section)}>前往提问</button>
+        </aside>
+      )}
+      {navigation}
       <div className="space-y-4 border-b border-dams-line px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">{MEETUP_SECTIONS[data.section]}</h2>
-          <p className="rounded-full bg-dams-wash px-3 py-1 text-xs text-dams-hover">现场 · {MEETUP_SECTIONS[data.currentSection]}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="rounded-full bg-dams-wash px-3 py-1 text-xs text-dams-hover">现场 · {MEETUP_SECTIONS[data.currentSection]}</p>
+            <a href="#feed-compose" className="inline-flex min-h-11 items-center rounded-full border border-dams-selection bg-white px-3 text-sm font-semibold text-dams-hover hover:bg-dams-wash">发帖</a>
+          </div>
         </div>
-        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        {feedback}
         {!named && (
           <form id="feed-compose" className="scroll-mt-4 space-y-2 rounded-xl border border-dams-line p-3" onSubmit={setNickname}>
             <label className="block text-sm">填写昵称后可以发帖、回复和提问
@@ -224,14 +262,19 @@ export function DiscussionFeed() {
             <button className={discussionButton} disabled={pending}>保存昵称</button>
           </form>
         )}
-        {active && active.section !== data.section && (
-          <p className="text-sm">问答正在 {MEETUP_SECTIONS[active.section]} 进行。
-            <button className={discussionButton} onClick={() => choose(active.section)}>前往问答板块</button>
-          </p>
-        )}
         {data.rounds.some((entry) => entry.section === data.section) && (
           <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-4">
             <h3 className="font-semibold">嘉宾问答</h3>
+            {liveRound && viewed && (
+              <div className="space-y-3 rounded-xl border-2 border-dams-blue bg-white p-4">
+                <p className="font-semibold text-dams-hover">问答进行中 · {viewed.guest}</p>
+                {named ? (
+                  <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
+                    featured placeholder="你想问这位嘉宾什么？"
+                    onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: viewed.id, body })} />
+                ) : <p className="text-sm text-slate-700">填写上方昵称后即可提问。</p>}
+              </div>
+            )}
             <label htmlFor="discussion-round" className="block text-sm">查看本板块问答轮次</label>
               <select id="discussion-round" className={discussionInput} value={round ?? ''}
                 onChange={(event) => {
@@ -244,11 +287,7 @@ export function DiscussionFeed() {
               </select>
             {viewed ? (
               <>
-                <p className="font-medium">第 {viewed.id} 轮 · {viewed.guest}{liveRound ? ' · 进行中' : ' · 已结束'}</p>
-                {liveRound && named && (
-                  <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
-                    onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: viewed.id, body })} />
-                )}
+                {!liveRound && <p className="font-medium">第 {viewed.id} 轮 · {viewed.guest} · 已结束</p>}
                 {data.questions.length ? (
                   <ol className="space-y-2">
                     {data.questions.map((question) => (
@@ -271,8 +310,9 @@ export function DiscussionFeed() {
           </section>
         )}
         {named && (
-          <div id="feed-compose" className="scroll-mt-4">
-            <DiscussionComposer label="新帖正文" action="发帖" pending={pending} initialTags={[]} timeline
+          <div id="feed-compose" className="scroll-mt-4 rounded-xl border border-slate-300 bg-white p-4">
+            <DiscussionComposer label={`发布到${MEETUP_SECTIONS[data.section]}`} action="发布帖子" pending={pending} initialTags={[]}
+              featured placeholder="分享你的想法或现场见闻…"
               onSubmit={(body, tags) => submit({ action: 'post', section: data.section, body, tags })} />
           </div>
         )}

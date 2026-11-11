@@ -24,14 +24,17 @@ export function DiscussionAdmin({ view }: { view: 'agenda' | 'qa' }) {
 
   return (
     <section className="space-y-4 border-t border-dams-line pt-5">
-      <h1 className="text-2xl font-semibold">{view === 'agenda' ? '议程' : '嘉宾问答'}</h1>
-      <p role="status" className="text-sm">当前板块 · {MEETUP_SECTIONS[data.currentSection]} · {data.override ? '手动' : '自动'}</p>
+      <h1 className="text-2xl font-semibold">{view === 'agenda' ? '议程切换' : '管理问答'}</h1>
+      <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-dams-selection bg-dams-wash p-4">
+        <p className="font-semibold">当前板块 · {MEETUP_SECTIONS[data.currentSection]}</p>
+        <span className="rounded-full bg-white px-3 py-1 text-sm text-dams-hover">{data.override ? '手动切换' : '跟随议程'}</span>
+      </div>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {view === 'agenda' && <div className="flex flex-wrap gap-2">
         <button className={discussionButton} disabled={pending || data.override === null}
           onClick={() => void submit({ action: 'section', section: null })}>恢复自动</button>
         {Object.entries(MEETUP_SECTIONS).map(([key, label]) => (
-          <button key={key} className={discussionButton} disabled={pending} aria-pressed={data.override === key}
+          <button key={key} className={discussionButton + ' aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover'} disabled={pending} aria-pressed={data.override === key}
             onClick={() => void submit({ action: 'section', section: key as MeetupSection })}>{label}</button>
         ))}
       </div>}
@@ -41,7 +44,9 @@ export function DiscussionAdmin({ view }: { view: 'agenda' | 'qa' }) {
             <option value="">请选择</option>
             {data.guests.map((guest) => <option key={guest.id} value={guest.id}>{guest.name}</option>)}
           </select>
-        <button className={discussionButton} disabled={pending || !hasGuests}>开启新一轮问答</button>
+        <p className="text-sm text-slate-700">观众将在「{MEETUP_SECTIONS[data.currentSection]}」提问。开启后，大屏会自动切到问答。</p>
+        <button className="min-h-11 rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover disabled:opacity-50"
+          disabled={pending || !hasGuests}>开启新一轮问答</button>
         {!hasGuests && <p className="text-xs text-zinc-600">请先配置嘉宾账号。</p>}
       </form>}
       {view === 'qa' && active && (

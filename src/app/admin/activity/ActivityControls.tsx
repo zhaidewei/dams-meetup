@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AdmissionScreen } from '@/components/meetup15/AdmissionScreen'
 
 type ActivityState = { admissionOpen: boolean; revision: number }
 
@@ -79,13 +80,14 @@ export function ActivityControls() {
   }
 
   return (
-    <div className="space-y-3">
+    <section className="space-y-4 rounded-2xl border border-dams-line bg-white p-4 sm:p-5">
+      <h1 className="text-xl font-semibold">观众入场</h1>
       <p role="status">
-        {state ? `观众入口：${state.admissionOpen ? '开启' : '关闭'}（版本 ${state.revision}）` : '正在读取观众入口…'}
+        {state ? `观众入口：${state.admissionOpen ? '开启' : '关闭'}` : '正在读取观众入口…'}
       </p>
       <p>{connected ? '实时已连接' : '正在连接实时更新…'}</p>
       {error && <p role="alert">{error}</p>}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <button disabled={!state || saving || state.admissionOpen}
           onClick={() => void changeAdmission(true)}
           className="min-h-11 rounded-full bg-dams-blue px-5 py-2 text-white disabled:opacity-40">
@@ -93,10 +95,15 @@ export function ActivityControls() {
         </button>
         <button disabled={!state || saving || !state.admissionOpen}
           onClick={() => void changeAdmission(false)}
-          className="rounded border border-zinc-500 px-4 py-2 disabled:opacity-40">
+          className="min-h-11 rounded border border-zinc-500 px-4 py-2 disabled:opacity-40">
           关闭观众入口
         </button>
       </div>
-    </div>
+      {state?.admissionOpen && (
+        <div className="rounded-xl border border-dams-selection bg-dams-wash p-4">
+          <AdmissionScreen compact copyable />
+        </div>
+      )}
+    </section>
   )
 }

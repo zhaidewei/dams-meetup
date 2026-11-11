@@ -3,6 +3,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { ADMISSION_END } from '../src/lib/meetup15/event'
 import type { MeetupEnv } from '../src/lib/meetup15/identity'
+import { readLiveStats } from './activity-stats'
 import { loginActivityAdmin } from './activity-session'
 import { finishPendingRaffle } from './meetup-raffle'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
@@ -83,6 +84,13 @@ export async function handleActivityRequest(request: Request, env: ActivityEnv, 
     ?.slice(ACTIVITY_ADMIN_COOKIE.length + 1)
   if (verifySessionCookie(ACTIVITY_ADMIN_COOKIE, cookie, env.SESSION_SECRET) !== '1') {
     return new Response(null, { status: 401 })
+  }
+
+  if (url.pathname === '/api/activity/stats') {
+    if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } })
+    return Response.json(await readLiveStats(env.ACTIVITY_DB, now), {
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
   }
 
   if (url.pathname === '/api/activity/updates') {

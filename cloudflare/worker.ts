@@ -18,7 +18,7 @@ const worker = {
     const { pathname } = new URL(request.url)
     const clock = () => meetupNow(env)
     if (pathname === '/api/activity' || pathname === '/api/activity/updates' ||
-        pathname === '/api/activity/session') {
+        pathname === '/api/activity/session' || pathname === '/api/activity/stats') {
       return handleActivityRequest(request, env, clock())
     }
     if (pathname === '/api/admin/meetup-summary') return handleMeetupSummary(request, env, clock())

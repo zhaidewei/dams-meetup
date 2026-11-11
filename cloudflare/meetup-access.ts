@@ -37,10 +37,23 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
   const displayName = field(form, 'displayName').trim()
   const title = field(form, 'title').trim()
   const password = field(form, 'password')
+  const editing = field(form, 'action') === 'edit'
+  const invalid = editing ? '/admin/activity?tab=guests&guest=invalid&edit=' + encodeURIComponent(username) : '/admin/activity?guest=invalid'
   if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username) ||
       !displayName || displayName.length > 80 || title.length > 120 ||
-      password.length < 12 || password.length > 128) {
-    return redirect('/admin/activity?guest=invalid')
+      ((!editing || password) && (password.length < 12 || password.length > 128))) {
+    return redirect(invalid)
+  }
+  if (editing) {
+    const salt = password ? randomBytes(16).toString('hex') : null
+    const hash = salt ? `${salt}:${guestHash(password, salt)}` : null
+    const saved = await env.ACTIVITY_DB.prepare(`
+      UPDATE meetup15_members
+      SET display_name = ?, title = ?, password_hash = COALESCE(?, password_hash)
+      WHERE username = ? AND role = 'guest'
+        AND NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
+    `).bind(displayName, title || null, hash, username).run()
+    return redirect(saved.meta.changes ? '/admin/activity?guest=saved' : invalid)
   }
   const salt = randomBytes(16).toString('hex')
   const saved = await env.ACTIVITY_DB.prepare(
