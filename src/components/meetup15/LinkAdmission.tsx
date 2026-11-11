@@ -33,7 +33,7 @@ export function LinkAdmission({ mode }: { mode: 'qr' | 'recover' }) {
       <form method="post" action="/api/meetup/recover" onSubmit={clearFragment}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="token" value={token} />
-        <button className="rounded bg-teal-900 px-4 py-2 text-white">恢复我的身份</button>
+        <button className="rounded bg-sky-900 px-4 py-2 text-white">恢复我的身份</button>
       </form>
     )
   }

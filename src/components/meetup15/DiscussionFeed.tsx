@@ -1,8 +1,8 @@
 'use client'
 
 import { Heart, MessageCircle } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import type { DiscussionItem, FeedSnapshot, MemberCommand } from '@/lib/meetup15/discussion'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import type { DiscussionItem, FeedSnapshot, MemberCommand, ReplyPage } from '@/lib/meetup15/discussion'
 import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
@@ -14,20 +14,25 @@ const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm 
 
 type Submit = (command: MemberCommand) => Promise<boolean>
 
-function PostCard({ post, replies, named, pending, submit }: {
+function PostCard({ post, snapshot, named, pending, submit }: {
   post: DiscussionItem
-  replies: DiscussionItem[]
+  snapshot: FeedSnapshot
   named: boolean
   pending: boolean
   submit: Submit
 }) {
   const [editor, setEditor] = useState<{ kind: 'edit' | 'reply'; id: number } | null>(null)
   const [threadOpen, setThreadOpen] = useState(false)
+  const [children, setChildren] = useState<Set<number>>(() => new Set())
   const cancel = () => setEditor(null)
   const send = async (command: MemberCommand) => {
     const ok = await submit(command)
     if (ok) {
-      if (command.action === 'reply') setThreadOpen(true)
+      if (command.action === 'reply') {
+        setThreadOpen(true)
+        const parent = command.parentId
+        if (parent !== null) setChildren(previous => new Set(previous).add(parent))
+      }
       cancel()
     }
     return ok
@@ -36,6 +41,7 @@ function PostCard({ post, replies, named, pending, submit }: {
   function renderEntry(item: DiscussionItem) {
     const isPost = item.kind === 'post'
     const canReply = named && item.parentId === null
+    const expanded = isPost ? threadOpen : children.has(item.id)
     return (
       <div className="relative min-h-10 space-y-1.5 pl-11">
         <MemberBadge id={item.authorId} name={item.author} mine={item.mine} timeline />
@@ -52,10 +58,19 @@ function PostCard({ post, replies, named, pending, submit }: {
           </ul>
         )}
         <div className="flex flex-wrap gap-1">
-          {isPost && replies.length > 0 && (
-            <button type="button" className={feedButton} aria-expanded={threadOpen}
-              onClick={() => { setThreadOpen(!threadOpen); cancel() }}>
-              <MessageCircle size={17} aria-hidden />{replies.length} 条回复
+          {Boolean(item.replyCount) && (
+            <button type="button" className={feedButton} aria-expanded={expanded}
+              onClick={() => {
+                if (isPost) setThreadOpen(!threadOpen)
+                else setChildren(previous => {
+                  const next = new Set(previous)
+                  if (expanded) next.delete(item.id)
+                  else next.add(item.id)
+                  return next
+                })
+                cancel()
+              }}>
+              <MessageCircle size={17} aria-hidden />{item.replyCount} 条{isPost ? '回复' : '子回复'}
             </button>
           )}
           {isPost && (
@@ -93,19 +108,65 @@ function PostCard({ post, replies, named, pending, submit }: {
     )
   }
 
-  const roots = replies.filter((reply) => reply.parentId === null)
   return (
     <article className="space-y-3 border-b border-sky-100 bg-white px-4 py-4 sm:px-6">
       {renderEntry(post)}
-      {threadOpen && roots.map((reply) => (
-        <div key={reply.id} className="ml-3 space-y-3 border-l-2 border-sky-100 pl-3">
-          {renderEntry(reply)}
-          {replies.filter((child) => child.parentId === reply.id).map((child) => (
-            <div key={child.id} className="ml-3 border-l border-sky-200 pl-3">{renderEntry(child)}</div>
-          ))}
-        </div>
-      ))}
+      {threadOpen && (
+        <ReplyList postId={post.id} snapshot={snapshot} render={reply => (
+          <>
+            {renderEntry(reply)}
+            {children.has(reply.id) && <ReplyList postId={post.id} parentId={reply.id} snapshot={snapshot} render={renderEntry} />}
+          </>
+        )} />
+      )}
     </article>
+  )
+}
+
+function ReplyList({ postId, parentId, snapshot, render }: {
+  postId: number
+  parentId?: number
+  snapshot: FeedSnapshot
+  render: (reply: DiscussionItem) => ReactNode
+}) {
+  const [cursors, setCursors] = useState([0])
+  const [retry, setRetry] = useState(0)
+  const [pages, setPages] = useState<ReplyPage[]>([])
+  const [error, setError] = useState(false)
+  const loading = pages.length < cursors.length
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(7000)])
+    void Promise.all(cursors.map(async after => {
+      const params = new URLSearchParams({ post: String(postId), after: String(after) })
+      if (parentId !== undefined) params.set('parent', String(parentId))
+      const response = await fetch('/api/discussion/replies?' + params, { cache: 'no-store', signal })
+      if (!response.ok) throw new Error('Reply page read failed')
+      return await response.json() as ReplyPage
+    })).then(data => {
+      if (!controller.signal.aborted) {
+        setPages(data)
+        setError(false)
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setError(true)
+    })
+    return () => controller.abort()
+  }, [postId, parentId, cursors, snapshot, retry])
+
+  const next = pages.at(-1)?.nextAfter
+  const replies = new Map(pages.flatMap(page => page.items.map(reply => [reply.id, reply] as const)))
+  return (
+    <div className="ml-3 space-y-3 border-l-2 border-sky-100 pl-3">
+      {[...replies.values()].map(reply => <div key={reply.id} className="space-y-2">{render(reply)}</div>)}
+      {error ? <p role="alert" className="text-sm text-red-700">
+        回复加载失败。<button className={feedButton} onClick={() => setRetry(value => value + 1)}>重试</button>
+      </p> : loading ? <p role="status" className="text-sm text-slate-600">正在加载回复…</p> : null}
+      {!loading && !replies.size && <p className="text-sm text-slate-600">暂无回复。</p>}
+      {next && !loading && !error && <button className={feedButton}
+        onClick={() => setCursors(previous => [...previous, next])}>加载更多回复</button>}
+    </div>
   )
 }
 
@@ -218,7 +279,7 @@ export function DiscussionFeed() {
       </div>
       {posts.length ? posts.map((post) => (
         <PostCard key={post.id} post={post} named={named} pending={pending} submit={submit}
-          replies={data.items.filter((entry) => entry.postId === post.id).reverse()} />
+          snapshot={data} />
       )) : <p className="px-4 py-6 text-sm text-slate-600 sm:px-6">暂无讨论。</p>}
       <div className="flex gap-2 px-4 py-3 sm:px-6">
         {before && <button className={discussionButton} onClick={() => setPageStack((stack) => stack.slice(0, -1))}>

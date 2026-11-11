@@ -22,6 +22,7 @@ export type DiscussionItem = {
   answered: boolean
   likes: number
   liked: boolean
+  replyCount?: number
   reactions?: ReplyReaction[]
   createdAt: number
 }
@@ -50,6 +51,8 @@ export type FeedSnapshot = DiscussionContext & {
   items: DiscussionItem[]
   nextBefore: number | null
 }
+
+export type ReplyPage = { items: DiscussionItem[]; nextAfter: number | null; refreshAt: null }
 
 export type StaffSnapshot = DiscussionContext & {
   guests: { id: string; name: string }[]

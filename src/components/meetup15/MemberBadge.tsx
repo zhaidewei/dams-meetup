@@ -14,7 +14,7 @@ export function MemberBadge({ id, name, mine, timeline = false }: { id: string; 
         aria-expanded={open} aria-label={`查看 ${name} 的资料`} onClick={() => setOpen(!open)}>
         <span aria-hidden className={timeline
           ? 'absolute top-0 left-0 grid size-9 place-items-center rounded-full bg-sky-100 text-sky-900'
-          : 'grid size-7 place-items-center rounded-full bg-teal-100 text-teal-900'}>{Array.from(name)[0]}</span>
+          : 'grid size-7 place-items-center rounded-full bg-sky-100 text-sky-900'}>{Array.from(name)[0]}</span>
         {name}
       </button>
       {open && <MemberDetails id={id} mine={mine} />}

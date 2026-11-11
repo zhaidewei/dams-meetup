@@ -3,7 +3,7 @@ import { MEETUP_ADDRESS, MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_THEME, 
 
 export function MeetupNav({ closed = false }: { closed?: boolean }) {
   return (
-    <nav aria-label="活动导航" className="flex flex-wrap gap-x-5 gap-y-2 border-b border-zinc-200 pb-4 text-sm font-medium">
+    <nav aria-label="活动导航" className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl border border-sky-100 bg-white px-4 py-3 text-sm font-medium text-sky-900">
       <Link href="/">活动首页</Link>
       <Link href="/agenda">完整议程</Link>
       {closed ? <Link href="/summary/15">活动复盘</Link> : <>
@@ -16,8 +16,8 @@ export function MeetupNav({ closed = false }: { closed?: boolean }) {
 
 export function MeetupHeading() {
   return (
-    <header className="space-y-3">
-      <p className="text-sm font-semibold text-teal-800">{MEETUP_NAME}</p>
+    <header className="space-y-3 rounded-2xl bg-sky-50 p-5 sm:p-8">
+      <p className="text-sm font-semibold text-sky-800">{MEETUP_NAME}</p>
       <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{MEETUP_THEME}</h1>
       <p className="font-medium">{MEETUP_DATE}</p>
       <p className="text-sm leading-relaxed text-zinc-600">{MEETUP_VENUE}<br />{MEETUP_ADDRESS}</p>
@@ -29,10 +29,10 @@ export function MeetupAgenda() {
   return (
     <section aria-labelledby="agenda-title" className="space-y-5">
       <h2 id="agenda-title" className="text-2xl font-semibold">活动议程</h2>
-      <ol className="divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+      <ol className="divide-y divide-sky-100 overflow-hidden rounded-2xl border border-sky-100 bg-white">
         {MEETUP_AGENDA.map(({ start, end, title, details }) => (
           <li key={start} className="grid gap-2 px-5 py-4 sm:grid-cols-[8rem_1fr]">
-            <span className="text-sm font-medium tabular-nums text-teal-800">{start}–{end}</span>
+            <span className="text-sm font-medium tabular-nums text-sky-800">{start}–{end}</span>
             <div className="space-y-2">
               <h3 className="font-semibold">{title}</h3>
               {details && (

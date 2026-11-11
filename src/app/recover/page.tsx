@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export default function RecoverPage() {
   if (meetupPhase(meetupNow(meetupEnv())) === 'closed') redirect(LATEST_SUMMARY_PATH)
   return (
-    <main className="mx-auto w-full max-w-md space-y-4 px-5 py-12">
+    <main className="mx-4 my-6 w-auto sm:mx-auto sm:w-full max-w-md rounded-2xl border border-sky-100 bg-sky-50/60 space-y-4 px-5 py-7 sm:p-8">
       <h1 className="text-2xl font-semibold">恢复第 15 期观众身份</h1>
       <LinkAdmission mode="recover" />
       <p>请使用本届「我」页面保存的链接，并确认恢复身份。</p>

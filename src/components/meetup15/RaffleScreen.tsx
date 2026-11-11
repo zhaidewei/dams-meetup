@@ -14,7 +14,7 @@ function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
   const width = columns * CELL_WIDTH
   return (
     <figure className="space-y-2 px-2 pb-3">
-      <figcaption className="text-xs text-teal-100">
+      <figcaption className="text-xs text-sky-100">
         {candidates.length} 位候选人 · 圆圈面积代表中奖概率
       </figcaption>
       <svg viewBox={`0 0 ${width} ${rows * CELL_HEIGHT}`} className="mx-auto block w-full"
@@ -31,11 +31,11 @@ function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
             <g key={index} role="img" aria-label={`${name} · ${percent}${won ? ' · 中奖' : ''}`}>
               <title>{name} · {percent}{won ? ' · 中奖' : ''}</title>
               <circle cx={x} cy={y} r={MAX_RADIUS * Math.sqrt(weight / maxWeight)}
-                className={won ? 'fill-amber-300/25 stroke-amber-200' : 'fill-teal-400/15 stroke-teal-300/70'}
+                className={won ? 'fill-amber-300/25 stroke-amber-200' : 'fill-sky-400/15 stroke-sky-300/70'}
                 strokeWidth={won ? 2 : 1} />
               <text x={x} y={y} dy=".35em" textAnchor="middle" className="fill-white text-[10px]">{percent}</text>
               <text x={x} y={y + 43} textAnchor="middle"
-                className={won ? 'fill-amber-100 text-[12px] font-semibold' : 'fill-teal-50 text-[12px]'}>{label}</text>
+                className={won ? 'fill-amber-100 text-[12px] font-semibold' : 'fill-sky-50 text-[12px]'}>{label}</text>
             </g>
           )
         })}
@@ -47,10 +47,10 @@ function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
 export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, { mode: 'raffle' }>; compact: boolean }) {
   const { lottery, candidates, raffleId, rules } = data
   return (
-    <section aria-label="现场抽奖" className="overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#17473f,#061713_75%)]">
+    <section aria-label="现场抽奖" className="overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#17557d,#091d33_75%)] text-white">
       <div className={compact ? 'space-y-2 p-3' : 'space-y-3 px-4 py-6'}>
         <h1 className={compact ? 'text-lg font-semibold' : 'text-3xl font-semibold md:text-5xl'}>现场抽奖</h1>
-        {raffleId !== null && <p className="text-sm text-teal-100">第 {raffleId} 轮</p>}
+        {raffleId !== null && <p className="text-sm text-sky-100">第 {raffleId} 轮</p>}
         {lottery?.phase === 'winner' && (
           <p className={`wrap-anywhere font-semibold text-amber-200 ${compact ? 'text-lg' : 'text-3xl md:text-5xl'}`}>
             恭喜 {lottery.winner}！
@@ -62,7 +62,7 @@ export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, 
         {lottery?.phase === 'empty' && <p>本轮没有符合条件的候选人。</p>}
         {!lottery && <p>等待主持人开启抽奖</p>}
       </div>
-      <section aria-labelledby="raffle-rules-title" className={`mx-auto mb-3 w-fit max-w-[95%] space-y-1 rounded-lg bg-black/25 px-4 py-2 text-teal-50 ${compact ? 'text-xs' : 'text-base'}`}>
+      <section aria-labelledby="raffle-rules-title" className={`mx-auto mb-3 w-fit max-w-[95%] space-y-1 rounded-lg bg-black/25 px-4 py-2 text-sky-50 ${compact ? 'text-xs' : 'text-base'}`}>
         <h2 id="raffle-rules-title" className="font-semibold text-white">抽奖规则</h2>
         <p>最近 {RAFFLE_ACTIVE_HOURS} 小时内活跃的观众可参加。嘉宾和本场已中奖者除外，每轮最多抽出 1 人。</p>
         {rules ? (

@@ -32,7 +32,7 @@ function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
   if (selection?.mode === 'raffle' && selection.raffleId !== undefined) query.set('raffleId', String(selection.raffleId))
   const { data, error } = useDiscussion<ProjectionView>(`/api/screen/preview?${query}`, 'projection')
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-zinc-200 p-4" aria-label="画面预览">
+    <section className="min-w-0 space-y-3 rounded-xl border border-sky-100 p-4" aria-label="画面预览">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">画面预览</h2>
         <p role="status" className="text-sm text-zinc-600">
@@ -40,14 +40,15 @@ function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
             : !selection ? '待选择问答轮次' : changed ? `待切换 · ${PROJECTION_MODES[draft.mode]}` : '与当前画面一致'}
         </p>
       </div>
-      <div aria-label="仅管理员可见的画面预览" className="grid min-h-48 min-w-0 content-center rounded-lg bg-black p-4 text-center text-zinc-100">
+      <div aria-label="仅管理员可见的画面预览" className={'grid min-h-48 min-w-0 content-center rounded-lg p-4 text-center ' +
+        (data && data.mode !== 'hidden' ? 'bg-sky-50 text-slate-950' : 'bg-black text-zinc-100')}>
         {!selection ? <p>请选择要投屏的问答轮次</p> : error
           ? <p role="alert">{error}</p> : data
             ? <ScreenContent data={data} compact /> : <p>正在加载预览…</p>}
       </div>
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" className={discussionButton} disabled={pending || (!changed && !stale)} onClick={onReset}>放弃修改</button>
-        <button type="button" className="rounded-md bg-teal-800 px-4 py-2 text-white disabled:opacity-50"
+        <button type="button" className="rounded-md bg-sky-800 px-4 py-2 text-white disabled:opacity-50"
           disabled={pending || stale || !changed || !selection || !data || Boolean(error)}
           onClick={() => selection && onConfirm(selection)}>确认切换</button>
       </div>
@@ -88,7 +89,7 @@ export function ProjectionAdmin({ draft, setDraft }: {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">大屏控制</h1>
-        <p role="status" className="rounded-full bg-teal-50 px-3 py-1 text-sm text-teal-900">
+        <p role="status" className="rounded-full bg-sky-50 px-3 py-1 text-sm text-sky-900">
           {current.mode === 'hidden' ? '大屏状态 · 已隐藏' : `正在投屏 · ${PROJECTION_MODES[current.mode]}`}
           {currentRound && ` · ${currentRound.guest}${currentRound.closedAt !== null ? '（回看）' : ''}`}
           {current.mode === 'raffle' && (currentRaffleId ? ` · 第 ${currentRaffleId} 轮（回看）` : ' · 跟随最新一轮')}
@@ -96,17 +97,17 @@ export function ProjectionAdmin({ draft, setDraft }: {
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.65fr)]">
-        <section className="min-w-0 space-y-3 rounded-xl border border-zinc-200 p-4">
+        <section className="min-w-0 space-y-3 rounded-xl border border-sky-100 p-4">
           <h2 className="font-semibold">选择画面</h2>
           <div role="group" aria-label="大屏画面" className="flex flex-wrap gap-2">
             {(Object.keys(PROJECTION_MODES) as ProjectionMode[]).map((mode) => (
               <button key={mode} type="button" disabled={pending}
-                className={`${discussionButton} aria-pressed:border-teal-700 aria-pressed:bg-teal-50 aria-pressed:text-teal-900`}
+                className={`${discussionButton} aria-pressed:border-sky-700 aria-pressed:bg-sky-50 aria-pressed:text-sky-900`}
                 aria-pressed={selected.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
             ))}
           </div>
           {selected.mode === 'raffle' && (
-            <div className="space-y-3 border-t border-zinc-200 pt-3">
+            <div className="space-y-3 border-t border-sky-100 pt-3">
               <div className="space-y-1">
                 <label htmlFor="raffle-round" className="block text-sm">选择抽奖轮次</label>
                 <select id="raffle-round" className={discussionInput} value={selectedRaffleId ?? ''}
@@ -127,7 +128,7 @@ export function ProjectionAdmin({ draft, setDraft }: {
             </div>
           )}
           {selected.mode === 'qa' && (
-            <div className="space-y-1 border-t border-zinc-200 pt-3">
+            <div className="space-y-1 border-t border-sky-100 pt-3">
               <label htmlFor="projection-round" className="block text-sm">选择问答轮次</label>
               <select id="projection-round" className={discussionInput} value={selected.roundId ?? ''}
                 disabled={pending || !data.rounds.length} onChange={(event) =>

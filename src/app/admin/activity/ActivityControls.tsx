@@ -88,7 +88,7 @@ export function ActivityControls() {
       <div className="flex gap-3">
         <button disabled={!state || saving || state.admissionOpen}
           onClick={() => void changeAdmission(true)}
-          className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-40">
+          className="min-h-11 rounded-full bg-sky-700 px-5 py-2 text-white disabled:opacity-40">
           开启观众入口
         </button>
         <button disabled={!state || saving || !state.admissionOpen}

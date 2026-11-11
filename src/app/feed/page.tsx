@@ -1,30 +1,14 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { CalendarDays, Home, Mail, PenLine, UserRound } from 'lucide-react'
+import { PenLine } from 'lucide-react'
 import { DiscussionFeed } from '@/components/meetup15/DiscussionFeed'
+import { MeetupMemberNav } from '@/components/meetup15/MeetupMemberNav'
 import { MeetupPresence } from '@/components/meetup15/MeetupPresence'
 import { MEETUP_AGENDA, MEETUP_THEME, MEETUP_VENUE, meetupAgendaAt, meetupNow } from '@/lib/meetup15/event'
 import { currentMember, meetupEnv } from '@/lib/meetup15/server'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: '讨论区 · DAMS 第 15 期 Meetup' }
-
-const links = [
-  { href: '/feed', label: '讨论区', icon: Home },
-  { href: '/agenda', label: '议程', icon: CalendarDays },
-  { href: '/me?view=messages', label: '私信', icon: Mail },
-  { href: '/me', label: '我的', icon: UserRound },
-]
-
-function FeedNavigation() {
-  return links.map(({ href, label, icon: Icon }) => (
-    <Link key={href} href={href} aria-current={href === '/feed' ? 'page' : undefined}
-      className="flex min-h-11 flex-col items-center justify-center gap-1 rounded-full px-3 text-xs font-medium hover:bg-sky-50 aria-[current=page]:bg-sky-100 aria-[current=page]:font-semibold aria-[current=page]:text-sky-900 md:flex-row md:justify-start md:gap-3 md:text-sm">
-      <Icon size={19} aria-hidden />
-      {label}
-    </Link>
-  ))
-}
 
 export default async function FeedPage() {
   const now = meetupNow(meetupEnv())
@@ -41,7 +25,7 @@ export default async function FeedPage() {
             <span className="grid size-10 place-items-center rounded-xl bg-sky-700 text-lg text-white" aria-hidden>D</span>
             <span>DAMS <small className="block text-xs font-medium tracking-normal text-slate-600">Meetup 15</small></span>
           </Link>
-          <nav aria-label="论坛导航" className="grid gap-1"><FeedNavigation /></nav>
+          <MeetupMemberNav />
           <a href="#feed-compose" className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-sky-700 px-4 text-sm font-semibold text-white hover:bg-sky-800">
             <PenLine size={16} aria-hidden />发帖
           </a>
@@ -79,9 +63,7 @@ export default async function FeedPage() {
           </section>
         </div>
       </aside>
-      <nav aria-label="手机论坛导航" className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 gap-1 border-t border-sky-100 bg-white/95 px-3 pt-1 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-        <FeedNavigation />
-      </nav>
+      <MeetupMemberNav mobile />
     </div>
   )
 }
