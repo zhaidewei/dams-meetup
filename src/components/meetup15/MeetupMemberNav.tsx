@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { CalendarDays, Home, PenLine, UserRound } from 'lucide-react'
+import { CalendarDays, Home, Link2, PenLine, UserRound } from 'lucide-react'
 
 const links = [
   { href: '/feed', label: '讨论区', icon: Home },
   { href: '/agenda', label: '议程', icon: CalendarDays },
   { href: '/me', label: '我的', icon: UserRound },
+  { href: '/recovery-link', label: '恢复链接', icon: Link2 },
 ] as const
 
 type MemberPage = (typeof links)[number]['href']
@@ -13,7 +14,7 @@ type MemberPage = (typeof links)[number]['href']
 function MeetupMemberNav({ active, mobile = false }: { active: MemberPage; mobile?: boolean }) {
   return (
     <nav aria-label={mobile ? '手机论坛导航' : '论坛导航'} className={mobile
-      ? 'fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 gap-1 border-t border-sky-100 bg-white/95 px-3 pt-1 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden'
+      ? 'fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 gap-1 border-t border-sky-100 bg-white/95 px-3 pt-1 pb-[max(.25rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden'
       : 'grid gap-1'}>
       {links.map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} aria-current={href === active ? 'page' : undefined}
