@@ -56,6 +56,12 @@ export type FeedSnapshot = DiscussionContext & {
 
 export type ReplyPage = { items: DiscussionItem[]; nextAfter: number | null; refreshAt: null }
 
+export type ModerationPage = {
+  posts: (Pick<DiscussionItem, 'id' | 'author' | 'body' | 'createdAt'> & { replyCount: number })[]
+  nextBefore: number | null
+  refreshAt: null
+}
+
 export type StaffSnapshot = DiscussionContext & {
   guests: { id: string; name: string }[]
 }
