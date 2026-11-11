@@ -6,13 +6,15 @@ import type { MemberCard, PersonalCommand } from '@/lib/meetup15/personal'
 import { DiscussionComposer } from './DiscussionComposer'
 import { useDiscussion } from './useDiscussion'
 
-export function MemberBadge({ id, name, mine }: { id: string; name: string; mine: boolean }) {
+export function MemberBadge({ id, name, mine, timeline = false }: { id: string; name: string; mine: boolean; timeline?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="space-y-2">
       <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-700"
         aria-expanded={open} aria-label={`查看 ${name} 的资料`} onClick={() => setOpen(!open)}>
-        <span aria-hidden className="grid size-7 place-items-center rounded-full bg-teal-100 text-teal-900">{Array.from(name)[0]}</span>
+        <span aria-hidden className={timeline
+          ? 'absolute top-0 left-0 grid size-9 place-items-center rounded-full bg-sky-100 text-sky-900'
+          : 'grid size-7 place-items-center rounded-full bg-teal-100 text-teal-900'}>{Array.from(name)[0]}</span>
         {name}
       </button>
       {open && <MemberDetails id={id} mine={mine} />}
