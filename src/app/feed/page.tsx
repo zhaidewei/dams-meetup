@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { DiscussionFeed } from '@/components/meetup15/DiscussionFeed'
+import { GuestVipBadge } from '@/components/meetup15/GuestVipBadge'
 import { MeetupMemberLayout } from '@/components/meetup15/MeetupMemberNav'
 import { MeetupPresence } from '@/components/meetup15/MeetupPresence'
 import { MEETUP_AGENDA, MEETUP_THEME, MEETUP_VENUE, meetupAgendaAt, meetupNow } from '@/lib/meetup15/event'
@@ -46,7 +47,7 @@ export default async function FeedPage() {
           <p className="text-xs text-slate-600">荷兰华人数据社群 · 第 15 期 Meetup</p>
         </div>
         <a href="#feed-compose" className="rounded-full bg-dams-blue px-4 py-2 text-sm font-semibold text-white md:hidden">发帖</a>
-        {member.role === 'guest' && <span className="rounded-full bg-dams-selection px-3 py-1 text-xs font-medium text-dams-hover">嘉宾</span>}
+        {member.role === 'guest' && <GuestVipBadge />}
       </header>
       <DiscussionFeed />
     </MeetupMemberLayout>

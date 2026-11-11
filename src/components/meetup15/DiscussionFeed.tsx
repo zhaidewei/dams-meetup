@@ -45,7 +45,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
     const expanded = isPost ? threadOpen : children.has(item.id)
     return (
       <div className="relative min-h-10 space-y-1.5 pl-11">
-        <MemberBadge id={item.authorId} name={item.author} mine={item.mine} timeline />
+        <MemberBadge id={item.authorId} name={item.author} mine={item.mine} vip={item.authorRole === 'guest'} timeline />
         {editor?.kind === 'edit' && editor.id === item.id ? (
           <DiscussionComposer label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
             pending={pending} initialBody={item.body} initialTags={isPost ? item.tags : undefined} onCancel={cancel}

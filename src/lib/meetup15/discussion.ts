@@ -1,4 +1,5 @@
 import type { MeetupSection } from './event'
+import type { Member } from './identity'
 
 export const MAX_DISCUSSION_BODY = 300
 
@@ -16,6 +17,7 @@ export type DiscussionItem = {
   kind: 'post' | 'reply' | 'question'
   author: string
   authorId: string
+  authorRole: Member['role']
   mine: boolean
   body: string
   tags: string[]
