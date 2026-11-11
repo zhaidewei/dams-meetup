@@ -84,7 +84,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     for (const file of (await readdir('migrations')).sort()) {
       const sql = await readFile('migrations/' + file, 'utf8')
       // 以语句起始词为分界，保留触发器内的分号。
-      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE)\b)/)
+      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE|DROP)\b)/)
       await db.batch(statements.map((statement) => db.prepare(statement)))
     }
     await db.batch([
@@ -136,7 +136,13 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect(await replyReactions(alice)).toEqual([])
     expect((await command('', reaction)).status).toBe(401)
     expect((await command(alice, { ...reaction, emoji: 'x' })).status).toBe(400)
-    await ok(alice, { ...reaction, id: post.id })
+    await ok(alice, { ...reaction, id: post.id, emoji: '🎉' })
+    expect((await feed(alice)).items[0]).toMatchObject({
+      likes: 1, liked: false, reactions: [{ emoji: '🎉', count: 1, reacted: true }],
+    })
+    expect((await feed(bob)).items[0]).toMatchObject({
+      likes: 1, liked: true, reactions: [{ emoji: '🎉', count: 1, reacted: false }],
+    })
     const observer = (await connect(alice)).webSocket!
     observer.accept()
     const reactionUpdate = new Promise(resolve => {
@@ -173,8 +179,9 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     }
     await ok(alice, { action: 'delete', id: child.id })
     await ok(bob, { action: 'delete', id: reply.id })
-    expect(await db.prepare('SELECT COUNT(*) AS total FROM meetup15_reply_reactions').first('total')).toBe(0)
+    expect(await db.prepare('SELECT COUNT(*) AS total FROM meetup15_reply_reactions').first('total')).toBe(1)
     await ok(alice, { action: 'delete', id: post.id })
+    expect(await db.prepare('SELECT COUNT(*) AS total FROM meetup15_reply_reactions').first('total')).toBe(0)
     expect((await feed(alice)).items).toEqual([])
 
     await ok(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')

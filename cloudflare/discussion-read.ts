@@ -1,5 +1,5 @@
 import type {
-  DiscussionItem, FeedSnapshot, QuestionRound, ReplyPage, ReplyReaction, StaffSnapshot,
+  DiscussionItem, FeedSnapshot, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
 import type { Member } from '../src/lib/meetup15/identity'
 import { isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
@@ -16,6 +16,14 @@ const ITEM_FIELDS = `
   (SELECT COUNT(*) FROM meetup15_discussion_likes l WHERE l.item_id = d.id) AS likes,
   EXISTS(SELECT 1 FROM meetup15_discussion_likes l WHERE l.item_id = d.id AND l.member_id = ?) AS liked`
 
+const REACTION_DATA = `(
+        SELECT json_group_array(json_object('emoji', emoji, 'count', total, 'reacted', json(own)))
+        FROM (
+          SELECT emoji, COUNT(*) AS total, CASE MAX(member_id = ?) WHEN 1 THEN 'true' ELSE 'false' END AS own
+          FROM meetup15_reply_reactions WHERE reply_id = d.id GROUP BY emoji
+        )
+      ) AS reactionData`
+
 type ItemRow = Omit<DiscussionItem, 'tags' | 'mine' | 'liked' | 'answered' | 'reactions'> & {
   tags: string
   mine: number
@@ -25,7 +33,7 @@ type ItemRow = Omit<DiscussionItem, 'tags' | 'mine' | 'liked' | 'answered' | 're
 }
 
 function item({ reactionData, ...row }: ItemRow): DiscussionItem {
-  const reactions = reactionData ? JSON.parse(reactionData) as ReplyReaction[] : undefined
+  const reactions = reactionData ? JSON.parse(reactionData) as DiscussionReaction[] : undefined
   return { ...row, reactions, tags: JSON.parse(row.tags), mine: Boolean(row.mine),
     liked: Boolean(row.liked), answered: Boolean(row.answered) }
 }
@@ -132,12 +140,12 @@ export async function readFeed(db: D1Database, member: Member, url: URL, now: nu
   const [shared, feed] = await Promise.all([
     viewedRound ? sharedQuestions(db, viewedRound.id, revision, execution) : [],
     db.prepare(`
-      SELECT ${ITEM_FIELDS},
+      SELECT ${ITEM_FIELDS}, ${REACTION_DATA},
         (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.post_id = d.id) AS replyCount
       FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
       WHERE d.kind = 'post' AND d.section = ? AND d.id < ?
       ORDER BY d.id DESC LIMIT ?`
-    ).bind(viewer, viewer, section, cursor, PAGE_SIZE + 1).all<ItemRow>(),
+    ).bind(viewer, viewer, viewer, section, cursor, PAGE_SIZE + 1).all<ItemRow>(),
   ])
   const items = feed.results.slice(0, PAGE_SIZE)
   const nextBefore = feed.results.length > PAGE_SIZE ? items.at(-1)?.id ?? null : null
@@ -156,13 +164,7 @@ export async function readReplies(db: D1Database, viewer: string, post: number, 
   const { results } = await db.prepare(`
     SELECT ${ITEM_CONTENT}, d.author_id = ? AS mine, 0 AS likes, 0 AS liked,
       (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.parent_reply_id = d.id) AS replyCount,
-      (
-        SELECT json_group_array(json_object('emoji', emoji, 'count', total, 'reacted', json(own)))
-        FROM (
-          SELECT emoji, COUNT(*) AS total, CASE MAX(member_id = ?) WHEN 1 THEN 'true' ELSE 'false' END AS own
-          FROM meetup15_reply_reactions WHERE reply_id = d.id GROUP BY emoji
-        )
-      ) AS reactionData
+      ${REACTION_DATA}
     FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
     WHERE ${where}
     ORDER BY d.id LIMIT ?`

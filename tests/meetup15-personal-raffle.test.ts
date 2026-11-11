@@ -56,7 +56,7 @@ it('keeps contact and message views private and commits one prize and message ac
     const db = await runtime.getD1Database('ACTIVITY_DB')
     for (const file of (await readdir('migrations')).sort()) {
       const sql = await readFile('migrations/' + file, 'utf8')
-      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE)\b)/)
+      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE|DROP)\b)/)
       await db.batch(statements.map((statement) => db.prepare(statement)))
     }
     const seconds = now / 1000
