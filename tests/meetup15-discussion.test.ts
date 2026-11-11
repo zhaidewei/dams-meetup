@@ -215,10 +215,12 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(alice, {
       action: 'question', section: 'lightning', roundId: first.id, body: '错误板块',
     })).status).toBe(409)
-    await ok(alice, { action: 'question', section: 'expert', roundId: first.id, body: '先问的问题' })
+    const question = '问'.repeat(99) + '？'
+    expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: question + '。' })).status).toBe(400)
+    await ok(alice, { action: 'question', section: 'expert', roundId: first.id, body: question })
     await ok(bob, { action: 'question', section: 'expert', roundId: first.id, body: '后问的问题' })
     const [older, newer] = (await activeQa()).questions
-    expect([older.body, newer.body]).toEqual(['先问的问题', '后问的问题'])
+    expect([older.body, newer.body]).toEqual([question, '后问的问题'])
     await ok(alice, { action: 'like', id: newer.id, liked: true })
     expect((await activeQa()).questions[0].id).toBe(newer.id)
     const [aliceQuestions, bobQuestions] = await Promise.all([
