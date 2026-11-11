@@ -37,7 +37,9 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
   const displayName = field(form, 'displayName').trim()
   const title = field(form, 'title').trim()
   const password = field(form, 'password')
-  const editing = field(form, 'action') === 'edit'
+  const action = field(form, 'action')
+  const editing = action === 'edit'
+  const creating = action === 'create'
   const invalid = editing ? '/admin/activity?tab=guests&guest=invalid&edit=' + encodeURIComponent(username) : '/admin/activity?guest=invalid'
   if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username) ||
       !displayName || displayName.length > 80 || title.length > 120 ||
@@ -61,9 +63,14 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
      SELECT ?, 'guest', ?, ?, ?, ?
      WHERE NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
      ON CONFLICT (username) DO UPDATE SET
-       display_name = excluded.display_name, title = excluded.title, password_hash = excluded.password_hash`,
-  ).bind(randomUUID(), displayName, title || null, username, `${salt}:${guestHash(password, salt)}`).run()
-  return redirect(saved.meta.changes ? '/admin/activity?guest=saved' : '/?entry=ended')
+       display_name = excluded.display_name, title = excluded.title, password_hash = excluded.password_hash
+     WHERE ?`,
+  ).bind(randomUUID(), displayName, title || null, username, `${salt}:${guestHash(password, salt)}`, Number(!creating)).run()
+  if (saved.meta.changes) return redirect('/admin/activity?guest=saved')
+  if (creating && await env.ACTIVITY_DB.prepare(
+    'SELECT 1 FROM meetup15_members WHERE username = ?',
+  ).bind(username).first()) return redirect('/admin/activity?guest=duplicate')
+  return redirect('/?entry=ended')
 }
 
 async function loginGuest(form: FormData, env: ActivityEnv, secret: string) {

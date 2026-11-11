@@ -54,8 +54,10 @@ export function ActivityControls() {
 
     void readState()
     connect()
+    const refresh = setInterval(() => void readState(), 5000)
     return () => {
       stopped = true
+      clearInterval(refresh)
       clearTimeout(retry)
       socket.close()
     }

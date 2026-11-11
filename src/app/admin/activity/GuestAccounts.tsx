@@ -39,9 +39,10 @@ export async function GuestAccounts({ edit, status }: { edit?: string; status?: 
         <h2 className="text-lg font-semibold">{editing ? '修改嘉宾账号' : '新增嘉宾账号'}</h2>
         <p className="text-sm text-zinc-600">{editing ? '可以修改姓名、头衔，或设置新密码。' : '新增嘉宾时需要设置初始密码。'}</p>
         {status === 'saved' && <p role="status">嘉宾账号已保存。</p>}
+        {status === 'duplicate' && <p role="alert">该用户名已登记，请从名单中选择要修改的嘉宾。</p>}
         {status === 'invalid' && <p role="alert">请检查用户名、姓名和密码要求。</p>}
         <form key={editing?.username ?? 'new'} method="post" action="/api/meetup/guests" className="space-y-3">
-          {editing && <input type="hidden" name="action" value="edit" />}
+          <input type="hidden" name="action" value={editing ? 'edit' : 'create'} />
           <label className="block text-sm">
             用户名
             <input name="username" defaultValue={editing?.username} readOnly={Boolean(editing)} autoComplete="off" minLength={3} maxLength={32}
