@@ -2,12 +2,14 @@ import type { MeetupSection } from './event'
 
 export const MAX_DISCUSSION_BODY = 300
 
-export const REPLY_EMOJIS = [
+export const DISCUSSION_EMOJIS = [
   ['👍', '赞'], ['❤️', '喜欢'], ['😂', '大笑'], ['😮', '惊讶'], ['😢', '难过'], ['🙏', '感谢'],
+  ['🎉', '庆祝'], ['👏', '鼓掌'], ['🔥', '精彩'], ['💡', '好点子'], ['🤔', '思考'],
+  ['🙌', '赞同'], ['😊', '微笑'], ['👀', '关注'], ['💯', '满分'], ['🚀', '起飞'],
 ] as const
 
-export type ReplyEmoji = (typeof REPLY_EMOJIS)[number][0]
-export type ReplyReaction = { emoji: ReplyEmoji; count: number; reacted: boolean }
+export type DiscussionEmoji = (typeof DISCUSSION_EMOJIS)[number][0]
+export type DiscussionReaction = { emoji: DiscussionEmoji; count: number; reacted: boolean }
 
 export type DiscussionItem = {
   id: number
@@ -23,7 +25,7 @@ export type DiscussionItem = {
   likes: number
   liked: boolean
   replyCount?: number
-  reactions?: ReplyReaction[]
+  reactions?: DiscussionReaction[]
   createdAt: number
 }
 
@@ -64,7 +66,7 @@ export type MemberCommand =
   | { action: 'reply'; postId: number; parentId: number | null; body: string }
   | { action: 'edit'; id: number; body: string; tags: string }
   | { action: 'delete'; id: number }
-  | { action: 'reaction'; id: number; emoji: ReplyEmoji; reacted: boolean }
+  | { action: 'reaction'; id: number; emoji: DiscussionEmoji; reacted: boolean }
   | { action: 'like'; id: number; liked: boolean }
   | { action: 'question'; section: MeetupSection; roundId: number; body: string }
 

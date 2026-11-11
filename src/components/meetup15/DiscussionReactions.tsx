@@ -1,21 +1,20 @@
 'use client'
 
 import { startTransition, useOptimistic, useState } from 'react'
-import { REPLY_EMOJIS, type DiscussionItem, type MemberCommand, type ReplyEmoji, type ReplyReaction } from '@/lib/meetup15/discussion'
-import { discussionButton } from './DiscussionComposer'
+import { DISCUSSION_EMOJIS, type DiscussionItem, type MemberCommand, type DiscussionEmoji, type DiscussionReaction } from '@/lib/meetup15/discussion'
 
-const empty: ReplyReaction[] = []
-const reactionButton = discussionButton + ' min-h-11 min-w-11 focus-visible:outline-2 focus-visible:outline-offset-2'
+const empty: DiscussionReaction[] = []
+const reactionButton = 'inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-full px-2.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue'
 
-export function ReplyReactions({ item, pending, submit }: {
+export function DiscussionReactions({ item, pending, submit }: {
   item: DiscussionItem
   pending: boolean
   submit: (command: MemberCommand) => Promise<boolean>
 }) {
   const [open, setOpen] = useState(false)
-  const [focused, setFocused] = useState<ReplyEmoji | null>(null)
+  const [focused, setFocused] = useState<DiscussionEmoji | null>(null)
   const [reactions, applyReaction] = useOptimistic(item.reactions ?? empty,
-    (current, { emoji, reacted }: { emoji: ReplyEmoji; reacted: boolean }) => {
+    (current, { emoji, reacted }: { emoji: DiscussionEmoji; reacted: boolean }) => {
       const existing = current.find(reaction => reaction.emoji === emoji)
       if (Boolean(existing?.reacted) === reacted) return current
       const count = (existing?.count ?? 0) + (reacted ? 1 : -1)
@@ -24,17 +23,17 @@ export function ReplyReactions({ item, pending, submit }: {
     })
 
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="回复表情">
-      <button type="button" className={discussionButton + ' min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2'}
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={item.kind === 'post' ? '帖子表情' : '回复表情'}>
+      <button type="button" className={reactionButton + ' text-slate-600 hover:bg-dams-wash aria-expanded:bg-dams-wash aria-expanded:text-dams-hover'}
         aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? '收起表情' : '添加表情'}
       </button>
-      {REPLY_EMOJIS.map(([emoji, label]) => {
+      {DISCUSSION_EMOJIS.map(([emoji, label]) => {
         const reaction = reactions.find(entry => entry.emoji === emoji)
         if (!open && !reaction && focused !== emoji) return null
         return (
           <button key={emoji} type="button"
-            className={reactionButton + ' aria-pressed:border-dams-blue aria-pressed:bg-dams-wash aria-pressed:text-dams-hover aria-disabled:opacity-50'}
+            className={reactionButton + ' hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover aria-disabled:opacity-50' + (reaction ? ' bg-dams-wash' : '')}
             aria-label={label + '，' + (reaction?.count ?? 0) + ' 人'}
             aria-pressed={reaction?.reacted ?? false} aria-disabled={pending}
             onFocus={() => setFocused(emoji)} onBlur={() => setFocused(null)}
@@ -47,7 +46,8 @@ export function ReplyReactions({ item, pending, submit }: {
                 await completion
               })
             }}>
-            {emoji}{reaction ? ' ' + reaction.count : ''}
+            <span aria-hidden="true" className="text-base">{emoji}</span>
+            {reaction && <span aria-hidden="true">{reaction.count}</span>}
           </button>
         )
       })}

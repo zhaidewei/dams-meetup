@@ -71,7 +71,7 @@ it('enforces both Amsterdam cutoffs and only clears D1 after the published revis
     const db = await runtime.getD1Database('ACTIVITY_DB')
     for (const file of (await readdir('migrations')).sort()) {
       const sql = await readFile('migrations/' + file, 'utf8')
-      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE)\b)/)
+      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE|DROP)\b)/)
       await db.batch(statements.map(statement => db.prepare(statement)))
     }
     await db.batch([

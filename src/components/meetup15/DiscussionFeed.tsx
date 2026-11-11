@@ -6,7 +6,7 @@ import type { DiscussionItem, FeedSnapshot, MemberCommand, ReplyPage } from '@/l
 import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
-import { ReplyReactions } from './ReplyReactions'
+import { DiscussionReactions } from './DiscussionReactions'
 import { useDiscussion } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
@@ -97,7 +97,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
             </>
           )}
         </div>
-        {!isPost && <ReplyReactions item={item} pending={pending} submit={submit} />}
+        <DiscussionReactions item={item} pending={pending} submit={submit} />
         {editor?.kind === 'reply' && editor.id === item.id && (
           <DiscussionComposer label={isPost ? '回复正文' : '子回复正文'} action="发表回复" pending={pending}
             onCancel={cancel} onSubmit={(body) => send({
