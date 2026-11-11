@@ -1,8 +1,8 @@
 import type {
-  DiscussionItem, FeedSnapshot, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
+  DiscussionItem, FeedSnapshot, ModerationPage, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
 import type { Member } from '../src/lib/meetup15/identity'
-import { isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
+import { INTERACTION_END, isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
 
 const PAGE_SIZE = 30
 const ROUNDS = `
@@ -171,6 +171,23 @@ export async function readReplies(db: D1Database, viewer: string, post: number, 
   ).bind(viewer, viewer, ...range, pageSize + 1).all<ItemRow>()
   const items = results.slice(0, pageSize).map(item)
   return { items, nextAfter: results.length > pageSize ? items.at(-1)?.id ?? null : null, refreshAt: null }
+}
+
+export async function readModerationPosts(db: D1Database, url: URL, now: number): Promise<ModerationPage> {
+  const section = url.searchParams.get('section')
+  const before = Number(url.searchParams.get('before'))
+  const cursor = Number.isSafeInteger(before) && before > 0 ? before : Number.MAX_SAFE_INTEGER
+  const { results } = await db.prepare(`
+    SELECT d.id, m.display_name AS author, d.body, d.created_at AS createdAt,
+      (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.post_id = d.id) AS replyCount
+    FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
+    WHERE d.kind = 'post' AND d.section = ? AND d.id < ?
+    ORDER BY d.id DESC LIMIT ?
+  `).bind(isMeetupSection(section) ? section : 'lounge', cursor, PAGE_SIZE + 1).all<ModerationPage['posts'][number]>()
+  const posts = results.slice(0, PAGE_SIZE)
+  const canDelete = now < INTERACTION_END
+  return { posts, nextBefore: results.length > PAGE_SIZE ? posts.at(-1)?.id ?? null : null,
+    canDelete, refreshAt: canDelete ? INTERACTION_END : null }
 }
 
 export async function readDiscussionAdmin(db: D1Database, now: number): Promise<StaffSnapshot> {

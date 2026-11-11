@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { isMeetupAdmin } from '@/lib/meetup15/server'
+import { PostModeration } from '@/components/meetup15/PostModeration'
 import { DiscussionAdmin } from '@/components/meetup15/DiscussionAdmin'
 import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
@@ -14,6 +15,7 @@ const ADMIN_TABS = {
   entry: '管理入场',
   agenda: '议程切换',
   qa: '管理问答',
+  posts: '管理帖子',
   guests: '配置嘉宾',
   stats: '查看实时统计',
   summary: '发布复盘与归档',
@@ -47,6 +49,7 @@ export default async function ActivityAdminPage({
           {selected === 'entry' && <ActivityControls />}
           {selected === 'agenda' && <DiscussionAdmin view="agenda" />}
           {selected === 'qa' && <DiscussionAdmin view="qa" />}
+          {selected === 'posts' && <PostModeration />}
           {selected === 'stats' && <LiveStatsPanel />}
           {selected === 'summary' && <SummaryControls status={summary} />}
           {selected === 'guests' && <GuestAccounts edit={edit} status={guest} />}

@@ -184,6 +184,23 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect(await db.prepare('SELECT COUNT(*) AS total FROM meetup15_reply_reactions').first('total')).toBe(0)
     expect((await feed(alice)).items).toEqual([])
 
+    const moderation = '/admin/posts'
+    await ok(alice, { action: 'post', section: 'expert', body: '管理员删帖验收' })
+    const target = (await feed(alice)).items[0]
+    await ok(bob, { action: 'reply', postId: target.id, parentId: null, body: '关联回复' })
+    const targetReply = (await replies(bob, target.id)).items[0]
+    expect((await read('', moderation)).status).toBe(401)
+    expect((await read(bob, moderation)).status).toBe(401)
+    const page = await (await read(admin, moderation + '?section=expert')).json()
+    expect(page).toMatchObject({ posts: [{ id: target.id, author: 'Alice', replyCount: 1 }] })
+    expect((await command(bob, { action: 'delete-post', id: target.id }, moderation)).status).toBe(401)
+    expect((await command(admin, { action: 'delete-post', id: target.id }, moderation, 'https://other.example')).status).toBe(403)
+    expect((await command(admin, { action: 'delete-post', id: targetReply.id }, moderation)).status).toBe(409)
+    await ok(admin, { action: 'delete-post', id: target.id }, moderation)
+    expect((await feed(alice)).items).toEqual([])
+    expect((await replies(bob, target.id)).items).toEqual([])
+    expect((await command(admin, { action: 'delete-post', id: target.id }, moderation)).status).toBe(409)
+
     await ok(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')
     const first = (await staff()).activeRound!
     expect(first.section).toBe('expert')

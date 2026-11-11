@@ -133,3 +133,8 @@ export async function writeStaff(db: D1Database, input: Input, now: number): Pro
       return invalid
   }
 }
+
+export function deleteStaffPost(db: D1Database, input: Input): Promise<Result> | Result {
+  if (input.action !== 'delete-post' || !validId(input.id)) return invalid
+  return write(db.prepare("DELETE FROM meetup15_discussion WHERE id = ? AND kind = 'post'").bind(input.id))
+}

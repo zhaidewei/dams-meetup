@@ -2,8 +2,8 @@ import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { getMember, MEMBER_COOKIE, requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
-import { readFeed, readDiscussionAdmin, readReplies } from './discussion-read'
-import { writeMember, writeStaff } from './discussion-write'
+import { readFeed, readDiscussionAdmin, readModerationPosts, readReplies } from './discussion-read'
+import { deleteStaffPost, writeMember, writeStaff } from './discussion-write'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 
@@ -26,10 +26,12 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   const view = path === '/api/discussion/admin' ? 'admin'
+    : path === '/api/discussion/admin/posts' ? 'moderation'
     : path === '/api/discussion' ? 'feed' : path === '/api/discussion/replies' ? 'replies' : null
   if (!view) return new Response(null, { status: 404, headers })
-  const member = view !== 'admin' ? await getMember(env, requestCookie(request, MEMBER_COOKIE), now) : null
-  if (view !== 'admin' ? !member : !admin) {
+  const staffView = view === 'admin' || view === 'moderation'
+  const member = staffView ? null : await getMember(env, requestCookie(request, MEMBER_COOKIE), now)
+  if (staffView ? !admin : !member) {
     return Response.json({ error: '请重新登录后继续。' }, { status: 401, headers })
   }
 
@@ -48,7 +50,8 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   if (request.method === 'GET') {
-    const snapshot = member ? await readFeed(db, member, url, now, execution)
+    const snapshot = view === 'moderation' ? await readModerationPosts(db, url, now)
+      : member ? await readFeed(db, member, url, now, execution)
       : await readDiscussionAdmin(db, now)
     return Response.json(snapshot, { headers })
   }
@@ -62,7 +65,8 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
   const writeAt = clock()
   if (writeAt >= INTERACTION_END) return Response.json({ error: '本届互动区已关闭。' }, { status: 409, headers })
-  const result = member ? await writeMember(db, member, input) : await writeStaff(db, input, writeAt)
+  const result = view === 'moderation' ? await deleteStaffPost(db, input)
+    : member ? await writeMember(db, member, input) : await writeStaff(db, input, writeAt)
   if ('error' in result) return Response.json({ error: result.error }, { status: result.status, headers })
 
   if (result.changed) {
