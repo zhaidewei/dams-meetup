@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import {
-  MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH, type PersonalCommand, type PersonalItem,
+  MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PersonalCommand, type PersonalItem,
   type PersonalSnapshot, type ThreadSnapshot, type ThreadSummary,
 } from '@/lib/meetup15/personal'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
@@ -12,6 +12,7 @@ import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
 type View = 'profile' | 'posts' | 'replies' | 'messages'
+const profileRow = 'grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]'
 const views = { profile: '资料', posts: '我的帖子', replies: '收到的回复', messages: '私信' } as const
 
 export function PersonalPanel({ initialMessages }: { initialMessages: boolean }) {
@@ -33,7 +34,8 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     await submit({ action: 'profile', name: String(form.get('name') ?? ''),
-      contact: String(form.get('contact') ?? ''), contactPublic: form.has('public'),
+      publicProfile: Object.fromEntries(PROFILE_FIELDS.map(({ key }) => [key, String(form.get(key) ?? '')])),
+      removeLegacyContact: form.has('removeLegacyContact'),
       revision: Number(form.get('revision')) })
   }
 
@@ -53,15 +55,29 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
       {view === 'profile' && (
         <form key={data.profileRevision} onSubmit={saveProfile} className="max-w-lg space-y-3 rounded-2xl border border-dams-line bg-white p-4">
           <input type="hidden" name="revision" value={data.profileRevision} />
-          <label className="block">昵称
+          <label className={profileRow}>昵称
             <input name="name" defaultValue={data.nickname ?? ''} maxLength={Math.max(MAX_NICKNAME_LENGTH, data.nickname?.length ?? 0)}
               required className={discussionInput} />
           </label>
-          <label className="block">联系方式
-            <textarea name="contact" defaultValue={data.contact ?? ''} maxLength={MAX_CONTACT_LENGTH} className={discussionInput} />
-          </label>
-          <label className="block text-sm"><input type="checkbox" name="public" defaultChecked={data.contactPublic} /> 向已入场观众公开联系方式</label>
-          <button className={discussionButton} disabled={pending}>保存资料</button>
+          <fieldset className="space-y-3 border-t border-dams-line pt-3" aria-describedby="profile-public">
+            <legend className="sr-only">可选公开资料</legend>
+            <p id="profile-public" className="text-sm text-slate-600">以下资料选填。填写并保存后，已入场的观众可在你的资料卡上查看。</p>
+            {PROFILE_FIELDS.map(({ key, label, type, maxLength, autoComplete }) => (
+              <label key={key} className={profileRow}>{label}
+                <input name={key} type={type} autoComplete={autoComplete} maxLength={maxLength}
+                  defaultValue={data.publicProfile[key] ?? ''} className={discussionInput} />
+              </label>
+            ))}
+          </fieldset>
+          {data.contact && (
+            <div className="space-y-2 rounded-lg bg-dams-canvas p-3 text-sm">
+              <p>旧联系方式 · {data.contactPublic ? '已向入场观众公开' : '仅自己可见'}</p>
+              <p className="wrap-anywhere whitespace-pre-wrap">{data.contact}</p>
+              <label><input type="checkbox" name="removeLegacyContact" /> 保存时移除旧联系方式</label>
+            </div>
+          )}
+          <button className="min-h-11 rounded-full bg-dams-blue px-5 text-sm font-semibold text-white hover:bg-dams-hover disabled:opacity-50"
+            disabled={pending}>保存资料</button>
         </form>
       )}
       {view === 'posts' && <PersonalItems items={data.posts} empty="你还没有发帖。" />}

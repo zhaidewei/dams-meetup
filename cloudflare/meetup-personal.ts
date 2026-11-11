@@ -1,7 +1,7 @@
 import { getMember, MEMBER_COOKIE, requestCookie, type Member } from '../src/lib/meetup15/identity'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { MAX_DISCUSSION_BODY } from '../src/lib/meetup15/discussion'
-import { MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH } from '../src/lib/meetup15/personal'
+import { MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PublicProfile } from '../src/lib/meetup15/personal'
 import type { ActivityEnv } from './activity'
 import { touchMember } from './meetup-presence'
 import { memberCard, personalOverview, readThread, repliesRead, threadForMember } from './personal-read'
@@ -20,17 +20,53 @@ async function notify(env: ActivityEnv, memberIds: string[]) {
 
 async function updateProfile(db: D1Database, member: Member, input: Record<string, unknown>) {
   const name = typeof input.name === 'string' ? input.name.trim() : ''
-  const contact = typeof input.contact === 'string' ? input.contact.trim() : null
   const revision = input.revision
-  if (!name || name.length > MAX_NICKNAME_LENGTH && name !== member.display_name ||
-      contact === null || contact.length > MAX_CONTACT_LENGTH || typeof input.contactPublic !== 'boolean' ||
+  if (!name || (name.length > MAX_NICKNAME_LENGTH && name !== member.display_name) ||
       typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) {
-    return failure(400, '请检查昵称和联系方式。')
+    return failure(400, '请检查昵称。')
   }
-  const result = await db.prepare(`
-    UPDATE meetup15_members SET display_name = ?, contact = ?, contact_public = ?, profile_revision = profile_revision + 1
-    WHERE id = ? AND profile_revision = ?
-  `).bind(name, contact || null, Number(Boolean(contact && input.contactPublic)), member.id, revision).run()
+  let statement: D1PreparedStatement
+  if (input.publicProfile !== undefined) {
+    if (!input.publicProfile || typeof input.publicProfile !== 'object' || Array.isArray(input.publicProfile) ||
+        typeof input.removeLegacyContact !== 'boolean') return failure(400, '请检查公开资料。')
+    const fields = input.publicProfile as Record<string, unknown>
+    const profile: PublicProfile = {}
+    for (const field of PROFILE_FIELDS) {
+      const raw = fields[field.key]
+      if (raw === undefined) continue
+      if (typeof raw !== 'string') return failure(400, '请检查' + field.label + '。')
+      const value = raw.trim()
+      if (!value) continue
+      if (value.length > field.maxLength || /[\x00-\x1f]/.test(value) ||
+          (field.type === 'email' && !/^[^\s@]+@[^\s@]+$/.test(value))) {
+        return failure(400, '请检查' + field.label + '。')
+      }
+      if (field.key === 'linkedin') {
+        const url = URL.parse(value)
+        if (!url || url.protocol !== 'https:' || !['linkedin.com', 'www.linkedin.com'].includes(url.hostname) ||
+            url.username || url.password) return failure(400, '请输入 HTTPS LinkedIn 链接。')
+      }
+      profile[field.key] = value
+    }
+    const remove = Number(input.removeLegacyContact)
+    statement = db.prepare(`
+      UPDATE meetup15_members SET display_name = ?, public_profile = ?,
+        contact = CASE WHEN ? = 1 THEN NULL ELSE contact END,
+        contact_public = CASE WHEN ? = 1 THEN 0 ELSE contact_public END,
+        profile_revision = profile_revision + 1 WHERE id = ? AND profile_revision = ?
+    `).bind(name, JSON.stringify(profile), remove, remove, member.id, revision)
+  } else {
+    // Older clients only edit the original contact field and its visibility.
+    const contact = typeof input.contact === 'string' ? input.contact.trim() : null
+    if (contact === null || contact.length > MAX_CONTACT_LENGTH || typeof input.contactPublic !== 'boolean') {
+      return failure(400, '请检查联系方式。')
+    }
+    statement = db.prepare(`
+      UPDATE meetup15_members SET display_name = ?, contact = ?, contact_public = ?, profile_revision = profile_revision + 1
+      WHERE id = ? AND profile_revision = ?
+    `).bind(name, contact || null, Number(Boolean(contact && input.contactPublic)), member.id, revision)
+  }
+  const result = await statement.run()
   if (!result.meta.changes) return failure(409, '资料已在其他设备修改，请核对后再保存。')
 }
 
