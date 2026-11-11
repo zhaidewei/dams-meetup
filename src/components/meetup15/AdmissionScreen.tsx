@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 
 type ScreenState = { open: false } | { open: true; password: string; qrPath: string }
 
-export function AdmissionScreen({ compact = false, projection = false, copyable = false }: { compact?: boolean; projection?: boolean; copyable?: boolean }) {
+export function AdmissionScreen({ compact = false, copyable = false }: { compact?: boolean; copyable?: boolean }) {
   const [state, setState] = useState<ScreenState>({ open: false })
   const [copyStatus, setCopyStatus] = useState('')
   const [qrImage, setQrImage] = useState<{ url: string; image: string } | null>(null)
@@ -47,11 +47,11 @@ export function AdmissionScreen({ compact = false, projection = false, copyable 
   }, [])
 
   return state.open ? (
-    <section aria-label="观众入场凭据" className={projection ? "projection-admission" : "space-y-4"}>
-      <p className={projection ? undefined : compact ? "text-sm" : "text-xl"}>扫码入场，或在活动首页输入现场密码</p>
+    <section aria-label="观众入场凭据" className="space-y-4">
+      <p className={compact ? "text-sm" : "text-xl"}>扫码入场，或在活动首页输入现场密码</p>
       {qrImage?.url === state.qrPath &&
-        <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320} className={projection ? undefined : compact ? "mx-auto h-auto w-24" : "mx-auto h-auto w-48 md:w-56"} />}
-      <p className={projection ? undefined : compact ? "font-mono text-base" : "font-mono text-3xl font-semibold tracking-wider"}>{state.password}</p>
+        <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320} className={compact ? "mx-auto h-auto w-24" : "mx-auto h-auto w-48 md:w-56"} />}
+      <p className={compact ? "font-mono text-base" : "font-mono text-3xl font-semibold tracking-wider"}>{state.password}</p>
       {copyable && (
         <>
           <button type="button" className="min-h-11 rounded-full border border-dams-selection bg-white px-4 text-sm font-semibold text-dams-hover hover:bg-dams-wash"

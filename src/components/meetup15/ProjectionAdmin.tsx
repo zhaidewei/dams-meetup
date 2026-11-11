@@ -34,17 +34,17 @@ function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
   return (
     <section className="min-w-0 space-y-3 rounded-xl border border-dams-line p-4" aria-label="画面预览">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">画面预览 · 4:3</h2>
+        <h2 className="font-semibold">画面预览</h2>
         <p role="status" className="text-sm text-zinc-600">
           {stale ? '大屏状态已变化，请重新选择画面或轮次。'
             : !selection ? '待选择问答轮次' : changed ? `待切换 · ${PROJECTION_MODES[draft.mode]}` : '与当前画面一致'}
         </p>
       </div>
-      <div aria-label="仅管理员可见的画面预览" className={'projection-stage aspect-[4/3] overflow-auto rounded-lg ' +
-        (data && data.mode !== 'hidden' ? 'bg-dams-wash text-slate-950' : 'grid place-items-center bg-black text-center text-zinc-100')}>
+      <div aria-label="仅管理员可见的画面预览" className={'grid min-h-48 min-w-0 content-center rounded-lg p-4 text-center ' +
+        (data && data.mode !== 'hidden' ? 'bg-dams-wash text-slate-950' : 'bg-black text-zinc-100')}>
         {!selection ? <p>请选择要投屏的问答轮次</p> : error
           ? <p role="alert">{error}</p> : data
-            ? <ScreenContent data={data} /> : <p>正在加载预览…</p>}
+            ? <ScreenContent data={data} compact /> : <p>正在加载预览…</p>}
       </div>
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" className={discussionButton} disabled={pending || (!changed && !stale)} onClick={onReset}>放弃修改</button>
