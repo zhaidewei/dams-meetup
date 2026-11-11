@@ -3,6 +3,7 @@
 import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import type { ProjectionView } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
+import { OpeningDeck } from './OpeningDeck'
 import { RaffleScreen } from './RaffleScreen'
 import { useDiscussion } from './useDiscussion'
 import { useRaffleResolution } from './useRaffleResolution'
@@ -11,6 +12,7 @@ const PRIORITY_QUESTION_COUNT = 3
 
 export function ScreenContent({ data, compact = false }: { data: ProjectionView; compact?: boolean }) {
   if (data.mode === 'hidden') return null
+  if (data.mode === 'opening') return <OpeningDeck compact={compact} />
   const liveQuestions = data.mode === 'qa' && data.round.closedAt === null
   const questions = data.mode !== 'qa' ? [] : liveQuestions
     ? data.questions.filter(question => !question.answered)
@@ -123,6 +125,9 @@ export function MeetupScreen() {
   const { data } = useDiscussion<ProjectionView>('/api/screen', 'projection')
   const readyAt = data?.mode === 'raffle' && data.lottery?.phase === 'drawing' ? data.lottery.readyAt : null
   useRaffleResolution(readyAt)
+  if (data?.mode === 'opening') {
+    return <main><ScreenContent data={data} /></main>
+  }
   const active = data && data.mode !== 'hidden'
   return (
     <main className={active

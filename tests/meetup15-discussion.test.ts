@@ -340,6 +340,17 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: '历史轮次' })).status).toBe(409)
     expect((await switchScreen({ mode: 'raffle', revision: (await projection()).revision })).status).toBe(204)
     expect(await screen()).toMatchObject({ mode: 'raffle', lottery: null })
+
+    const openingRevision = (await projection()).revision
+    expect((await preview('mode=opening', alice)).status).toBe(401)
+    expect(await (await preview('mode=opening')).json()).toEqual({ mode: 'opening', refreshAt: null })
+    expect((await screen()).mode).toBe('raffle')
+    expect((await switchScreen({ mode: 'opening', revision: openingRevision })).status).toBe(204)
+    expect((await projection()).selection).toEqual({ mode: 'opening' })
+    expect((await screen()).mode).toBe('opening')
+    expect((await switchScreen({ mode: 'agenda', revision: openingRevision })).status).toBe(409)
+    expect((await switchScreen({ mode: 'agenda', revision: openingRevision + 1 })).status).toBe(204)
+    expect((await screen()).mode).toBe('agenda')
     attendeeSocket.close(1000)
     screenSocket.close(1000)
   } finally {
