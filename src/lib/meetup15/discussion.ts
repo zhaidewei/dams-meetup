@@ -2,6 +2,7 @@ import type { MeetupSection } from './event'
 import type { Member } from './identity'
 
 export const MAX_DISCUSSION_BODY = 300
+export const MAX_QUESTION_BODY = 100
 
 export const DISCUSSION_EMOJIS = [
   ['👍', '赞'], ['❤️', '喜欢'], ['😂', '大笑'], ['😮', '惊讶'], ['😢', '难过'], ['🙏', '感谢'],

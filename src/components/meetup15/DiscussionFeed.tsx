@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import type { DiscussionItem, FeedSnapshot, MemberCommand, ReplyPage } from '@/lib/meetup15/discussion'
+import { MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type MemberCommand, type ReplyPage } from '@/lib/meetup15/discussion'
 import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
@@ -270,7 +270,7 @@ export function DiscussionFeed() {
                 <p className="font-semibold text-dams-hover">问答进行中 · {viewed.guest}</p>
                 {named ? (
                   <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
-                    featured placeholder="你想问这位嘉宾什么？"
+                    featured maxLength={MAX_QUESTION_BODY} placeholder="你想问这位嘉宾什么？"
                     onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: viewed.id, body })} />
                 ) : <p className="text-sm text-slate-700">填写上方昵称后即可提问。</p>}
               </div>

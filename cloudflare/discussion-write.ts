@@ -1,4 +1,4 @@
-import { MAX_DISCUSSION_BODY, DISCUSSION_EMOJIS } from '../src/lib/meetup15/discussion'
+import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS } from '../src/lib/meetup15/discussion'
 import { isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
@@ -62,8 +62,10 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
   }
   if (!member.display_name) return { error: '请先填写昵称。', status: 403 }
   const body = typeof input.body === 'string' ? input.body.trim() : ''
-  if (!body || [...body].length > MAX_DISCUSSION_BODY || body.includes('\0')) {
-    return { error: '正文需要 1–300 个字。', status: 400 }
+  const isQuestion = input.action === 'question'
+  const maxLength = isQuestion ? MAX_QUESTION_BODY : MAX_DISCUSSION_BODY
+  if (!body || [...body].length > maxLength || body.includes('\0')) {
+    return { error: isQuestion ? `问题需要 1–${maxLength} 个字（含标点）。` : '正文需要 1–300 个字。', status: 400 }
   }
   const tags = JSON.stringify(parseTags(typeof input.tags === 'string' ? input.tags.slice(0, 160) : ''))
   switch (input.action) {
