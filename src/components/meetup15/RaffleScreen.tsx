@@ -9,16 +9,16 @@ const probability = new Intl.NumberFormat('zh-CN', { style: 'percent', maximumFr
 function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
   const totalWeight = candidates.reduce((sum, candidate) => sum + candidate.weight, 0)
   const maxWeight = Math.max(...candidates.map(candidate => candidate.weight))
-  const columns = Math.min(candidates.length, Math.ceil(Math.sqrt(candidates.length * 3)))
+  const columns = Math.min(candidates.length, Math.ceil(Math.sqrt(candidates.length * 2)))
   const rows = Math.ceil(candidates.length / columns)
   const width = columns * CELL_WIDTH
   return (
-    <figure className="space-y-2 px-2 pb-3">
-      <figcaption className="text-xs text-sky-100">
+    <figure className="projection-raffle-pool">
+      <figcaption className="projection-votes text-sky-100">
         {candidates.length} 位候选人 · 圆圈面积代表中奖概率
       </figcaption>
-      <svg viewBox={`0 0 ${width} ${rows * CELL_HEIGHT}`} className="mx-auto block w-full"
-        style={{ maxWidth: width }} role="group" aria-label="本轮完整奖池">
+      <svg viewBox={`0 0 ${width} ${rows * CELL_HEIGHT}`} className="projection-raffle-map" style={{ width: `min(100%, ${columns * 9}cqi)` }}
+        role="group" aria-label="本轮完整奖池">
         {candidates.map(({ name, weight, won }, index) => {
           const percent = probability.format(weight / totalWeight)
           const characters = Array.from(name)
@@ -44,36 +44,36 @@ function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
   )
 }
 
-export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, { mode: 'raffle' }>; compact: boolean }) {
+export function RaffleScreen({ data }: { data: Extract<ProjectionView, { mode: 'raffle' }> }) {
   const { lottery, candidates, raffleId, rules } = data
   return (
-    <section aria-label="现场抽奖" className="overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#1e40af,#1e293b_75%)] text-white">
-      <div className={compact ? 'space-y-2 p-3' : 'space-y-3 px-4 py-6'}>
-        <h1 className={compact ? 'text-lg font-semibold' : 'text-3xl font-semibold md:text-5xl'}>现场抽奖</h1>
-        {raffleId !== null && <p className="text-sm text-sky-100">第 {raffleId} 轮</p>}
-        {lottery?.phase === 'winner' && (
-          <p className={`wrap-anywhere font-semibold text-amber-200 ${compact ? 'text-lg' : 'text-3xl md:text-5xl'}`}>
-            恭喜 {lottery.winner}！
-          </p>
-        )}
-        {lottery?.phase === 'drawing' && (
-          <p className="motion-safe:animate-pulse">抽奖进行中 · {lottery.candidateCount} 位候选人</p>
-        )}
-        {lottery?.phase === 'empty' && <p>本轮没有符合条件的候选人。</p>}
-        {!lottery && <p>等待主持人开启抽奖</p>}
+    <section aria-label="现场抽奖" className="projection-raffle overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#1e40af,#1e293b_75%)] text-white">
+      <div className="projection-raffle-intro">
+        <div className="projection-raffle-header">
+          <h1 className="projection-title">现场抽奖</h1>
+          {raffleId !== null && <p className="projection-votes text-sky-100">第 {raffleId} 轮</p>}
+          {lottery?.phase === 'winner' && (
+            <p className="projection-winner wrap-anywhere text-amber-200">恭喜 {lottery.winner}！</p>
+          )}
+          {lottery?.phase === 'drawing' && (
+            <p className="motion-safe:animate-pulse">抽奖进行中 · {lottery.candidateCount} 位候选人</p>
+          )}
+          {lottery?.phase === 'empty' && <p>本轮没有符合条件的候选人。</p>}
+          {!lottery && <p>等待主持人开启抽奖</p>}
+        </div>
+        <section aria-labelledby="raffle-rules-title" className="projection-raffle-rules bg-black/25 text-sky-50">
+          <h2 id="raffle-rules-title" className="font-semibold text-white">抽奖规则</h2>
+          <p>最近 {RAFFLE_ACTIVE_HOURS} 小时内活跃的观众可参加。嘉宾和本场已中奖者除外，每轮最多抽出 1 人。</p>
+          {rules ? (
+            <>
+              <p>{rules.requireParticipation ? '本轮要求至少发过一次帖或回复。' : '本轮无发帖或回复要求。'}</p>
+              <p>{rules.weighted ? `按互动加权。 ${RAFFLE_WEIGHT_RULE}` : '等概率抽取。每位候选人的中奖概率相同。'}</p>
+            </>
+          ) : (
+            <p>{raffleId === null ? '参与门槛和抽取方式由主持人设定。' : '该轮未记录参与门槛与抽取方式。'}</p>
+          )}
+        </section>
       </div>
-      <section aria-labelledby="raffle-rules-title" className={`mx-auto mb-3 w-fit max-w-[95%] space-y-1 rounded-lg bg-black/25 px-4 py-2 text-sky-50 ${compact ? 'text-xs' : 'text-base'}`}>
-        <h2 id="raffle-rules-title" className="font-semibold text-white">抽奖规则</h2>
-        <p>最近 {RAFFLE_ACTIVE_HOURS} 小时内活跃的观众可参加。嘉宾和本场已中奖者除外，每轮最多抽出 1 人。</p>
-        {rules ? (
-          <>
-            <p>{rules.requireParticipation ? '本轮要求至少发过一次帖或回复。' : '本轮无发帖或回复要求。'}</p>
-            <p>{rules.weighted ? `按互动加权。 ${RAFFLE_WEIGHT_RULE}` : '等概率抽取。每位候选人的中奖概率相同。'}</p>
-          </>
-        ) : (
-          <p>{raffleId === null ? '参与门槛和抽取方式由主持人设定。' : '该轮未记录参与门槛与抽取方式。'}</p>
-        )}
-      </section>
       {candidates.length > 0 && <RafflePool candidates={candidates} />}
     </section>
   )

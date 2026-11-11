@@ -11,7 +11,7 @@ import { DiscussionReactions } from './DiscussionReactions'
 import { useDiscussion } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
-const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm font-medium text-slate-600 hover:bg-dams-wash aria-pressed:border-dams-blue aria-pressed:font-semibold aria-pressed:text-dams-hover'
+const tabButton = 'min-h-11 min-w-0 wrap-anywhere rounded-lg border border-dams-line bg-white px-2 py-1 text-sm leading-tight font-medium text-slate-700 hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:min-h-12 md:shrink-0 md:rounded-none md:border-0 md:border-b-2 md:border-transparent md:bg-transparent md:px-3 md:aria-pressed:border-dams-blue md:aria-pressed:bg-transparent'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
 
@@ -44,18 +44,18 @@ function PostCard({ post, snapshot, named, pending, submit }: {
     const canReply = named && item.parentId === null
     const expanded = isPost ? threadOpen : children.has(item.id)
     return (
-      <div className="relative min-h-10 space-y-1.5 pl-11">
+      <div className="relative min-h-11 min-w-0 space-y-1.5 pl-10 sm:pl-11">
         <MemberBadge id={item.authorId} name={item.author} mine={item.mine} vip={item.authorRole === 'guest'} timeline />
         {editor?.kind === 'edit' && editor.id === item.id ? (
           <DiscussionComposer label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
             pending={pending} initialBody={item.body} initialTags={isPost ? item.tags : undefined} onCancel={cancel}
             onSubmit={(body, tags) => send({ action: 'edit', id: item.id, body, tags })} />
         ) : (
-          <p className="leading-relaxed whitespace-pre-wrap break-words">{item.body}</p>
+          <p className="leading-relaxed whitespace-pre-wrap wrap-anywhere">{item.body}</p>
         )}
         {isPost && item.tags.length > 0 && (
           <ul aria-label="帖子标签" className="flex flex-wrap gap-2 text-xs text-dams-blue">
-            {item.tags.map((tag) => <li key={tag}>#{tag}</li>)}
+            {item.tags.map((tag) => <li key={tag} className="min-w-0 wrap-anywhere">#{tag}</li>)}
           </ul>
         )}
         <div className="flex flex-wrap gap-1">
@@ -159,7 +159,7 @@ function ReplyList({ postId, parentId, snapshot, render }: {
   const next = pages.at(-1)?.nextAfter
   const replies = new Map(pages.flatMap(page => page.items.map(reply => [reply.id, reply] as const)))
   return (
-    <div className="ml-3 space-y-3 border-l-2 border-dams-line pl-3">
+    <div className="ml-1 min-w-0 space-y-3 border-l-2 border-dams-line pl-2 sm:ml-3 sm:pl-3">
       {[...replies.values()].map(reply => <div key={reply.id} className="space-y-2">{render(reply)}</div>)}
       {error ? <p role="alert" className="text-sm text-red-700">
         回复加载失败。<button className={feedButton} onClick={() => setRetry(value => value + 1)}>重试</button>
@@ -199,7 +199,7 @@ export function DiscussionFeed() {
   const section = selected ?? data?.section
   const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
   const navigation = (
-    <nav key="discussion-sections" aria-label="讨论板块" className="flex overflow-x-auto border-b border-dams-line px-2">
+    <nav key="discussion-sections" aria-label="讨论板块" className="grid grid-cols-3 gap-2 border-b border-dams-line px-4 py-2 md:flex md:gap-0 md:overflow-x-auto md:px-2 md:py-0">
       <button className={tabButton} aria-pressed={selected === null}
         onClick={() => choose(null)}>跟随现场</button>
       {Object.entries(MEETUP_AGENDA_SECTIONS).map(([key, label]) => (
@@ -207,7 +207,7 @@ export function DiscussionFeed() {
           onClick={() => choose(key as MeetupSection)}>
           {label}
           {active?.section === key && (
-            <span className="ml-2 rounded-full bg-dams-wash px-2 py-0.5 text-xs font-semibold text-dams-hover">问答中</span>
+            <span className="mx-auto mt-0.5 block w-fit rounded-full bg-dams-wash px-1.5 py-0.5 text-xs md:ml-2 md:inline font-semibold text-dams-hover">问答中</span>
           )}
         </button>
       ))}
@@ -251,7 +251,7 @@ export function DiscussionFeed() {
     <div>
       {active && !liveRound && (
         <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dams-selection bg-dams-wash px-4 py-3 sm:mx-6">
-          <div>
+          <div className="min-w-0 wrap-anywhere">
             <p className="text-sm font-semibold text-dams-hover">问答进行中 · {active.guest}</p>
             <p className="text-sm text-slate-700">{qaSection}</p>
           </div>
@@ -279,11 +279,11 @@ export function DiscussionFeed() {
           </form>
         )}
         {data.rounds.some((entry) => entry.section === data.section) && (
-          <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-4">
+          <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-3 sm:p-4">
             <h3 className="font-semibold">嘉宾问答</h3>
             {liveRound && viewed && (
-              <div className="space-y-3 rounded-xl border-2 border-dams-blue bg-white p-4">
-                <p className="font-semibold text-dams-hover">问答进行中 · {viewed.guest}</p>
+              <div className="space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
+                <p className="wrap-anywhere font-semibold text-dams-hover">问答进行中 · {viewed.guest}</p>
                 {named ? (
                   <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
                     featured maxLength={MAX_QUESTION_BODY} placeholder="你想问这位嘉宾什么？"
@@ -303,12 +303,12 @@ export function DiscussionFeed() {
               </select>
             {viewed ? (
               <>
-                {!liveRound && <p className="font-medium">第 {viewed.id} 轮 · {viewed.guest} · 已结束</p>}
+                {!liveRound && <p className="wrap-anywhere font-medium">第 {viewed.id} 轮 · {viewed.guest} · 已结束</p>}
                 {data.questions.length ? (
                   <ol className="space-y-2">
                     {data.questions.map((question) => (
                       <li key={question.id} className="rounded border border-dams-line bg-white p-3">
-                        <p className="whitespace-pre-wrap break-words">{question.body}</p>
+                        <p className="whitespace-pre-wrap wrap-anywhere">{question.body}</p>
                         <MemberBadge id={question.authorId} name={question.author} mine={question.mine} />
                         <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>
                         {liveRound ? (
