@@ -4,17 +4,19 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { PROFILE_FIELDS, type MemberCard, type PersonalCommand } from '@/lib/meetup15/personal'
 import { DiscussionComposer } from './DiscussionComposer'
+import { GuestVipBadge } from './GuestVipBadge'
 import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
-export function MemberBadge({ id, name, mine, timeline = false }: { id: string; name: string; mine: boolean; timeline?: boolean }) {
+export function MemberBadge({ id, name, mine, timeline = false, vip = false }: { id: string; name: string; mine: boolean; timeline?: boolean; vip?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="space-y-2">
       <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-700"
-        aria-expanded={open} aria-label={`查看 ${name} 的资料`} onClick={() => setOpen(!open)}>
+        aria-expanded={open} aria-label={`查看 ${name} 的资料${vip ? "（VIP 嘉宾）" : ""}`} onClick={() => setOpen(!open)}>
         <MemberAvatar id={id} name={name} className={timeline ? 'absolute top-0 left-0 size-9' : 'size-7'} />
         {name}
+        {vip && <GuestVipBadge />}
       </button>
       {open && <MemberDetails id={id} mine={mine} />}
     </div>

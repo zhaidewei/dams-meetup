@@ -17,6 +17,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
   const admin = signed(ACTIVITY_ADMIN_COOKIE, '1', Date.now() + 60_000)
   const alice = signed(MEMBER_COOKIE, 'alice', now + 60_000)
   const bob = signed(MEMBER_COOKIE, 'bob', now + 60_000)
+  const guest = signed(MEMBER_COOKIE, 'guest', now + 60_000)
   const bundle = await build({
     stdin: {
       contents: `
@@ -119,7 +120,11 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(alice, { action: 'post', section: 'expert', body: '字'.repeat(301) })).status).toBe(400)
     await ok(alice, { action: 'post', section: 'expert', body: '字'.repeat(300), tags: '#DAMS 问答' })
     const post = (await feed(alice)).items[0]
-    expect(post.tags).toEqual(['dams', '问答'])
+    expect(post).toMatchObject({ tags: ['dams', '问答'], authorRole: 'attendee' })
+    await ok(guest, { action: 'post', section: 'lounge', body: '嘉宾讨论帖' })
+    expect((await feed(alice, '?section=lounge')).items).toMatchObject([
+      { authorId: 'guest', authorRole: 'guest', mine: false },
+    ])
     await ok(bob, { action: 'like', id: post.id, liked: true })
     await ok(bob, { action: 'like', id: post.id, liked: true })
     expect((await feed(bob)).items[0]).toMatchObject({ likes: 1, liked: true, mine: false })

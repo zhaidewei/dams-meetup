@@ -10,7 +10,7 @@ const ROUNDS = `
   FROM meetup15_qa_rounds r JOIN meetup15_members m ON m.id = r.guest_id`
 const ITEM_CONTENT = `
   d.id, d.kind, d.author_id AS authorId, COALESCE(m.display_name, '现场观众') AS author,
-  d.body, d.tags, d.post_id AS postId, d.parent_reply_id AS parentId, d.answered, d.created_at AS createdAt`
+  m.role AS authorRole, d.body, d.tags, d.post_id AS postId, d.parent_reply_id AS parentId, d.answered, d.created_at AS createdAt`
 const ITEM_FIELDS = `
   ${ITEM_CONTENT}, d.author_id = ? AS mine,
   (SELECT COUNT(*) FROM meetup15_discussion_likes l WHERE l.item_id = d.id) AS likes,
