@@ -1,4 +1,4 @@
-import type { MeetupSection } from './event'
+import type { MeetupAgendaSection, MeetupSection } from './event'
 import type { Member } from './identity'
 
 export const MAX_DISCUSSION_BODY = 300
@@ -41,8 +41,8 @@ export type QuestionRound = {
 }
 
 export type DiscussionContext = {
-  currentSection: MeetupSection
-  override: MeetupSection | null
+  currentSection: MeetupAgendaSection
+  override: MeetupAgendaSection | null
   refreshAt: number | null
   rounds: QuestionRound[]
   activeRound: QuestionRound | null
@@ -81,7 +81,7 @@ export type MemberCommand =
   | { action: 'question'; section: MeetupSection; roundId: number; body: string }
 
 export type StaffCommand =
-  | { action: 'section'; section: MeetupSection | null }
+  | { action: 'section'; section: MeetupAgendaSection | null }
   | { action: 'start'; guestId: string; activeRoundId: number | null; latestRoundId: number | null }
   | { action: 'end'; roundId: number }
   | { action: 'answer'; id: number; answered: boolean }

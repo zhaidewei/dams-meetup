@@ -18,7 +18,7 @@ const EVENT_DAY = '2026-11-14'
 const EVENT_OFFSET = '+01:00'
 const EVENT_TIME_ZONE = 'Europe/Amsterdam'
 
-export const MEETUP_SECTIONS = {
+export const MEETUP_AGENDA_SECTIONS = {
   lounge: '公共讨论区',
   lightning: '创业者 Lightning Talk',
   expert: '专家分享',
@@ -26,12 +26,35 @@ export const MEETUP_SECTIONS = {
   panel: '圆桌讨论',
 } as const
 
+export const MEETUP_BREAKOUT_GROUPS = {
+  'breakout-consulting': '咨询、自雇与创业',
+  'breakout-internet': '互联网、电商与旅游、SaaS',
+  'breakout-medical-ai': '医学人工智能和生物信息应用',
+  'breakout-supply-chain': '快消、物流与供应链',
+  'breakout-energy': '能源、气候与公用事业',
+  'breakout-finance': '银行、金融、量化与加密货币',
+  'breakout-research': '学术研究与前沿实验室',
+  'breakout-semiconductors': '半导体与高精尖电子',
+  'breakout-manufacturing': '传统制造与工业',
+} as const
+
+export const MEETUP_SECTIONS = { ...MEETUP_AGENDA_SECTIONS, ...MEETUP_BREAKOUT_GROUPS }
+
+export type MeetupAgendaSection = keyof typeof MEETUP_AGENDA_SECTIONS
 export type MeetupSection = keyof typeof MEETUP_SECTIONS
+
+export function isMeetupAgendaSection(value: unknown): value is MeetupAgendaSection {
+  return typeof value === 'string' && Object.hasOwn(MEETUP_AGENDA_SECTIONS, value)
+}
+
+export function isBreakoutGroup(section: MeetupSection) {
+  return Object.hasOwn(MEETUP_BREAKOUT_GROUPS, section)
+}
 
 type AgendaSlot = {
   start: string
   end: string
-  section: MeetupSection
+  section: MeetupAgendaSection
   title: string
   details?: readonly string[]
 }
@@ -68,17 +91,7 @@ export const MEETUP_AGENDA: readonly AgendaSlot[] = [
   {
     start: '15:00', end: '16:30', section: 'breakout',
     title: '分组交流 & 茶歇',
-    details: [
-      '银行、金融、量化与加密货币',
-      '快消、物流与供应链',
-      '传统制造与工业',
-      '半导体与高精尖电子',
-      '互联网、电商与旅游、SaaS',
-      '能源、气候与公用事业',
-      '咨询、自雇与创业',
-      '学术研究与前沿实验室',
-      '医学人工智能和生物信息应用',
-    ],
+    details: Object.values(MEETUP_BREAKOUT_GROUPS),
   },
   {
     start: '16:30', end: '17:30', section: 'panel',
@@ -101,7 +114,7 @@ const eventDate = new Intl.DateTimeFormat('zh-CN', {
 export const MEETUP_DATE = `${eventDate} ${firstSlot.start}–${lastSlot.end} CET`
 export const ADMISSION_END = agendaTime(lastSlot.end)
 
-export function meetupSectionAt(now = Date.now()): MeetupSection {
+export function meetupSectionAt(now = Date.now()): MeetupAgendaSection {
   return meetupAgendaAt(now)?.section ?? 'lounge'
 }
 

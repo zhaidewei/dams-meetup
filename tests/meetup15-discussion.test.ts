@@ -4,6 +4,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
 import type { FeedSnapshot, ReplyPage, StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
+import { MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -115,6 +116,26 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     await ok(admin, { action: 'section', section: 'expert' }, '/admin')
     expect((await feed(alice)).section).toBe('expert')
     expect((await feed(alice, '?section=lounge')).section).toBe('lounge')
+
+    await ok(admin, { action: 'section', section: 'breakout' }, '/admin')
+    await ok(alice, { action: 'post', section: 'breakout', body: '分组公共交流' })
+    const groups = Object.entries(MEETUP_BREAKOUT_GROUPS)
+    for (const [section, body] of groups) {
+      await ok(alice, { action: 'post', section, body })
+    }
+    for (const [section, body] of groups) {
+      const snapshot = await feed(alice, '?section=' + section)
+      expect(snapshot.section).toBe(section)
+      expect(snapshot.currentSection).toBe('breakout')
+      expect(snapshot.items.map((item) => item.body)).toEqual([body])
+      const postId = snapshot.items[0].id
+      await ok(guest, { action: 'reply', postId, parentId: null, body: '回复 · ' + body })
+      expect((await replies(alice, postId)).items.map((item) => item.body)).toEqual(['回复 · ' + body])
+      expect((await feed(alice, '?section=' + section)).items[0].replyCount).toBe(1)
+    }
+    expect((await feed(alice)).items.map((item) => item.body)).toEqual(['分组公共交流'])
+    expect((await command(admin, { action: 'section', section: groups[0][0] }, '/admin')).status).toBe(400)
+    await ok(admin, { action: 'section', section: 'expert' }, '/admin')
 
     expect((await command(bob, { action: 'post', section: 'expert', body: '未填昵称' })).status).toBe(403)
     expect((await command(alice, { action: 'post', section: 'expert', body: '字'.repeat(301) })).status).toBe(400)

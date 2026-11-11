@@ -1,5 +1,5 @@
 import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS } from '../src/lib/meetup15/discussion'
-import { isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
+import { isMeetupAgendaSection, isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
 
@@ -104,7 +104,7 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
 export async function writeStaff(db: D1Database, input: Input, now: number): Promise<Result> {
   switch (input.action) {
     case 'section':
-      if (input.section !== null && !isMeetupSection(input.section)) return invalid
+      if (input.section !== null && !isMeetupAgendaSection(input.section)) return invalid
       return write(db.prepare('UPDATE activity_state SET section_override = ? WHERE id = 1').bind(input.section))
     case 'start': {
       const { guestId, activeRoundId, latestRoundId } = input
