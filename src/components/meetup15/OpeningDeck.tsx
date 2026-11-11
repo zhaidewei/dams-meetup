@@ -1,30 +1,28 @@
 import { useEffect, useState } from 'react'
-import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_THEME } from '@/lib/meetup15/event'
 import { AdmissionScreen } from './AdmissionScreen'
 
 const slides = [
-  { title: MEETUP_THEME, body: <><p>{MEETUP_NAME}</p><p>{MEETUP_DATE}</p></> },
   {
-    title: '今天聊什么',
+    title: 'DAMS 现场互动工具',
+    body: <><p>想找同行交流，或把问题交给台上的嘉宾？</p><p>用手机打开网页，就能参与全场讨论和问答。</p></>,
+  },
+  {
+    title: '发帖、找同好、聊下去',
     body: (
-      <ol className="mx-auto grid w-fit gap-2 text-left">
-        {MEETUP_AGENDA.filter(({ section }) => section !== 'lounge').map(({ start, title }) => (
-          <li key={start} className="flex gap-3">
-            <span className="font-mono text-amber-300">{start}</span>
-            <span>{title}</span>
-          </li>
-        ))}
+      <ol className="mx-auto grid w-fit list-decimal gap-3 pl-6 text-left marker:text-amber-300">
+        <li>在「我」填写昵称。</li>
+        <li>进讨论区或分组板块，发帖分享想法，也可以回复或点赞。</li>
+        <li>想继续聊？点对方头像发私信，在「我 → 私信」查看回复。</li>
       </ol>
     ),
   },
   {
-    title: '把话题带到全场',
+    title: '嘉宾问答和现场抽奖',
     body: (
-      <dl className="grid gap-3 sm:grid-cols-3">
+      <dl className="grid gap-3 sm:grid-cols-2">
         {[
-          ['讨论', '在讨论区分享想法，或加入感兴趣的分组。'],
-          ['嘉宾问答', '提交问题，给想听嘉宾回答的问题点赞。'],
-          ['现场抽奖', '主办方公布结果，中奖者会收到站内消息。'],
+          ['嘉宾问答', '主持人开启问答后，可以提交问题，也可以给别人的问题点赞。大屏优先展示点赞最多的待答问题。'],
+          ['现场抽奖', '抽奖结果在大屏公布，中奖者会收到站内私信。'],
         ].map(([label, description]) => (
           <div key={label} className="rounded-xl bg-slate-800 p-3 text-left md:p-5">
             <dt className="mb-1 font-bold text-amber-300">{label}</dt>
@@ -34,7 +32,7 @@ const slides = [
       </dl>
     ),
   },
-  { title: '加入现场互动', body: null },
+  { title: '扫码入场，开始互动', body: null },
 ]
 
 export function OpeningDeck({ compact = false }: { compact?: boolean }) {
@@ -72,6 +70,7 @@ export function OpeningDeck({ compact = false }: { compact?: boolean }) {
         </h1>
         <div className={compact ? 'space-y-2 text-sm' : 'space-y-3 text-[clamp(1rem,2vw,2rem)]'}>
           {slide.body ?? <AdmissionScreen compact={compact} />}
+          {slide.body === null && <p>换手机时，用「恢复链接」找回同一个身份。</p>}
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 text-sm text-slate-300">
