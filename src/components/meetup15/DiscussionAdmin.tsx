@@ -2,7 +2,7 @@
 
 import type { FormEvent } from 'react'
 import type { StaffSnapshot } from '@/lib/meetup15/discussion'
-import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
+import { MEETUP_AGENDA_SECTIONS, MEETUP_SECTIONS, type MeetupAgendaSection } from '@/lib/meetup15/event'
 import { discussionButton, discussionInput } from './DiscussionComposer'
 import { useDiscussion } from './useDiscussion'
 
@@ -33,9 +33,9 @@ export function DiscussionAdmin({ view }: { view: 'agenda' | 'qa' }) {
       {view === 'agenda' && <div className="flex flex-wrap gap-2">
         <button className={discussionButton} disabled={pending || data.override === null}
           onClick={() => void submit({ action: 'section', section: null })}>恢复自动</button>
-        {Object.entries(MEETUP_SECTIONS).map(([key, label]) => (
+        {Object.entries(MEETUP_AGENDA_SECTIONS).map(([key, label]) => (
           <button key={key} className={discussionButton + ' aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover'} disabled={pending} aria-pressed={data.override === key}
-            onClick={() => void submit({ action: 'section', section: key as MeetupSection })}>{label}</button>
+            onClick={() => void submit({ action: 'section', section: key as MeetupAgendaSection })}>{label}</button>
         ))}
       </div>}
       {view === 'qa' && !active && <form onSubmit={openRound} className="max-w-lg space-y-2">

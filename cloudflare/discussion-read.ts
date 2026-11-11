@@ -2,7 +2,7 @@ import type {
   DiscussionItem, FeedSnapshot, ModerationPage, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
 import type { Member } from '../src/lib/meetup15/identity'
-import { INTERACTION_END, isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
+import { INTERACTION_END, isMeetupAgendaSection, isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
 
 const PAGE_SIZE = 30
 const ROUNDS = `
@@ -45,7 +45,7 @@ async function readContext(db: D1Database, now: number) {
   ])
   const state = settings.results[0] as { section_override: unknown; question_revision: number } | undefined
   const override = state?.section_override
-  const section = isMeetupSection(override) ? override : null
+  const section = isMeetupAgendaSection(override) ? override : null
   const history = rounds.results as unknown as QuestionRound[]
   return {
     revision: state?.question_revision,

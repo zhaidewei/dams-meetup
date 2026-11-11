@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type MemberCommand, type ReplyPage } from '@/lib/meetup15/discussion'
-import { MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
+import { isBreakoutGroup, MEETUP_AGENDA_SECTIONS, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
 import { DiscussionReactions } from './DiscussionReactions'
@@ -196,12 +196,14 @@ export function DiscussionFeed() {
   }
 
   const active = data?.activeRound
+  const section = selected ?? data?.section
+  const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
   const navigation = (
     <nav key="discussion-sections" aria-label="讨论板块" className="flex overflow-x-auto border-b border-dams-line px-2">
       <button className={tabButton} aria-pressed={selected === null}
         onClick={() => choose(null)}>跟随现场</button>
-      {Object.entries(MEETUP_SECTIONS).map(([key, label]) => (
-        <button key={key} className={tabButton} aria-pressed={selected === key}
+      {Object.entries(MEETUP_AGENDA_SECTIONS).map(([key, label]) => (
+        <button key={key} className={tabButton} aria-pressed={selected === key || (key === 'breakout' && selected !== null && isBreakoutGroup(selected))}
           onClick={() => choose(key as MeetupSection)}>
           {label}
           {active?.section === key && (
@@ -209,6 +211,18 @@ export function DiscussionFeed() {
           )}
         </button>
       ))}
+    </nav>
+  )
+  const breakoutNavigation = inBreakout && (
+    <nav key="breakout-groups" aria-label="分组交流子版块" className="space-y-2 border-b border-dams-line bg-dams-wash px-4 py-4 sm:px-6">
+      <h2 className="text-sm font-semibold">分组交流</h2>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+        {[['breakout', '公共交流'] as const, ...Object.entries(MEETUP_BREAKOUT_GROUPS)].map(([key, label]) => (
+          <button key={key} type="button" aria-pressed={section === key}
+            className="min-h-11 rounded-lg border border-dams-line bg-white px-3 py-2 text-left text-sm hover:border-dams-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover"
+            onClick={() => choose(key as MeetupSection)}>{label}</button>
+        ))}
+      </div>
     </nav>
   )
   const feedback = error && (
@@ -222,6 +236,7 @@ export function DiscussionFeed() {
   if (!data) return (
     <div>
       {navigation}
+      {breakoutNavigation}
       <div className="px-4 py-5 sm:px-6">
         {feedback || <p role="status">正在加载讨论区…</p>}
       </div>
@@ -245,6 +260,7 @@ export function DiscussionFeed() {
         </aside>
       )}
       {navigation}
+      {breakoutNavigation}
       <div className="space-y-4 border-b border-dams-line px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">{MEETUP_SECTIONS[data.section]}</h2>
