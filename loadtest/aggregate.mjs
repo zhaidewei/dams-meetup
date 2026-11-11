@@ -18,11 +18,22 @@ if (!files.length) {
 const counters = new Map()
 const samples = new Map()  // key -> flat array of all samples
 const configs = []
+const meetupClients = new Set()
+let meetupConfig
 
 for (const f of files) {
   let j
   try { j = JSON.parse(readFileSync(f, 'utf8')) }
   catch (e) { console.error(`skip ${f}: ${e.message}`); continue }
+  if (j.config?.scenario === 'meetup15-http-v1') {
+    const { scenario, run, target, requestedStart, duration_s, questions, client } = j.config
+    const key = JSON.stringify([scenario, run, target, requestedStart, duration_s, questions])
+    if (meetupConfig && meetupConfig !== key) throw new Error('Reports must use the same run, target, start, duration and Q&A setting')
+    if (meetupClients.has(client)) throw new Error('Duplicate client: ' + client)
+    meetupConfig = key
+    meetupClients.add(client)
+    if (j.error) console.error('Incomplete workload on ' + client + ': ' + j.error)
+  }
   configs.push({ file: f, ...j.config })
   for (const [k, v] of Object.entries(j.counters ?? {})) {
     counters.set(k, (counters.get(k) ?? 0) + Number(v))
@@ -33,9 +44,11 @@ for (const f of files) {
   }
 }
 
+if (meetupConfig && meetupClients.size !== files.length) throw new Error('Use only complete JSON files from this Meetup 15 run')
+
 console.log('=== merged from', files.length, 'runs ===')
 for (const c of configs) {
-  console.log(`  ${c.file}: pid=${c.pid} users=${c.users} dur=${c.duration_s}s target=${c.target}`)
+  console.log(`  ${c.file}: client=${c.client ?? c.pid} users=${c.users} dur=${c.duration_s}s target=${c.target}`)
 }
 
 console.log('\n-- counters (summed) --')
