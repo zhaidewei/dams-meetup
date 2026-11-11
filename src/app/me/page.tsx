@@ -14,7 +14,7 @@ export default async function MePage({ searchParams }: { searchParams: Promise<{
 
   return (
     <MeetupMemberLayout active="/me">
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-5 sm:px-6">
+      <div className="space-y-6 px-4 py-5 sm:px-6">
         <MeetupPresence />
         <header className="rounded-2xl bg-sky-50 p-5"><h1 className="text-2xl font-bold">我的</h1></header>
         <PersonalPanel key={String(messages)} initialMessages={messages} />

@@ -29,9 +29,7 @@ function MeetupMemberNav({ active, mobile = false }: { active: MemberPage; mobil
 
 export function MeetupMemberLayout({ active, children, sidebar }: { active: MemberPage; children: ReactNode; sidebar?: ReactNode }) {
   return (
-    <div className={'mx-auto grid min-h-dvh max-w-7xl grid-cols-1 text-slate-900 md:grid-cols-[10rem_minmax(0,1fr)] ' +
-      (sidebar ? 'lg:grid-cols-[12rem_minmax(0,1fr)_17rem] xl:grid-cols-[13rem_minmax(0,1fr)_19rem]'
-        : 'lg:grid-cols-[12rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)]')}>
+    <div className="mx-auto grid min-h-dvh w-full max-w-7xl grid-cols-1 text-slate-900 md:grid-cols-[10rem_minmax(0,1fr)] lg:grid-cols-[12rem_minmax(0,1fr)_17rem] xl:grid-cols-[13rem_minmax(0,1fr)_19rem]">
       <aside className="hidden px-4 pt-5 md:block">
         <div className="sticky top-5 space-y-6">
           <Link href="/" className="flex items-center gap-2.5 font-bold tracking-wide">

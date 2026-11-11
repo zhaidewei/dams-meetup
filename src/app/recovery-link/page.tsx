@@ -16,7 +16,7 @@ export default async function RecoveryLinkPage() {
 
   return (
     <MeetupMemberLayout active="/recovery-link">
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-5 sm:px-6">
+      <div className="space-y-6 px-4 py-5 sm:px-6">
         <MeetupPresence />
         <header className="rounded-2xl bg-sky-50 p-5">
           <h1 className="text-2xl font-bold">恢复链接</h1>

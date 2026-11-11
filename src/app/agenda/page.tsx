@@ -22,7 +22,7 @@ export default async function AgendaPage() {
 
   return (
     <MeetupMemberLayout active="/agenda">
-      <div className="mx-auto max-w-3xl space-y-8 px-4 py-5 sm:px-6">
+      <div className="space-y-8 px-4 py-5 sm:px-6">
         {member && <MeetupPresence />}
         <MeetupHeading />
         <MeetupAgenda />
