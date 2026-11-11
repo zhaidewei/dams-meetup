@@ -8,6 +8,7 @@ import {
   type PersonalSnapshot, type ThreadSnapshot, type ThreadSummary,
 } from '@/lib/meetup15/personal'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
+import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
 type View = 'profile' | 'posts' | 'replies' | 'messages'
@@ -102,9 +103,7 @@ function MessageList({ threads }: { threads: ThreadSummary[] }) {
             <button type="button" aria-expanded={open} aria-controls={panelId}
               className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-700 sm:px-4"
               onClick={() => setOpenContact(open ? null : key)}>
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-sky-100 text-sm font-semibold text-sky-900">
-                {thread.system ? '官' : Array.from(thread.name)[0]}
-              </span>
+              <MemberAvatar id={thread.contactId} name={thread.system ? '官方' : thread.name} className="size-9 text-sm" />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
                   {Boolean(thread.system) && <OfficialBadge />}

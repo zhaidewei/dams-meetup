@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import type { MemberCard, PersonalCommand } from '@/lib/meetup15/personal'
 import { DiscussionComposer } from './DiscussionComposer'
+import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
 export function MemberBadge({ id, name, mine, timeline = false }: { id: string; name: string; mine: boolean; timeline?: boolean }) {
@@ -12,9 +13,7 @@ export function MemberBadge({ id, name, mine, timeline = false }: { id: string; 
     <div className="space-y-2">
       <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-700"
         aria-expanded={open} aria-label={`查看 ${name} 的资料`} onClick={() => setOpen(!open)}>
-        <span aria-hidden className={timeline
-          ? 'absolute top-0 left-0 grid size-9 place-items-center rounded-full bg-sky-100 text-sky-900'
-          : 'grid size-7 place-items-center rounded-full bg-sky-100 text-sky-900'}>{Array.from(name)[0]}</span>
+        <MemberAvatar id={id} name={name} className={timeline ? 'absolute top-0 left-0 size-9' : 'size-7'} />
         {name}
       </button>
       {open && <MemberDetails id={id} mine={mine} />}
