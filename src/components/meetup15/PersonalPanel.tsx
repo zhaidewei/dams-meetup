@@ -12,7 +12,7 @@ import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
 type View = 'profile' | 'posts' | 'replies' | 'messages'
-const profileRow = 'grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]'
+const profileRow = 'grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]'
 const views = { profile: '资料', posts: '我的帖子', replies: '收到的回复', messages: '私信' } as const
 
 export function PersonalPanel({ initialMessages }: { initialMessages: boolean }) {
@@ -43,7 +43,7 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
   const unreadMessages = data.threads.some(item => item.unread)
   return (
     <div className="space-y-4">
-      <nav className="flex flex-wrap gap-2" aria-label="个人页">
+      <nav className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-4 sm:flex sm:flex-wrap" aria-label="个人页">
         {(Object.keys(views) as View[]).map((item) => (
           <button key={item} type="button" className={discussionButton + ' min-h-11 rounded-full aria-pressed:border-dams-selection aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover'} aria-pressed={view === item}
             onClick={() => setView(item)}>
@@ -59,7 +59,7 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
             <input name="name" defaultValue={data.nickname ?? ''} maxLength={Math.max(MAX_NICKNAME_LENGTH, data.nickname?.length ?? 0)}
               required className={discussionInput} />
           </label>
-          <fieldset className="space-y-3 border-t border-dams-line pt-3" aria-describedby="profile-public">
+          <fieldset className="min-w-0 space-y-3 border-t border-dams-line pt-3" aria-describedby="profile-public">
             <legend className="sr-only">可选公开资料</legend>
             <p id="profile-public" className="text-sm text-slate-600">以下资料选填。填写并保存后，已入场的观众可在你的资料卡上查看。</p>
             {PROFILE_FIELDS.map(({ key, label, type, maxLength, autoComplete }) => (
@@ -92,8 +92,8 @@ function PersonalItems({ items, empty }: { items: PersonalItem[]; empty: string 
   return <ul className="space-y-2">
     {items.map(item => (
       <li className="space-y-1 rounded border border-dams-line p-3" key={item.id}>
-        <p className="text-xs text-zinc-600">{item.author && `${item.author} · `}{MEETUP_SECTIONS[item.section]}</p>
-        <p className="whitespace-pre-wrap break-words">{item.body}</p>
+        <p className="wrap-anywhere text-xs text-zinc-600">{item.author && `${item.author} · `}{MEETUP_SECTIONS[item.section]}</p>
+        <p className="whitespace-pre-wrap wrap-anywhere">{item.body}</p>
       </li>
     ))}
   </ul>

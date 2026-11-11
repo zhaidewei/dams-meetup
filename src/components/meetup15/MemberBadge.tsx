@@ -12,10 +12,10 @@ export function MemberBadge({ id, name, mine, timeline = false, vip = false }: {
   const [open, setOpen] = useState(false)
   return (
     <div className="space-y-2">
-      <button type="button" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-700"
+      <button type="button" className="inline-flex min-h-11 max-w-full items-center gap-2 text-left text-sm font-semibold text-zinc-700 focus-visible:outline-2 focus-visible:outline-dams-blue"
         aria-expanded={open} aria-label={`查看 ${name} 的资料${vip ? "（VIP 嘉宾）" : ""}`} onClick={() => setOpen(!open)}>
         <MemberAvatar id={id} name={name} className={timeline ? 'absolute top-0 left-0 size-9' : 'size-7'} />
-        {name}
+        <span className="min-w-0 wrap-anywhere">{name}</span>
         {vip && <GuestVipBadge />}
       </button>
       {open && <MemberDetails id={id} mine={mine} />}
@@ -40,7 +40,7 @@ function MemberDetails({ id, mine }: { id: string; mine: boolean }) {
           </div>
         ))}
       </dl>}
-      {data.contact && <p className="whitespace-pre-wrap break-words">{data.contact}</p>}
+      {data.contact && <p className="whitespace-pre-wrap wrap-anywhere">{data.contact}</p>}
       {!visibleFields.length && !data.contact && <p>暂无公开联系方式。</p>}
       {error && <p role="alert">{error}</p>}
       {!mine && (data.named
