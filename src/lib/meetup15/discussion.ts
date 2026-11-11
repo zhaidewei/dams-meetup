@@ -59,7 +59,8 @@ export type ReplyPage = { items: DiscussionItem[]; nextAfter: number | null; ref
 export type ModerationPage = {
   posts: (Pick<DiscussionItem, 'id' | 'author' | 'body' | 'createdAt'> & { replyCount: number })[]
   nextBefore: number | null
-  refreshAt: null
+  canDelete: boolean
+  refreshAt: number | null
 }
 
 export type StaffSnapshot = DiscussionContext & {

@@ -50,7 +50,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   if (request.method === 'GET') {
-    const snapshot = view === 'moderation' ? await readModerationPosts(db, url)
+    const snapshot = view === 'moderation' ? await readModerationPosts(db, url, now)
       : member ? await readFeed(db, member, url, now, execution)
       : await readDiscussionAdmin(db, now)
     return Response.json(snapshot, { headers })

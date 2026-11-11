@@ -49,6 +49,7 @@ export function PostModeration() {
       {notice && <p role="status" className="text-sm text-dams-hover">{notice}</p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {!data && !error && <p role="status" className="text-sm text-slate-600">正在读取帖子…</p>}
+      {data && !data.canDelete && <p className="text-sm text-slate-600">本届互动已关闭，帖子仅供查看。</p>}
       {data?.posts.length === 0 && <p className="text-sm text-slate-600">本页暂无帖子。</p>}
       <ul className="space-y-3">
         {data?.posts.map((post) => (
@@ -57,7 +58,7 @@ export function PostModeration() {
               <strong>{post.author}</strong> · {postTime.format(post.createdAt * 1000)} · {post.replyCount} 条回复
             </p>
             <p className="whitespace-pre-wrap break-words">{post.body}</p>
-            {confirmId === post.id ? (
+            {data.canDelete && (confirmId === post.id ? (
               <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="text-sm text-red-900">确认删除这条帖子及其所有回复？</p>
                 <div className="flex flex-wrap gap-2">
@@ -71,7 +72,7 @@ export function PostModeration() {
             ) : (
               <button type="button" className={discussionButton + ' text-red-700'} disabled={pending}
                 onClick={() => setConfirmId(post.id)}>删除帖子</button>
-            )}
+            ))}
           </li>
         ))}
       </ul>
