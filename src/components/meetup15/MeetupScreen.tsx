@@ -9,6 +9,9 @@ import { useRaffleResolution } from './useRaffleResolution'
 
 export function ScreenContent({ data, compact = false }: { data: ProjectionView; compact?: boolean }) {
   if (data.mode === 'hidden') return null
+  const questions = data.mode !== 'qa' ? [] : data.round.closedAt === null
+    ? data.questions.filter(question => !question.answered).slice(0, 3)
+    : data.questions
   const heading = compact ? 'text-lg' : 'text-3xl md:text-5xl'
   const screenWidth = data.mode === 'raffle' ? 'max-w-[96rem]' : 'max-w-6xl'
   return (
@@ -39,16 +42,16 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
             第 {data.round.id} 轮 · {MEETUP_SECTIONS[data.round.section]}
             {data.round.closedAt !== null && ' · 历史回看'}
           </p>
-          {data.questions.length ? (
+          {questions.length ? (
             <ol className={compact ? 'max-h-44 space-y-2 overflow-auto' : 'max-h-[55vh] space-y-3 overflow-auto'}>
-              {data.questions.map((question) => (
+              {questions.map((question) => (
                 <li key={question.id} className="rounded-xl border border-dams-selection bg-white px-4 py-3">
-                  <p className="whitespace-pre-wrap break-words">{question.body}</p>
-                  <p className="mt-1 text-xs text-slate-600">{question.likes} 个赞 · {question.answered ? '已答' : '未答'}</p>
+                  <p className={compact ? "whitespace-pre-wrap break-words" : "whitespace-pre-wrap break-words text-xl font-semibold leading-snug md:text-3xl"}>{question.body}</p>
+                  <p className={compact ? "mt-1 text-xs text-slate-600" : "mt-2 text-base font-semibold text-slate-700 md:text-xl"}>{question.likes} 个赞 · {question.answered ? '已答' : '未答'}</p>
                 </li>
               ))}
             </ol>
-          ) : <p className="text-slate-600">本轮还没有问题。</p>}
+          ) : <p className="text-slate-600">{data.questions.length ? '本轮问题均已回答。' : '本轮还没有问题。'}</p>}
         </section>
       )}
       {data.mode === 'raffle' && <RaffleScreen data={data} compact={compact} />}

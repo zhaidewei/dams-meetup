@@ -3,25 +3,28 @@ import { isMeetupAdmin } from '@/lib/meetup15/server'
 import { DiscussionAdmin } from '@/components/meetup15/DiscussionAdmin'
 import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
+import { GuestAccounts } from './GuestAccounts'
+import { LiveStatsPanel } from './LiveStatsPanel'
 import { SummaryControls } from './SummaryControls'
 
 export const metadata = { title: '第 15 期 Meetup · 主办方控制台' }
 
 const ADMIN_TABS = {
-  screen: '大屏',
-  entry: '入场',
-  agenda: '议程',
-  qa: '嘉宾问答',
-  guests: '嘉宾',
-  summary: '复盘与归档',
+  screen: '控制大屏',
+  entry: '管理入场',
+  agenda: '议程切换',
+  qa: '管理问答',
+  guests: '配置嘉宾',
+  stats: '查看实时统计',
+  summary: '发布复盘与归档',
 } as const
 
 export default async function ActivityAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; guest?: string; tab?: string; summary?: string }>
+  searchParams: Promise<{ error?: string; edit?: string; guest?: string; tab?: string; summary?: string }>
 }) {
-  const [signedIn, { error, guest, tab, summary }] = await Promise.all([isMeetupAdmin(), searchParams])
+  const [signedIn, { error, edit, guest, tab, summary }] = await Promise.all([isMeetupAdmin(), searchParams])
   const selected = tab && Object.hasOwn(ADMIN_TABS, tab) ? tab : guest ? 'guests' : 'screen'
 
   return (
@@ -44,40 +47,9 @@ export default async function ActivityAdminPage({
           {selected === 'entry' && <ActivityControls />}
           {selected === 'agenda' && <DiscussionAdmin view="agenda" />}
           {selected === 'qa' && <DiscussionAdmin view="qa" />}
+          {selected === 'stats' && <LiveStatsPanel />}
           {selected === 'summary' && <SummaryControls status={summary} />}
-          {selected === 'guests' && <section className="max-w-lg space-y-3 rounded-2xl border border-dams-line bg-white p-4">
-            <h2 className="text-lg font-semibold">配置嘉宾账号</h2>
-            <p className="text-sm text-zinc-600">用相同用户名保存，会更新姓名、头衔和密码，保留嘉宾身份。</p>
-            {guest === 'saved' && <p role="status">嘉宾账号已保存。</p>}
-            {guest === 'invalid' && <p role="alert">请检查用户名、姓名和密码要求。</p>}
-            <form method="post" action="/api/meetup/guests" className="space-y-3">
-              <label className="block text-sm">
-                用户名
-                <input name="username" autoComplete="off" minLength={3} maxLength={32}
-                  pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,31}" required
-                  className="mt-1 block w-full rounded border border-zinc-300 px-3 py-2" />
-              </label>
-              <p className="text-xs text-zinc-600">3–32 位字母、数字、点、下划线或连字符。</p>
-              <label className="block text-sm">
-                姓名
-                <input name="displayName" required maxLength={80}
-                  className="mt-1 block w-full rounded border border-zinc-300 px-3 py-2" />
-              </label>
-              <label className="block text-sm">
-                头衔
-                <input name="title" maxLength={120}
-                  className="mt-1 block w-full rounded border border-zinc-300 px-3 py-2" />
-              </label>
-              <label className="block text-sm">
-                嘉宾密码
-                <input name="password" type="password" minLength={12} maxLength={128}
-                  required autoComplete="new-password"
-                  className="mt-1 block w-full rounded border border-zinc-300 px-3 py-2" />
-              </label>
-              <p className="text-xs text-zinc-600">至少 12 个字符，请通过私下渠道交给嘉宾。</p>
-              <button className="min-h-11 rounded-full bg-dams-blue px-5 py-2 text-white">保存嘉宾账号</button>
-            </form>
-          </section>}
+          {selected === 'guests' && <GuestAccounts edit={edit} status={guest} />}
         </ActivityAdminPanels>
       ) : (
         <form method="post" action="/api/activity/session" className="max-w-lg space-y-3">

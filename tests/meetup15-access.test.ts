@@ -91,6 +91,8 @@ it('isolates members and gates both first-entry methods without blocking guests 
     const guest = { username: 'guest-15', displayName: '嘉宾测试', title: '测试头衔', password: 'fixture-guest-pass' }
     expect((await post('guests', guest)).status).toBe(401)
     expect((await post('guests', guest, admin)).headers.get('Location')).toBe('/admin/activity?guest=saved')
+    expect((await post('guests', { ...guest, action: 'create', password: 'different-password' }, admin))
+      .headers.get('Location')).toBe('/admin/activity?guest=duplicate')
     expect((await post('guest-login', { ...guest, password: 'wrong' })).headers.get('Location')).toBe('/vip-login?error=1')
     const guestA = memberId(cookie(await post('guest-login', guest)))
     expect(guestA).toBeTruthy()

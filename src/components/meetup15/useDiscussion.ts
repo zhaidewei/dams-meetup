@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
 
 export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
-  url: string, topic: 'discussion' | 'projection' | 'personal' = 'discussion',
+  url: string, topic: 'discussion' | 'projection' | 'personal' | 'stats' = 'discussion',
 ) {
-  const [view, setView] = useState<{ url: string; data: T | null; error: string } | null>(null)
+  const [view, setView] = useState<{ url: string; data: T | null; error: string; unauthorized?: boolean } | null>(null)
   const [pending, setPending] = useState(false)
   const [actionError, setActionError] = useState('')
   const refresh = useRef<() => Promise<void>>(async () => {})
@@ -35,7 +35,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
         })
         if (controller.signal.aborted) return
         if (response.status === 401) {
-          setView({ url, data: null, error: '登录已失效，请重新进入活动。' })
+          setView({ url, data: null, unauthorized: true, error: '登录已失效，请重新进入活动。' })
           return
         }
         if (!response.ok) throw new Error('Discussion read failed')
@@ -85,8 +85,8 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       if (!controller.signal.aborted) await read()
     }
     void read()
-    connect()
-    const fallback = setInterval(schedule, 15000)
+    if (topic !== 'stats') connect()
+    const fallback = setInterval(schedule, topic === 'stats' ? 10000 : 15000)
     window.addEventListener('online', schedule)
     return () => {
       controller.abort()
@@ -128,6 +128,11 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     data: view?.url === url ? view.data : null,
     error: actionError || (view?.url === url ? view.error : ''),
     pending,
+    unauthorized: view?.url === url && view.unauthorized === true,
+    retry: () => {
+      setActionError('')
+      return refresh.current()
+    },
     submit,
   }
 }
