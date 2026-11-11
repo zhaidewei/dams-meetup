@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
-import type { FeedSnapshot, StaffSnapshot } from '../src/lib/meetup15/discussion'
+import type { FeedSnapshot, ReplyPage, StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
@@ -43,6 +43,13 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
   const read = (cookie: string, suffix = '') =>
     runtime.dispatchFetch(path + suffix, { headers: { Cookie: cookie } })
   const feed = async (cookie: string, query = '') => await (await read(cookie, query)).json() as FeedSnapshot
+  const replies = async (cookie: string, post: number, parent?: number, after = 0) => {
+    const query = new URLSearchParams({ post: String(post), after: String(after) })
+    if (parent !== undefined) query.set('parent', String(parent))
+    const response = await read(cookie, '/replies?' + query)
+    expect(response.status).toBe(200)
+    return await response.json() as ReplyPage
+  }
   const staff = async () => await (await read(admin, '/admin')).json() as StaffSnapshot
   const readScreen = (cookie: string) => runtime.dispatchFetch(origin + '/api/screen', { headers: { Cookie: cookie } })
   const screen = async () => await (await readScreen(admin)).json() as ProjectionView
@@ -120,15 +127,53 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     await ok(bob, { action: 'nickname', name: 'Bob' })
     expect((await command(bob, { action: 'edit', id: post.id, body: '他人的帖子' })).status).toBe(409)
     await ok(bob, { action: 'reply', postId: post.id, parentId: null, body: '一级回复' })
-    const reply = (await feed(bob)).items.find((item) => item.kind === 'reply')!
+    const reply = (await replies(bob, post.id)).items[0]
+    expect((await feed(alice)).items).toMatchObject([{ id: post.id, kind: 'post', replyCount: 1 }])
+    expect((await read('', '/replies?post=' + post.id)).status).toBe(401)
+    expect((await read(alice, '/replies?post=' + post.id + '&after=-1')).status).toBe(400)
+    const reaction = { action: 'reaction', id: reply.id, emoji: '👍', reacted: true }
+    const replyReactions = async (cookie: string) => (await replies(cookie, post.id)).items.find(item => item.id === reply.id)?.reactions
+    expect(await replyReactions(alice)).toEqual([])
+    expect((await command('', reaction)).status).toBe(401)
+    expect((await command(alice, { ...reaction, emoji: 'x' })).status).toBe(400)
+    await ok(alice, { ...reaction, id: post.id })
+    const observer = (await connect(alice)).webSocket!
+    observer.accept()
+    const reactionUpdate = new Promise(resolve => {
+      observer.addEventListener('message', event => resolve(event.data), { once: true })
+    })
+    await ok(bob, reaction)
+    await expect(reactionUpdate).resolves.toBe('activity.updated')
+    observer.close(1000)
+    expect(await replyReactions(alice)).toEqual([{ emoji: '👍', count: 1, reacted: false }])
+    await ok(alice, reaction)
+    await ok(alice, reaction)
+    expect(await replyReactions(bob)).toEqual([{ emoji: '👍', count: 2, reacted: true }])
+    await ok(alice, { ...reaction, reacted: false, memberId: 'bob' })
+    expect(await replyReactions(alice)).toEqual([{ emoji: '👍', count: 1, reacted: false }])
+    expect(await replyReactions(bob)).toEqual([{ emoji: '👍', count: 1, reacted: true }])
     await ok(alice, { action: 'reply', postId: post.id, parentId: reply.id, body: '子回复' })
-    const child = (await feed(alice)).items.find((item) => item.parentId === reply.id)!
+    const child = (await replies(alice, post.id, reply.id)).items[0]
     expect((await command(bob, { action: 'reply', postId: post.id, parentId: child.id, body: '超深回复' })).status).toBe(409)
     await ok(alice, { action: 'edit', id: post.id, body: '已编辑的帖子', tags: '新标签' })
     await ok(bob, { action: 'edit', id: reply.id, body: '已编辑的回复' })
-    expect((await feed(alice)).items.map((item) => item.body)).toContain('已编辑的回复')
+    expect((await replies(alice, post.id)).items.map((item) => item.body)).toContain('已编辑的回复')
+    for (let index = 0; index < 11; index++) {
+      await ok(alice, { action: 'reply', postId: post.id, parentId: null, body: '分页回复 ' + index })
+      await ok(alice, { action: 'reply', postId: post.id, parentId: reply.id, body: '分页子回复 ' + index })
+    }
+    for (const parent of [undefined, reply.id]) {
+      const firstPage = await replies(alice, post.id, parent)
+      expect(firstPage.items).toHaveLength(10)
+      expect(firstPage.nextAfter).toBe(firstPage.items.at(-1)?.id)
+      const secondPage = await replies(alice, post.id, parent, firstPage.nextAfter!)
+      expect(secondPage.items).toHaveLength(2)
+      expect(secondPage.nextAfter).toBeNull()
+      expect(secondPage.items[0].id).toBeGreaterThan(firstPage.nextAfter!)
+    }
     await ok(alice, { action: 'delete', id: child.id })
     await ok(bob, { action: 'delete', id: reply.id })
+    expect(await db.prepare('SELECT COUNT(*) AS total FROM meetup15_reply_reactions').first('total')).toBe(0)
     await ok(alice, { action: 'delete', id: post.id })
     expect((await feed(alice)).items).toEqual([])
 

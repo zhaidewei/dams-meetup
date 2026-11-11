@@ -26,13 +26,13 @@ export default async function ActivityAdminPage({
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6">
-      <header className="space-y-4 border-b border-zinc-200 pb-3">
+      <header className="space-y-4 rounded-2xl border border-dams-line bg-dams-wash p-4 sm:p-5">
         <p className="text-xl font-semibold">第 15 期 Meetup · 主办方控制台</p>
         {signedIn && (
-          <nav aria-label="主办方导航" className="flex flex-wrap gap-1">
+          <nav aria-label="主办方导航" className="flex gap-1 overflow-x-auto">
             {Object.entries(ADMIN_TABS).map(([key, label]) => (
               <Link key={key} href={`/admin/activity?tab=${key}`} aria-current={selected === key ? 'page' : undefined}
-                className={`rounded-md px-3 py-2 text-sm ${selected === key ? 'bg-teal-100 font-semibold text-teal-900' : 'text-zinc-700 hover:bg-zinc-100'}`}>
+                className={`min-h-11 shrink-0 rounded-full px-4 py-2.5 text-sm ${selected === key ? 'bg-dams-selection font-semibold text-dams-hover' : 'text-zinc-700 hover:bg-dams-wash'}`}>
                 {label}
               </Link>
             ))}
@@ -45,7 +45,7 @@ export default async function ActivityAdminPage({
           {selected === 'agenda' && <DiscussionAdmin view="agenda" />}
           {selected === 'qa' && <DiscussionAdmin view="qa" />}
           {selected === 'summary' && <SummaryControls status={summary} />}
-          {selected === 'guests' && <section className="max-w-lg space-y-3">
+          {selected === 'guests' && <section className="max-w-lg space-y-3 rounded-2xl border border-dams-line bg-white p-4">
             <h2 className="text-lg font-semibold">配置嘉宾账号</h2>
             <p className="text-sm text-zinc-600">用相同用户名保存，会更新姓名、头衔和密码，保留嘉宾身份。</p>
             {guest === 'saved' && <p role="status">嘉宾账号已保存。</p>}
@@ -75,7 +75,7 @@ export default async function ActivityAdminPage({
                   className="mt-1 block w-full rounded border border-zinc-300 px-3 py-2" />
               </label>
               <p className="text-xs text-zinc-600">至少 12 个字符，请通过私下渠道交给嘉宾。</p>
-              <button className="rounded bg-zinc-900 px-4 py-2 text-white">保存嘉宾账号</button>
+              <button className="min-h-11 rounded-full bg-dams-blue px-5 py-2 text-white">保存嘉宾账号</button>
             </form>
           </section>}
         </ActivityAdminPanels>
@@ -86,7 +86,7 @@ export default async function ActivityAdminPage({
           <input id="token" name="token" type="password" required autoComplete="current-password"
             className="w-full rounded border border-zinc-300 px-3 py-2" />
           {error === '1' && <p role="alert">密码不对</p>}
-          <button className="rounded bg-zinc-900 px-4 py-2 text-white">登录</button>
+          <button className="min-h-11 rounded-full bg-dams-blue px-5 py-2 text-white">登录</button>
         </form>
       )}
     </main>

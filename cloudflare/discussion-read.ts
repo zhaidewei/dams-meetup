@@ -1,5 +1,5 @@
 import type {
-  DiscussionItem, FeedSnapshot, QuestionRound, StaffSnapshot,
+  DiscussionItem, FeedSnapshot, QuestionRound, ReplyPage, ReplyReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
 import type { Member } from '../src/lib/meetup15/identity'
 import { isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
@@ -16,15 +16,17 @@ const ITEM_FIELDS = `
   (SELECT COUNT(*) FROM meetup15_discussion_likes l WHERE l.item_id = d.id) AS likes,
   EXISTS(SELECT 1 FROM meetup15_discussion_likes l WHERE l.item_id = d.id AND l.member_id = ?) AS liked`
 
-type ItemRow = Omit<DiscussionItem, 'tags' | 'mine' | 'liked' | 'answered'> & {
+type ItemRow = Omit<DiscussionItem, 'tags' | 'mine' | 'liked' | 'answered' | 'reactions'> & {
   tags: string
   mine: number
   liked: number
   answered: number
+  reactionData?: string | null
 }
 
-function item(row: ItemRow): DiscussionItem {
-  return { ...row, tags: JSON.parse(row.tags), mine: Boolean(row.mine),
+function item({ reactionData, ...row }: ItemRow): DiscussionItem {
+  const reactions = reactionData ? JSON.parse(reactionData) as ReplyReaction[] : undefined
+  return { ...row, reactions, tags: JSON.parse(row.tags), mine: Boolean(row.mine),
     liked: Boolean(row.liked), answered: Boolean(row.answered) }
 }
 
@@ -130,24 +132,43 @@ export async function readFeed(db: D1Database, member: Member, url: URL, now: nu
   const [shared, feed] = await Promise.all([
     viewedRound ? sharedQuestions(db, viewedRound.id, revision, execution) : [],
     db.prepare(`
-      WITH page AS (
-        SELECT id FROM meetup15_discussion
-        WHERE kind = 'post' AND section = ? AND id < ?
-        ORDER BY id DESC LIMIT ?
-      )
-      SELECT ${ITEM_FIELDS}
+      SELECT ${ITEM_FIELDS},
+        (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.post_id = d.id) AS replyCount
       FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
-      WHERE d.id IN (SELECT id FROM page) OR d.post_id IN (SELECT id FROM page)
-      ORDER BY d.id DESC`
-    ).bind(section, cursor, PAGE_SIZE + 1, viewer, viewer).all<ItemRow>(),
+      WHERE d.kind = 'post' AND d.section = ? AND d.id < ?
+      ORDER BY d.id DESC LIMIT ?`
+    ).bind(viewer, viewer, section, cursor, PAGE_SIZE + 1).all<ItemRow>(),
   ])
-  const extra = feed.results.filter((row) => row.kind === 'post')[PAGE_SIZE]
-  const items = extra ? feed.results.filter((row) => row.id !== extra.id && row.postId !== extra.id) : feed.results
-  const nextBefore = extra ? items.findLast((row) => row.kind === 'post')?.id ?? null : null
+  const items = feed.results.slice(0, PAGE_SIZE)
+  const nextBefore = feed.results.length > PAGE_SIZE ? items.at(-1)?.id ?? null : null
   const questions = shared.map(({ likedBy, ...question }) => ({
     ...question, mine: question.authorId === viewer, liked: likedBy.has(viewer),
   }))
   return { ...context, nickname: member.display_name, section, viewedRound, questions, items: items.map(item), nextBefore }
+}
+
+export async function readReplies(db: D1Database, viewer: string, post: number, parent: number | null, after: number): Promise<ReplyPage> {
+  const pageSize = 10
+  const where = parent === null
+    ? 'd.post_id = ? AND d.parent_reply_id IS NULL AND d.id > ?'
+    : 'd.parent_reply_id = ? AND d.post_id = ? AND d.id > ?'
+  const range = parent === null ? [post, after] : [parent, post, after]
+  const { results } = await db.prepare(`
+    SELECT ${ITEM_CONTENT}, d.author_id = ? AS mine, 0 AS likes, 0 AS liked,
+      (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.parent_reply_id = d.id) AS replyCount,
+      (
+        SELECT json_group_array(json_object('emoji', emoji, 'count', total, 'reacted', json(own)))
+        FROM (
+          SELECT emoji, COUNT(*) AS total, CASE MAX(member_id = ?) WHEN 1 THEN 'true' ELSE 'false' END AS own
+          FROM meetup15_reply_reactions WHERE reply_id = d.id GROUP BY emoji
+        )
+      ) AS reactionData
+    FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
+    WHERE ${where}
+    ORDER BY d.id LIMIT ?`
+  ).bind(viewer, viewer, ...range, pageSize + 1).all<ItemRow>()
+  const items = results.slice(0, pageSize).map(item)
+  return { items, nextAfter: results.length > pageSize ? items.at(-1)?.id ?? null : null, refreshAt: null }
 }
 
 export async function readDiscussionAdmin(db: D1Database, now: number): Promise<StaffSnapshot> {

@@ -1,5 +1,5 @@
 import type { Member } from '../src/lib/meetup15/identity'
-import type { MemberCard, Message, PersonalItem, PersonalSnapshot, ThreadSnapshot, ThreadSummary } from '../src/lib/meetup15/personal'
+import type { MemberCard, Message, PersonalItem, PersonalSnapshot, PublicProfile, ThreadSnapshot, ThreadSummary } from '../src/lib/meetup15/personal'
 
 const REPLY_TO_VIEWER = `r.kind = 'reply' AND EXISTS (
   SELECT 1 FROM meetup15_discussion parent
@@ -17,7 +17,7 @@ export function repliesRead(db: D1Database, memberId: string, through: number) {
 export async function personalOverview(db: D1Database, member: Member): Promise<PersonalSnapshot> {
   const [profile, posts, replies, threads] = await db.batch([
     db.prepare(`
-      SELECT display_name AS nickname, contact, contact_public AS contactPublic, profile_revision AS profileRevision
+      SELECT display_name AS nickname, contact, contact_public AS contactPublic, public_profile AS profileJson, profile_revision AS profileRevision
       FROM meetup15_members WHERE id = ?
     `).bind(member.id),
     db.prepare(`
@@ -45,20 +45,24 @@ export async function personalOverview(db: D1Database, member: Member): Promise<
       WHERE t.member_a = ? OR t.member_b = ? ORDER BY last.id DESC
     `).bind(member.id, member.id, member.id, member.id, member.id),
   ])
-  const own = profile.results[0] as Pick<PersonalSnapshot, 'nickname' | 'contact' | 'contactPublic' | 'profileRevision'>
+  const { profileJson, ...own } = profile.results[0] as
+    Pick<PersonalSnapshot, 'nickname' | 'contact' | 'contactPublic' | 'profileRevision'> & { profileJson: string }
   return {
-    ...own, contactPublic: Boolean(own.contactPublic),
+    ...own, contactPublic: Boolean(own.contactPublic), publicProfile: JSON.parse(profileJson) as PublicProfile,
     posts: posts.results as PersonalItem[], replies: replies.results as PersonalItem[],
     threads: threads.results as ThreadSummary[], refreshAt: null,
   }
 }
 
-export function memberCard(db: D1Database, member: Member, targetId: string) {
-  return db.prepare(`
-    SELECT COALESCE(display_name, '现场观众') AS name,
+export async function memberCard(db: D1Database, member: Member, targetId: string) {
+  const row = await db.prepare(`
+    SELECT COALESCE(display_name, '现场观众') AS name, public_profile AS profileJson,
       CASE WHEN contact_public = 1 OR id = ? THEN contact END AS contact
     FROM meetup15_members WHERE id = ?
-  `).bind(member.id, targetId).first<Omit<MemberCard, 'named' | 'refreshAt'>>()
+  `).bind(member.id, targetId).first<Pick<MemberCard, 'name' | 'contact'> & { profileJson: string }>()
+  if (!row) return null
+  const { profileJson, ...card } = row
+  return { ...card, publicProfile: JSON.parse(profileJson) as PublicProfile }
 }
 
 export function threadForMember(db: D1Database, memberId: string, id: number) {

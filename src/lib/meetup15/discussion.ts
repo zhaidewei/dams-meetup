@@ -2,6 +2,13 @@ import type { MeetupSection } from './event'
 
 export const MAX_DISCUSSION_BODY = 300
 
+export const REPLY_EMOJIS = [
+  ['👍', '赞'], ['❤️', '喜欢'], ['😂', '大笑'], ['😮', '惊讶'], ['😢', '难过'], ['🙏', '感谢'],
+] as const
+
+export type ReplyEmoji = (typeof REPLY_EMOJIS)[number][0]
+export type ReplyReaction = { emoji: ReplyEmoji; count: number; reacted: boolean }
+
 export type DiscussionItem = {
   id: number
   kind: 'post' | 'reply' | 'question'
@@ -15,6 +22,8 @@ export type DiscussionItem = {
   answered: boolean
   likes: number
   liked: boolean
+  replyCount?: number
+  reactions?: ReplyReaction[]
   createdAt: number
 }
 
@@ -43,6 +52,8 @@ export type FeedSnapshot = DiscussionContext & {
   nextBefore: number | null
 }
 
+export type ReplyPage = { items: DiscussionItem[]; nextAfter: number | null; refreshAt: null }
+
 export type StaffSnapshot = DiscussionContext & {
   guests: { id: string; name: string }[]
 }
@@ -53,6 +64,7 @@ export type MemberCommand =
   | { action: 'reply'; postId: number; parentId: number | null; body: string }
   | { action: 'edit'; id: number; body: string; tags: string }
   | { action: 'delete'; id: number }
+  | { action: 'reaction'; id: number; emoji: ReplyEmoji; reacted: boolean }
   | { action: 'like'; id: number; liked: boolean }
   | { action: 'question'; section: MeetupSection; roundId: number; body: string }
 

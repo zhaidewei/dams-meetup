@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import {
-  MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH, type PersonalCommand, type PersonalItem,
+  MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PersonalCommand, type PersonalItem,
   type PersonalSnapshot, type ThreadSnapshot, type ThreadSummary,
 } from '@/lib/meetup15/personal'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
+import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
 type View = 'profile' | 'posts' | 'replies' | 'messages'
+const profileRow = 'grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]'
 const views = { profile: '资料', posts: '我的帖子', replies: '收到的回复', messages: '私信' } as const
 
 export function PersonalPanel({ initialMessages }: { initialMessages: boolean }) {
@@ -32,7 +34,8 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     await submit({ action: 'profile', name: String(form.get('name') ?? ''),
-      contact: String(form.get('contact') ?? ''), contactPublic: form.has('public'),
+      publicProfile: Object.fromEntries(PROFILE_FIELDS.map(({ key }) => [key, String(form.get(key) ?? '')])),
+      removeLegacyContact: form.has('removeLegacyContact'),
       revision: Number(form.get('revision')) })
   }
 
@@ -42,7 +45,7 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
     <div className="space-y-4">
       <nav className="flex flex-wrap gap-2" aria-label="个人页">
         {(Object.keys(views) as View[]).map((item) => (
-          <button key={item} type="button" className={discussionButton} aria-pressed={view === item}
+          <button key={item} type="button" className={discussionButton + ' min-h-11 rounded-full aria-pressed:border-dams-selection aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover'} aria-pressed={view === item}
             onClick={() => setView(item)}>
             {views[item]}{((item === 'replies' && unreadReplies) || (item === 'messages' && unreadMessages)) && ' · 有未读'}
           </button>
@@ -50,17 +53,31 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
       </nav>
       {error && <p role="alert" className="text-red-700">{error}</p>}
       {view === 'profile' && (
-        <form key={data.profileRevision} onSubmit={saveProfile} className="max-w-lg space-y-3">
+        <form key={data.profileRevision} onSubmit={saveProfile} className="max-w-lg space-y-3 rounded-2xl border border-dams-line bg-white p-4">
           <input type="hidden" name="revision" value={data.profileRevision} />
-          <label className="block">昵称
+          <label className={profileRow}>昵称
             <input name="name" defaultValue={data.nickname ?? ''} maxLength={Math.max(MAX_NICKNAME_LENGTH, data.nickname?.length ?? 0)}
               required className={discussionInput} />
           </label>
-          <label className="block">联系方式
-            <textarea name="contact" defaultValue={data.contact ?? ''} maxLength={MAX_CONTACT_LENGTH} className={discussionInput} />
-          </label>
-          <label className="block text-sm"><input type="checkbox" name="public" defaultChecked={data.contactPublic} /> 向已入场观众公开联系方式</label>
-          <button className={discussionButton} disabled={pending}>保存资料</button>
+          <fieldset className="space-y-3 border-t border-dams-line pt-3" aria-describedby="profile-public">
+            <legend className="sr-only">可选公开资料</legend>
+            <p id="profile-public" className="text-sm text-slate-600">以下资料选填。填写并保存后，已入场的观众可在你的资料卡上查看。</p>
+            {PROFILE_FIELDS.map(({ key, label, type, maxLength, autoComplete }) => (
+              <label key={key} className={profileRow}>{label}
+                <input name={key} type={type} autoComplete={autoComplete} maxLength={maxLength}
+                  defaultValue={data.publicProfile[key] ?? ''} className={discussionInput} />
+              </label>
+            ))}
+          </fieldset>
+          {data.contact && (
+            <div className="space-y-2 rounded-lg bg-dams-canvas p-3 text-sm">
+              <p>旧联系方式 · {data.contactPublic ? '已向入场观众公开' : '仅自己可见'}</p>
+              <p className="wrap-anywhere whitespace-pre-wrap">{data.contact}</p>
+              <label><input type="checkbox" name="removeLegacyContact" /> 保存时移除旧联系方式</label>
+            </div>
+          )}
+          <button className="min-h-11 rounded-full bg-dams-blue px-5 text-sm font-semibold text-white hover:bg-dams-hover disabled:opacity-50"
+            disabled={pending}>保存资料</button>
         </form>
       )}
       {view === 'posts' && <PersonalItems items={data.posts} empty="你还没有发帖。" />}
@@ -74,7 +91,7 @@ function PersonalItems({ items, empty }: { items: PersonalItem[]; empty: string 
   if (!items.length) return <p>{empty}</p>
   return <ul className="space-y-2">
     {items.map(item => (
-      <li className="space-y-1 rounded border border-zinc-200 p-3" key={item.id}>
+      <li className="space-y-1 rounded border border-dams-line p-3" key={item.id}>
         <p className="text-xs text-zinc-600">{item.author && `${item.author} · `}{MEETUP_SECTIONS[item.section]}</p>
         <p className="whitespace-pre-wrap break-words">{item.body}</p>
       </li>
@@ -92,7 +109,7 @@ function MessageList({ threads }: { threads: ThreadSummary[] }) {
 
   if (!threads.length) return <p>你还没有私信。可以点讨论区里的头像发私信。</p>
   return (
-    <ul aria-label="私信联系人" className="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+    <ul aria-label="私信联系人" className="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-dams-line bg-white">
       {threads.map(thread => {
         const key = contactKey(thread)
         const open = openContact === key
@@ -100,16 +117,14 @@ function MessageList({ threads }: { threads: ThreadSummary[] }) {
         return (
           <li key={key}>
             <button type="button" aria-expanded={open} aria-controls={panelId}
-              className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-700 sm:px-4"
+              className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-zinc-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue sm:px-4"
               onClick={() => setOpenContact(open ? null : key)}>
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-teal-100 text-sm font-semibold text-teal-900">
-                {thread.system ? '官' : Array.from(thread.name)[0]}
-              </span>
+              <MemberAvatar id={thread.contactId} name={thread.system ? '官方' : thread.name} className="size-9 text-sm" />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
                   {Boolean(thread.system) && <OfficialBadge />}
                   <span className="truncate">{thread.name}</span>
-                  {Boolean(thread.unread) && <span className="shrink-0 rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-800">未读</span>}
+                  {Boolean(thread.unread) && <span className="shrink-0 rounded-full bg-dams-wash px-2 py-0.5 text-xs text-dams-blue">未读</span>}
                 </span>
                 {!open && <span className="mt-0.5 block truncate text-sm text-zinc-600">{thread.body}</span>}
               </span>
@@ -151,7 +166,7 @@ function Thread({ summary, onDelete }: { summary: ThreadSummary; onDelete: () =>
         <ul className="space-y-2">
           {data.messages.map(message => (
             <li className={`flex ${message.mine ? 'justify-end' : 'justify-start'}`} key={message.id}>
-              <div className={`min-w-0 max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.mine ? 'bg-teal-100 text-teal-950' : 'border border-zinc-200 bg-white'}`}>
+              <div className={`min-w-0 max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.mine ? 'bg-dams-selection text-dams-ink' : 'border border-dams-line bg-white'}`}>
                 <span className="sr-only">{message.mine ? '我' : data.name}</span>
                 <p className="whitespace-pre-wrap wrap-anywhere">{message.body}</p>
               </div>
@@ -177,5 +192,5 @@ function Thread({ summary, onDelete }: { summary: ThreadSummary; onDelete: () =>
 }
 
 function OfficialBadge() {
-  return <span className="mr-1 rounded bg-teal-100 px-1.5 py-0.5 text-xs font-medium text-teal-900">官方</span>
+  return <span className="mr-1 rounded bg-dams-selection px-1.5 py-0.5 text-xs font-medium text-dams-hover">官方</span>
 }

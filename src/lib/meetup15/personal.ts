@@ -3,6 +3,16 @@ import type { MeetupSection } from './event'
 export const MAX_CONTACT_LENGTH = 200
 export const MAX_NICKNAME_LENGTH = 48
 
+export const PROFILE_FIELDS = [
+  { key: 'company', label: '工作单位', type: 'text', maxLength: 100, autoComplete: 'organization' },
+  { key: 'wechat', label: '微信号', type: 'text', maxLength: 64, autoComplete: 'off' },
+  { key: 'linkedin', label: 'LinkedIn', type: 'url', maxLength: 200, autoComplete: 'url' },
+  { key: 'phone', label: '手机', type: 'tel', maxLength: 40, autoComplete: 'tel' },
+  { key: 'email', label: '邮箱', type: 'email', maxLength: 200, autoComplete: 'email' },
+] as const
+
+export type PublicProfile = Partial<Record<(typeof PROFILE_FIELDS)[number]['key'], string>>
+
 export type PersonalItem = {
   id: number
   section: MeetupSection
@@ -27,6 +37,7 @@ export type PersonalSnapshot = {
   nickname: string | null
   contact: string | null
   contactPublic: boolean
+  publicProfile: PublicProfile
   profileRevision: number
   posts: PersonalItem[]
   replies: PersonalItem[]
@@ -34,11 +45,11 @@ export type PersonalSnapshot = {
   refreshAt: null
 }
 
-export type MemberCard = { name: string; contact: string | null; named: boolean; refreshAt: null }
+export type MemberCard = { name: string; contact: string | null; publicProfile: PublicProfile; named: boolean; refreshAt: null }
 export type ThreadSnapshot = { name: string; named: boolean; system: boolean; messages: Message[]; nextBefore: number | null; refreshAt: null }
 
 export type PersonalCommand =
-  | { action: 'profile'; name: string; contact: string; contactPublic: boolean; revision: number }
+  | { action: 'profile'; name: string; publicProfile: PublicProfile; removeLegacyContact: boolean; revision: number }
   | { action: 'replies-read'; through: number }
   | { action: 'send'; body: string }
   | { action: 'thread-read'; through: number }

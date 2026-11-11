@@ -1,4 +1,4 @@
-import { MAX_DISCUSSION_BODY } from '../src/lib/meetup15/discussion'
+import { MAX_DISCUSSION_BODY, REPLY_EMOJIS } from '../src/lib/meetup15/discussion'
 import { isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
@@ -27,6 +27,18 @@ const likeable = `EXISTS (
 
 export async function writeMember(db: D1Database, member: Member, input: Input): Promise<Result> {
   const id = input.id
+  if (input.action === 'reaction') {
+    const { emoji, reacted } = input
+    if (!validId(id) || typeof emoji !== 'string' || !REPLY_EMOJIS.some(([value]) => value === emoji) ||
+        typeof reacted !== 'boolean') return invalid
+    const statement = reacted
+      ? db.prepare(`INSERT INTO meetup15_reply_reactions (reply_id, emoji, member_id)
+          SELECT id, ?, ? FROM meetup15_discussion WHERE id = ? AND kind = 'reply'
+          ON CONFLICT (reply_id, emoji, member_id) DO NOTHING`)
+      : db.prepare('DELETE FROM meetup15_reply_reactions WHERE emoji = ? AND member_id = ? AND reply_id = ?')
+    const { meta } = await statement.bind(emoji, member.id, id).run()
+    return { changed: Boolean(meta.changes) }
+  }
   if (input.action === 'like') {
     if (!validId(id) || typeof input.liked !== 'boolean') return invalid
     const statement = input.liked

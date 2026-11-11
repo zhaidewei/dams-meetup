@@ -12,7 +12,7 @@ export default async function GuestLoginPage({ searchParams }: {
   if (meetupPhase(meetupNow(meetupEnv())) === 'closed') redirect('/?entry=ended')
   const { error } = await searchParams
   return (
-    <main className="mx-auto w-full max-w-md space-y-5 px-5 py-12">
+    <main className="mx-4 my-6 w-auto sm:mx-auto sm:w-full max-w-md rounded-2xl border border-dams-line bg-dams-wash/60 space-y-5 px-5 py-7 sm:p-8">
       <Link href="/" className="text-sm underline">返回活动首页</Link>
       <h1 className="text-2xl font-semibold">第 15 期嘉宾登录</h1>
       <p className="text-sm text-zinc-600">请使用主办方提供的用户名和密码。</p>
@@ -28,7 +28,7 @@ export default async function GuestLoginPage({ searchParams }: {
             className="mt-1 block w-full rounded border border-zinc-400 px-3 py-2" />
         </label>
         {error === '1' && <p role="alert">用户名或密码有误。</p>}
-        <button className="rounded bg-teal-900 px-4 py-2 text-white">登录</button>
+        <button className="rounded bg-dams-blue px-4 py-2 text-white">登录</button>
       </form>
     </main>
   )

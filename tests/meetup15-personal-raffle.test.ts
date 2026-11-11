@@ -90,6 +90,22 @@ it('keeps contact and message views private and commits one prize and message ac
     expect((await request('personal', alice, { ...publicProfile, name: 'Stale' })).status).toBe(409)
     expect(await (await request('personal?member=alice', bob)).json()).toMatchObject({ contact: null })
 
+    const publicFields = { company: 'DAMS', wechat: 'example-wechat',
+      linkedin: 'https://www.linkedin.com/in/example', phone: '+31 600000000', email: 'public@example.test' }
+    const structured = { action: 'profile', name: 'Alice', publicProfile: publicFields, removeLegacyContact: false, revision: 3 }
+    expect((await request('personal', alice, { ...structured,
+      publicProfile: { linkedin: 'https://linkedin.com.example.test/in/alice' } })).status).toBe(400)
+    expect((await request('personal', alice, structured)).status).toBe(204)
+    expect((await overview(alice)).contact).toBe(profile.contact)
+    expect(await (await request('personal?member=alice', bob)).json()).toMatchObject({
+      contact: null, publicProfile: publicFields,
+    })
+    expect((await request('personal?member=alice', '')).status).toBe(401)
+    expect((await request('personal', alice, { ...structured, publicProfile: { email: ' ' },
+      removeLegacyContact: true, revision: 4 })).status).toBe(204)
+    expect((await overview(alice)).contact).toBeNull()
+    expect(await (await request('personal?member=alice', bob)).json()).toHaveProperty('publicProfile', {})
+
     const inbox = await overview(alice)
     expect(inbox.posts[0].body).toBe('普通文字帖')
     expect(inbox.replies[0]).toMatchObject({ body: '回复文字帖', unread: 1 })

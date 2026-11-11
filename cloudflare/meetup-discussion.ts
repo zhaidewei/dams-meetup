@@ -2,7 +2,7 @@ import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { getMember, MEMBER_COOKIE, requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
-import { readFeed, readDiscussionAdmin } from './discussion-read'
+import { readFeed, readDiscussionAdmin, readReplies } from './discussion-read'
 import { writeMember, writeStaff } from './discussion-write'
 
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -26,11 +26,25 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   }
 
   const view = path === '/api/discussion/admin' ? 'admin'
-    : path === '/api/discussion' ? 'feed' : null
+    : path === '/api/discussion' ? 'feed' : path === '/api/discussion/replies' ? 'replies' : null
   if (!view) return new Response(null, { status: 404, headers })
-  const member = view === 'feed' ? await getMember(env, requestCookie(request, MEMBER_COOKIE), now) : null
-  if (view === 'feed' ? !member : !admin) {
+  const member = view !== 'admin' ? await getMember(env, requestCookie(request, MEMBER_COOKIE), now) : null
+  if (view !== 'admin' ? !member : !admin) {
     return Response.json({ error: '请重新登录后继续。' }, { status: 401, headers })
+  }
+
+  if (view === 'replies' && member) {
+    if (request.method !== 'GET') return new Response(null, { status: 405, headers })
+    const post = Number(url.searchParams.get('post'))
+    const parentValue = url.searchParams.get('parent')
+    const parent = parentValue === null ? null : Number(parentValue)
+    const after = Number(url.searchParams.get('after') ?? '0')
+    if (!Number.isSafeInteger(post) || post < 1 ||
+        (parent !== null && (!Number.isSafeInteger(parent) || parent < 1)) ||
+        !Number.isSafeInteger(after) || after < 0) {
+      return Response.json({ error: '回复分页参数无效。' }, { status: 400, headers })
+    }
+    return Response.json(await readReplies(db, member.id, post, parent, after), { headers })
   }
 
   if (request.method === 'GET') {
