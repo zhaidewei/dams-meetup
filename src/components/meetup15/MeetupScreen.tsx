@@ -13,7 +13,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
   const screenWidth = data.mode === 'raffle' ? 'max-w-[96rem]' : 'max-w-6xl'
   return (
     <div className={compact ? 'w-full space-y-3 text-sm' : `mx-auto w-full ${screenWidth} space-y-6 text-lg`}>
-      <p className="font-medium text-sky-800">{MEETUP_NAME}</p>
+      <p className="font-medium text-dams-blue">{MEETUP_NAME}</p>
       {data.mode === 'agenda' && (
         <section aria-label="议程展示" className={compact ? 'space-y-3' : 'space-y-5'}>
           <h1 className={heading}>活动议程</h1>
@@ -22,7 +22,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
             <ol className="space-y-1 text-left">
               {MEETUP_AGENDA.map((slot) => (
                 <li key={slot.start} aria-current={slot.start === data.currentStart ? 'step' : undefined}
-                  className={slot.start === data.currentStart ? 'rounded-lg bg-sky-100 px-3 py-2 font-semibold text-sky-900' : 'px-2 py-1'}>
+                  className={slot.start === data.currentStart ? 'rounded-lg bg-dams-selection px-3 py-2 font-semibold text-dams-hover' : 'px-2 py-1'}>
                   <span className="mr-3 inline-block whitespace-nowrap tabular-nums">{slot.start}–{slot.end}</span>
                   {slot.title}
                 </li>
@@ -42,7 +42,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
           {data.questions.length ? (
             <ol className={compact ? 'max-h-44 space-y-2 overflow-auto' : 'max-h-[55vh] space-y-3 overflow-auto'}>
               {data.questions.map((question) => (
-                <li key={question.id} className="rounded-xl border border-sky-200 bg-white px-4 py-3">
+                <li key={question.id} className="rounded-xl border border-dams-selection bg-white px-4 py-3">
                   <p className="whitespace-pre-wrap break-words">{question.body}</p>
                   <p className="mt-1 text-xs text-slate-600">{question.likes} 个赞 · {question.answered ? '已答' : '未答'}</p>
                 </li>
@@ -63,7 +63,7 @@ export function MeetupScreen() {
   const active = data && data.mode !== 'hidden'
   return (
     <main className={active
-      ? 'grid min-h-svh content-center bg-sky-50 px-5 py-10 text-center text-slate-950'
+      ? 'grid min-h-svh content-center bg-dams-wash px-5 py-10 text-center text-slate-950'
       : 'min-h-svh bg-black'}>
       {active && <ScreenContent data={data} />}
     </main>

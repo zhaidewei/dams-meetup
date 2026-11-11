@@ -34,7 +34,7 @@ export function ReplyReactions({ item, pending, submit }: {
         if (!open && !reaction && focused !== emoji) return null
         return (
           <button key={emoji} type="button"
-            className={reactionButton + ' aria-pressed:border-sky-700 aria-pressed:bg-sky-50 aria-pressed:text-sky-900 aria-disabled:opacity-50'}
+            className={reactionButton + ' aria-pressed:border-dams-blue aria-pressed:bg-dams-wash aria-pressed:text-dams-hover aria-disabled:opacity-50'}
             aria-label={label + '，' + (reaction?.count ?? 0) + ' 人'}
             aria-pressed={reaction?.reacted ?? false} aria-disabled={pending}
             onFocus={() => setFocused(emoji)} onBlur={() => setFocused(null)}

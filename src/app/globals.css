@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@theme {
+  --color-dams-canvas: #f8fafc;
+  --color-dams-wash: #eff6ff;
+  --color-dams-selection: #dbeafe;
+  --color-dams-line: #e2e8f0;
+  --color-dams-blue: #1d4ed8;
+  --color-dams-hover: #1e40af;
+  --color-dams-ink: #1a202c;
+}
+
 :root {
   color-scheme: light;
 }

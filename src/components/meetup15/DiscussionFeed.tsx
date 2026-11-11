@@ -9,8 +9,8 @@ import { DiscussionComposer, discussionButton, discussionInput } from './Discuss
 import { ReplyReactions } from './ReplyReactions'
 import { useDiscussion } from './useDiscussion'
 
-const feedButton = 'inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-sky-50 aria-pressed:bg-sky-100 aria-pressed:text-sky-900 disabled:opacity-50'
-const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm font-medium text-slate-600 hover:bg-sky-50 aria-pressed:border-sky-600 aria-pressed:font-semibold aria-pressed:text-sky-900'
+const feedButton = 'inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
+const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm font-medium text-slate-600 hover:bg-dams-wash aria-pressed:border-dams-blue aria-pressed:font-semibold aria-pressed:text-dams-hover'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
 
@@ -53,7 +53,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
           <p className="leading-relaxed whitespace-pre-wrap break-words">{item.body}</p>
         )}
         {isPost && item.tags.length > 0 && (
-          <ul aria-label="帖子标签" className="flex flex-wrap gap-2 text-xs text-sky-800">
+          <ul aria-label="帖子标签" className="flex flex-wrap gap-2 text-xs text-dams-blue">
             {item.tags.map((tag) => <li key={tag}>#{tag}</li>)}
           </ul>
         )}
@@ -109,7 +109,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
   }
 
   return (
-    <article className="space-y-3 border-b border-sky-100 bg-white px-4 py-4 sm:px-6">
+    <article className="space-y-3 border-b border-dams-line bg-white px-4 py-4 sm:px-6">
       {renderEntry(post)}
       {threadOpen && (
         <ReplyList postId={post.id} snapshot={snapshot} render={reply => (
@@ -158,7 +158,7 @@ function ReplyList({ postId, parentId, snapshot, render }: {
   const next = pages.at(-1)?.nextAfter
   const replies = new Map(pages.flatMap(page => page.items.map(reply => [reply.id, reply] as const)))
   return (
-    <div className="ml-3 space-y-3 border-l-2 border-sky-100 pl-3">
+    <div className="ml-3 space-y-3 border-l-2 border-dams-line pl-3">
       {[...replies.values()].map(reply => <div key={reply.id} className="space-y-2">{render(reply)}</div>)}
       {error ? <p role="alert" className="text-sm text-red-700">
         回复加载失败。<button className={feedButton} onClick={() => setRetry(value => value + 1)}>重试</button>
@@ -202,7 +202,7 @@ export function DiscussionFeed() {
   const posts = data.items.filter((entry) => entry.kind === 'post')
   return (
     <div>
-      <nav aria-label="讨论板块" className="flex overflow-x-auto border-b border-sky-100 px-2">
+      <nav aria-label="讨论板块" className="flex overflow-x-auto border-b border-dams-line px-2">
         <button className={tabButton} aria-pressed={selected === null}
           onClick={() => choose(null)}>跟随现场</button>
         {Object.entries(MEETUP_SECTIONS).map(([key, label]) => (
@@ -210,14 +210,14 @@ export function DiscussionFeed() {
             onClick={() => choose(key as MeetupSection)}>{label}</button>
         ))}
       </nav>
-      <div className="space-y-4 border-b border-sky-100 px-4 py-4 sm:px-6">
+      <div className="space-y-4 border-b border-dams-line px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">{MEETUP_SECTIONS[data.section]}</h2>
-          <p className="rounded-full bg-sky-50 px-3 py-1 text-xs text-sky-900">现场 · {MEETUP_SECTIONS[data.currentSection]}</p>
+          <p className="rounded-full bg-dams-wash px-3 py-1 text-xs text-dams-hover">现场 · {MEETUP_SECTIONS[data.currentSection]}</p>
         </div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         {!named && (
-          <form id="feed-compose" className="scroll-mt-4 space-y-2 rounded-xl border border-sky-100 p-3" onSubmit={setNickname}>
+          <form id="feed-compose" className="scroll-mt-4 space-y-2 rounded-xl border border-dams-line p-3" onSubmit={setNickname}>
             <label className="block text-sm">填写昵称后可以发帖、回复和提问
               <input name="nickname" className={discussionInput} maxLength={48} required />
             </label>
@@ -230,7 +230,7 @@ export function DiscussionFeed() {
           </p>
         )}
         {data.rounds.some((entry) => entry.section === data.section) && (
-          <section aria-label="问答" className="space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-4">
+          <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-4">
             <h3 className="font-semibold">嘉宾问答</h3>
             <label htmlFor="discussion-round" className="block text-sm">查看本板块问答轮次</label>
               <select id="discussion-round" className={discussionInput} value={round ?? ''}
@@ -252,7 +252,7 @@ export function DiscussionFeed() {
                 {data.questions.length ? (
                   <ol className="space-y-2">
                     {data.questions.map((question) => (
-                      <li key={question.id} className="rounded border border-sky-100 bg-white p-3">
+                      <li key={question.id} className="rounded border border-dams-line bg-white p-3">
                         <p className="whitespace-pre-wrap break-words">{question.body}</p>
                         <MemberBadge id={question.authorId} name={question.author} mine={question.mine} />
                         <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>

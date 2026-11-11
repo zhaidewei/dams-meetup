@@ -20,7 +20,7 @@ export default async function MeetupSummaryPage() {
         <Link href="/admin" className="underline">工作人员入口</Link>
       </nav>
       <header className="space-y-2">
-        <p className="text-sm font-semibold text-sky-800">{MEETUP_NAME}</p>
+        <p className="text-sm font-semibold text-dams-blue">{MEETUP_NAME}</p>
         <h1 className="text-3xl font-semibold">第 15 期活动复盘</h1>
         <p>{MEETUP_THEME}</p>
       </header>
@@ -29,7 +29,7 @@ export default async function MeetupSummaryPage() {
           {Object.entries(SUMMARY_METRICS).map(([key, label]) => {
             const count = metrics[key as keyof SummaryMetrics]
             return count === undefined ? null : (
-              <div key={key} className="rounded-xl border border-sky-100 bg-white p-4">
+              <div key={key} className="rounded-xl border border-dams-line bg-white p-4">
                 <dt className="text-sm text-zinc-600">{label}</dt>
                 <dd className="mt-1 text-2xl font-semibold tabular-nums">{number.format(count)}</dd>
               </div>

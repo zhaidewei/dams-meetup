@@ -34,7 +34,7 @@ export function DiscussionComposer({ label, action, pending, initialBody = '', i
     <form className="space-y-2" onSubmit={submit}>
       <label htmlFor={bodyId} className={timeline ? 'sr-only' : 'block text-sm'}>{label}</label>
       <textarea id={bodyId} rows={timeline ? 2 : 3} placeholder={timeline ? '分享你在现场想到的事…' : undefined}
-        className={timeline ? 'w-full resize-y rounded-xl bg-sky-50/70 px-3 py-2.5 focus-visible:outline-sky-600' : discussionInput} value={body} maxLength={MAX_DISCUSSION_BODY * 2}
+        className={timeline ? 'w-full resize-y rounded-xl bg-dams-wash/70 px-3 py-2.5 focus-visible:outline-dams-blue' : discussionInput} value={body} maxLength={MAX_DISCUSSION_BODY * 2}
           onChange={(event) => setBody(event.target.value)} required />
       <div className="text-xs text-zinc-600">{length}/{MAX_DISCUSSION_BODY} 字</div>
       {initialTags && (
@@ -44,7 +44,7 @@ export function DiscussionComposer({ label, action, pending, initialBody = '', i
         </label>
       )}
       <div className="flex flex-wrap gap-2">
-        <button className={timeline ? 'min-h-10 rounded-full bg-sky-700 px-5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50' : discussionButton} disabled={pending || !length || length > MAX_DISCUSSION_BODY}>
+        <button className={timeline ? 'min-h-10 rounded-full bg-dams-blue px-5 text-sm font-semibold text-white hover:bg-dams-hover disabled:opacity-50' : discussionButton} disabled={pending || !length || length > MAX_DISCUSSION_BODY}>
           {action}
         </button>
         {onCancel && <button className={discussionButton} type="button" onClick={onCancel}>取消</button>}

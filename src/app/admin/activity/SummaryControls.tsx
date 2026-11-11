@@ -23,11 +23,11 @@ export async function SummaryControls({ status }: { status?: string }) {
     <section className="max-w-2xl space-y-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">复盘与归档</h1>
-        <Link className="text-sm text-sky-900 underline" href="/summary/15" target="_blank" rel="noopener">查看第 15 期公开复盘</Link>
+        <Link className="text-sm text-dams-hover underline" href="/summary/15" target="_blank" rel="noopener">查看第 15 期公开复盘</Link>
         {notice && <p role={notice.success ? 'status' : 'alert'}>{notice.message}</p>}
       </div>
 
-      <section className="space-y-3 rounded-xl border border-sky-100 p-4">
+      <section className="space-y-3 rounded-xl border border-dams-line p-4">
         <h2 className="font-semibold">上传公开复盘</h2>
         <p className="text-sm text-zinc-700">活动结束后上传汇总 JSON。发布内容只包含活动汇总数字。</p>
         <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
@@ -45,13 +45,13 @@ export async function SummaryControls({ status }: { status?: string }) {
             <input type="file" name="summary" accept=".json,application/json" required disabled={now < ADMISSION_END}
               className="mt-1 block max-w-full text-sm" />
           </label>
-          <button className="rounded-md bg-sky-800 px-3 py-2 text-sm text-white disabled:opacity-50" disabled={now < ADMISSION_END}>
+          <button className="rounded-md bg-dams-hover px-3 py-2 text-sm text-white disabled:opacity-50" disabled={now < ADMISSION_END}>
             {summary ? '更新公开复盘' : '发布复盘'}
           </button>
         </form>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-sky-100 p-4">
+      <section className="space-y-3 rounded-xl border border-dams-line p-4">
         <h2 className="font-semibold">手动清理本届数据</h2>
         <p className="text-sm text-zinc-700">11 月 21 日 18:00（荷兰时间）关闭互动后，核对公开复盘并确认已归档。清理会删除本届身份、讨论、问答、私信和抽奖记录，保留各期公开复盘。</p>
         {cleaned ? <p role="status">本届数据已清理。</p> : summary && now >= INTERACTION_END ? (

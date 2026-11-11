@@ -23,7 +23,7 @@ export function DiscussionAdmin({ view }: { view: 'agenda' | 'qa' }) {
   }
 
   return (
-    <section className="space-y-4 border-t border-sky-100 pt-5">
+    <section className="space-y-4 border-t border-dams-line pt-5">
       <h1 className="text-2xl font-semibold">{view === 'agenda' ? '议程' : '嘉宾问答'}</h1>
       <p role="status" className="text-sm">当前板块 · {MEETUP_SECTIONS[data.currentSection]} · {data.override ? '手动' : '自动'}</p>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
@@ -45,9 +45,9 @@ export function DiscussionAdmin({ view }: { view: 'agenda' | 'qa' }) {
         {!hasGuests && <p className="text-xs text-zinc-600">请先配置嘉宾账号。</p>}
       </form>}
       {view === 'qa' && active && (
-        <div className="space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
+        <div className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-3">
           <p className="font-medium">第 {active.id} 轮 · {active.guest} · {MEETUP_SECTIONS[active.section]}</p>
-          <p className="text-sm text-sky-900">手机端接受提问</p>
+          <p className="text-sm text-dams-hover">手机端接受提问</p>
           <button className={discussionButton} disabled={pending}
             onClick={() => void submit({ action: 'end', roundId: active.id })}>结束本轮问答</button>
           {data.questions.length ? (

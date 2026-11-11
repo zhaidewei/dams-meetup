@@ -47,7 +47,7 @@ function RafflePool({ candidates }: { candidates: RaffleCandidateView[] }) {
 export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, { mode: 'raffle' }>; compact: boolean }) {
   const { lottery, candidates, raffleId, rules } = data
   return (
-    <section aria-label="现场抽奖" className="overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#17557d,#091d33_75%)] text-white">
+    <section aria-label="现场抽奖" className="overflow-hidden rounded-2xl bg-[radial-gradient(ellipse_at_top,#1e40af,#1e293b_75%)] text-white">
       <div className={compact ? 'space-y-2 p-3' : 'space-y-3 px-4 py-6'}>
         <h1 className={compact ? 'text-lg font-semibold' : 'text-3xl font-semibold md:text-5xl'}>现场抽奖</h1>
         {raffleId !== null && <p className="text-sm text-sky-100">第 {raffleId} 轮</p>}

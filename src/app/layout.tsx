@@ -28,7 +28,7 @@ export default function RootLayout({
     // primary defense; this just lets React finish hydrating instead of
     // bailing on the root.
     <html lang="zh-CN" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">{children}</body>
+      <body className="min-h-full flex flex-col bg-dams-canvas text-dams-ink">{children}</body>
     </html>
   )
 }

@@ -18,14 +18,14 @@ export default async function RecoveryLinkPage() {
     <MeetupMemberLayout active="/recovery-link">
       <div className="space-y-6 px-4 py-5 sm:px-6">
         <MeetupPresence />
-        <header className="rounded-2xl bg-sky-50 p-5">
+        <header className="rounded-2xl bg-dams-wash p-5">
           <h1 className="text-2xl font-bold">恢复链接</h1>
         </header>
-        <section className="space-y-3 rounded-2xl border border-sky-100 bg-white p-5">
+        <section className="space-y-3 rounded-2xl border border-dams-line bg-white p-5">
           {member.role === 'guest' ? (
             <p className="text-sm text-slate-700">
               换设备后，可使用同一个嘉宾用户名和密码
-              <Link href="/vip-login" className="font-medium text-sky-800 underline">登录</Link>。
+              <Link href="/vip-login" className="font-medium text-dams-blue underline">登录</Link>。
             </p>
           ) : secret ? <RecoveryLink path={recoveryPath(member.id, secret)} />
             : <p role="status" className="text-sm text-slate-700">暂时无法生成恢复链接。</p>}
