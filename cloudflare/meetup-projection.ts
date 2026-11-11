@@ -39,7 +39,7 @@ function parseSelection(mode: unknown, roundId: unknown, raffleId: unknown): Pro
   if (mode === 'raffle') {
     return raffleId === undefined || positiveId(raffleId) ? { mode, raffleId } : null
   }
-  return { mode: mode as 'hidden' | 'agenda' }
+  return { mode: mode as 'hidden' | 'opening' | 'agenda' }
 }
 
 async function readView(
@@ -47,6 +47,7 @@ async function readView(
 ): Promise<ProjectionView | null> {
   switch (selection.mode) {
     case 'hidden': return { mode: 'hidden', refreshAt: null }
+    case 'opening': return { mode: 'opening', refreshAt: null }
     case 'agenda': return {
       mode: 'agenda', currentStart: meetupAgendaAt(now)?.start ?? null, refreshAt: nextMeetupAgendaChange(now),
     }

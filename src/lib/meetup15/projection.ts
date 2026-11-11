@@ -3,6 +3,7 @@ import type { LotteryScreen, RaffleCandidateView, RaffleRound, RaffleRules } fro
 
 export const PROJECTION_MODES = {
   hidden: '隐藏大屏',
+  opening: '开场介绍',
   agenda: '议程展示',
   qa: '嘉宾问答',
   raffle: '现场抽奖',
@@ -10,12 +11,13 @@ export const PROJECTION_MODES = {
 
 export type ProjectionMode = keyof typeof PROJECTION_MODES
 export type ProjectionSelection =
-  | { mode: 'hidden' | 'agenda' }
+  | { mode: 'hidden' | 'opening' | 'agenda' }
   | { mode: 'raffle'; raffleId?: number }
   | { mode: 'qa'; roundId: number }
 
 export type ProjectionView = { refreshAt: number | null } & (
   | { mode: 'hidden' }
+  | { mode: 'opening' }
   | { mode: 'agenda'; currentStart: string | null }
   | { mode: 'qa'; round: QuestionRound; questions: DiscussionItem[] }
   | { mode: 'raffle'; lottery: LotteryScreen | null; raffleId: number | null; candidates: RaffleCandidateView[]; rules: RaffleRules | null }
