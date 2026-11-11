@@ -3,12 +3,20 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
 
+export type DiscussionTransport<T> = {
+  headers(snapshot: T | null): Record<string, string>
+  read(response: Response, snapshot: T | null): Promise<T>
+  applyWrite(response: Response, snapshot: T): Promise<T | null>
+}
+
 export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
   url: string, topic: 'discussion' | 'projection' | 'personal' | 'stats' = 'discussion',
+  transport?: DiscussionTransport<T>,
 ) {
   const [view, setView] = useState<{ url: string; data: T | null; error: string; unauthorized?: boolean } | null>(null)
   const [pending, setPending] = useState(false)
   const [actionError, setActionError] = useState('')
+  const applyWrite = useRef<(response: Response) => Promise<boolean>>(async () => false)
   const refresh = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
@@ -19,28 +27,33 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     let boundary: ReturnType<typeof setTimeout> | undefined
     let reading: Promise<void> | undefined
     let readAgain = false
+    let snapshot: T | null = null
+    let writeGeneration = 0
 
     function schedule() {
       if (queuedRead || controller.signal.aborted) return
       queuedRead = setTimeout(() => {
         queuedRead = undefined
         void read()
-      }, 180)
+      }, 40)
     }
 
     async function fetchView() {
+      const generation = writeGeneration
       try {
         const response = await fetch(url, {
-          cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(7000)]),
+          cache: 'no-store', headers: transport?.headers(snapshot), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(7000)]),
         })
         if (controller.signal.aborted) return
         if (response.status === 401) {
+          snapshot = null
           setView({ url, data: null, unauthorized: true, error: '登录已失效，请重新进入活动。' })
           return
         }
         if (!response.ok) throw new Error('Discussion read failed')
-        const data = await response.json<T>()
-        if (controller.signal.aborted) return
+        const data = transport ? await transport.read(response, snapshot) : await response.json<T>()
+        if (controller.signal.aborted || generation !== writeGeneration) return
+        snapshot = data
         setView({ url, data, error: '' })
         clearTimeout(boundary)
         const delay = data.refreshAt === null ? 0 : data.refreshAt - Date.now()
@@ -80,6 +93,19 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       }
     }
 
+    applyWrite.current = async response => {
+      if (!transport || !snapshot || controller.signal.aborted) return false
+      const current = snapshot
+      const next = await transport.applyWrite(response, current)
+      if (!next || controller.signal.aborted) return false
+      // A read completed while the write body was decoded. Use the authoritative read path.
+      if (snapshot !== current) return false
+      snapshot = next
+      writeGeneration++
+      setView({ url, data: next, error: '' })
+      schedule()
+      return true
+    }
     refresh.current = async () => {
       await reading
       if (!controller.signal.aborted) await read()
@@ -97,14 +123,15 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       clearInterval(fallback)
       window.removeEventListener('online', schedule)
     }
-  }, [url, topic])
+  }, [url, topic, transport])
 
   async function submit(command: Command) {
+    const apply = applyWrite.current
     setPending(true)
     setActionError('')
     try {
       const response = await fetch(topic === 'personal' ? url : url.split('?')[0], {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...transport?.headers(null) },
         body: JSON.stringify(command), signal: AbortSignal.timeout(8000),
       })
       if (!response.ok) {
@@ -113,7 +140,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
         await refresh.current()
         return false
       }
-      await refresh.current()
+      if (!await apply(response)) await refresh.current()
       return true
     } catch {
       setActionError('网络异常，请刷新确认操作结果。')

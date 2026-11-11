@@ -1,4 +1,6 @@
 import assert from "node:assert/strict"
+import { AsyncLocalStorage } from "node:async_hooks"
+import { channel } from "node:diagnostics_channel"
 import fs from "node:fs"
 import path from "node:path"
 import { chromium } from "playwright"
@@ -8,15 +10,31 @@ const dispatcher = connections ? new Agent({ connections, pipelining: 1 }) : und
 import WebSocket from "ws"
 
 const base = process.argv[3]
-assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
+const remote = process.env.DAMS_M6_REMOTE === '1'
+if (remote) {
+  assert.match(base, /^https:\/\/dams-meetup-perf-85-[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/)
+  assert.ok(process.env.DAMS_M6_ADMIN_TOKEN && process.env.DAMS_M6_OBSERVER_TOKEN)
+} else {
+  assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
+}
 const output = process.argv[2]
 const handshakeBatch = Number(process.env.DAMS_WS_BATCH ?? 25)
 assert.ok(Number.isInteger(handshakeBatch) && handshakeBatch >= 1 && handshakeBatch <= 200)
 const wsUrl = new URL('/api/discussion/updates', base)
-wsUrl.protocol = 'ws:'
+wsUrl.protocol = remote ? 'wss:' : 'ws:'
 const USERS = 200
 const indices = Array.from({ length: USERS }, (_, i) => i)
 const runs = {}
+const requestTiming = new AsyncLocalStorage()
+const requestSamples = new WeakMap()
+channel('undici:request:create').subscribe(({ request }) => {
+  const sample = requestTiming.getStore()
+  if (sample) requestSamples.set(request, sample)
+})
+channel('undici:client:sendHeaders').subscribe(({ request }) => {
+  const sample = requestSamples.get(request)
+  if (sample) sample.sentAt = performance.now()
+})
 const statusCounts = {}
 const failures = []
 const sockets = new Set()
@@ -30,21 +48,26 @@ function stats(samples) {
   return { n: sorted.length, p50: round(percentile(sorted, .5)), p95: round(percentile(sorted, .95)),
     p99: round(percentile(sorted, .99)), max: round(sorted.at(-1)), over2s: sorted.filter(x => x > 2000).length }
 }
-async function request(stage, route, { cookie, method = 'GET', form, json, expect = 200 } = {}) {
+async function request(stage, route, { cookie, method = 'GET', form, json, expect = 200, versions } = {}) {
   const start = performance.now()
   const headers = { Origin: base, 'X-M6-Stage': stage }
   if (cookie) headers.Cookie = cookie
+  if (remote) headers['X-M6-Observer-Token'] = process.env.DAMS_M6_OBSERVER_TOKEN
+  if (versions !== undefined) headers['X-Discussion-Versions'] = versions
   if (json) headers['Content-Type'] = 'application/json'
   try {
-    const response = await fetch(base + route, { method, headers,
+    const timing = {}
+    const response = await requestTiming.run(timing, () => fetch(base + route, { method, headers,
       body: json ? JSON.stringify(json) : form ? new URLSearchParams(form) : undefined,
-      redirect: 'manual', dispatcher, signal: AbortSignal.timeout(15000) })
-    const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : await response.text()
+      redirect: 'manual', dispatcher, signal: AbortSignal.timeout(15000) }))
+    const text = await response.text()
+    const data = response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : text
     const key = String(response.status)
     statusCounts[key] = (statusCounts[key] || 0) + 1
     if (response.status !== expect) failures.push({ stage, status: response.status, error: typeof data === 'object' ? data?.error : undefined })
     assert.equal(response.status, expect, stage)
-    return { response, data, elapsed: performance.now() - start, ack: Date.now() }
+    return { response, data, elapsed: performance.now() - start, ack: Date.now(),
+      queued: timing.sentAt === undefined ? undefined : timing.sentAt - start, bytes: Buffer.byteLength(text), serverTiming: response.headers.get('Server-Timing') ?? '' }
   } catch (error) {
     if (error.code !== 'ERR_ASSERTION') failures.push({ stage, error: error.message, cause: error.cause?.code, detail: error.cause?.message })
     throw error
@@ -53,11 +76,54 @@ async function request(stage, route, { cookie, method = 'GET', form, json, expec
 const post = (stage, route, cookie, json, expect = 204) =>
   request(stage, route, { cookie, method: 'POST', json, expect })
 const get = (stage, route, cookie) => request(stage, route, { cookie })
+const feedSnapshots = new Map()
+async function getFeed(stage, cookie) {
+  const previous = feedSnapshots.get(cookie)
+  const versions = previous?.versions
+  const result = await request(stage, '/api/discussion', {
+    cookie, versions: versions ? `${versions.questions},${versions.posts}` : ',',
+  })
+  const data = { ...result.data,
+    questions: result.data.questions ?? previous?.questions,
+    items: result.data.items ?? previous?.items,
+  }
+  assert.ok(data.questions && data.items, stage + ' missing feed state')
+  if (data.questionDelta) {
+    const merged = new Map(data.questions.map(question => [question.id, question]))
+    for (const id of data.questionDelta.remove) merged.delete(id)
+    for (const question of data.questionDelta.upsert) merged.set(question.id, question)
+    data.questions = [...merged.values()].sort((a, b) =>
+      Number(a.answered) - Number(b.answered) || b.likes - a.likes || a.createdAt - b.createdAt || a.id - b.id)
+  }
+  feedSnapshots.set(cookie, data)
+  return { ...result, data }
+}
 const cookieFrom = response => response.headers.getSetCookie()[0]?.split(';', 1)[0]
 async function measure(stage, promises) {
   const results = await Promise.allSettled(promises)
   const fulfilled = results.filter(result => result.status === 'fulfilled').map(result => result.value)
-  if (fulfilled.length) runs[stage] = stats(fulfilled.map(item => item.elapsed))
+  if (fulfilled.length) {
+    const queues = fulfilled.flatMap(item => item.queued === undefined ? [] : [item.queued])
+    const sizes = fulfilled.flatMap(item => item.bytes === undefined ? [] : [item.bytes])
+    const worker = []
+    const d1 = []
+    const cache = {}
+    for (const item of fulfilled) {
+      for (const metric of item.serverTiming?.split(', ') ?? []) {
+        const duration = metric.match(/^(worker|d1);dur=([0-9.]+)$/)
+        if (duration) (duration[1] === 'worker' ? worker : d1).push(Number(duration[2]))
+        else if (metric.includes(';desc=')) cache[metric] = (cache[metric] ?? 0) + 1
+      }
+    }
+    runs[stage] = {
+      ...(worker.length && { workerMs: stats(worker) }),
+      ...(d1.length && { d1Ms: stats(d1) }),
+      ...(Object.keys(cache).length && { cache }),
+      ...stats(fulfilled.map(item => item.elapsed)),
+      ...(queues.length && { clientDispatchMs: stats(queues) }),
+      ...(sizes.length && { responseBytes: { ...stats(sizes), total: sizes.reduce((sum, bytes) => sum + bytes, 0) } }),
+    }
+  }
   assert.equal(fulfilled.length, results.length, stage)
   return fulfilled
 }
@@ -76,11 +142,15 @@ function openSocket(cookie) {
     socket.once('open', () => { result.elapsed = performance.now() - start; resolve(result) })
   })
 }
-async function connectMembers(stage, members) {
+async function connectMembers(stage, members, hydrate) {
   const connected = []
   for (let offset = 0; offset < members.length; offset += handshakeBatch) {
     const batch = members.slice(offset, offset + handshakeBatch)
-    connected.push(...await measure(stage + ' batch ' + (offset + 1), batch.map(openSocket)))
+    connected.push(...await measure(stage + ' batch ' + (offset + 1), batch.map(async cookie => {
+      const connected = await openSocket(cookie)
+      hydrate?.(cookie)
+      return connected
+    })))
   }
   runs[stage] = stats(connected.map(entry => entry.elapsed))
   return connected
@@ -98,13 +168,16 @@ function disconnect({ socket }) {
 ;(async () => {
   const browser = await chromium.launch()
   let admin
+  let openedGate = false
   let page
   let browser5xx = 0
   let projectionResults
   let reconciliation
   let onePrize
+  let browserFeedback
   try {
-    const auth = await request('admin login', '/api/activity/session', { method: 'POST', form: { token: 'dams-local-admin' }, expect: 303 })
+    if (remote) assert.deepEqual((await get('isolation preflight', '/__m6_isolation')).data, { fresh: true })
+    const auth = await request('admin login', '/api/activity/session', { method: 'POST', form: { token: remote ? process.env.DAMS_M6_ADMIN_TOKEN : 'dams-local-admin' }, expect: 303 })
     admin = cookieFrom(auth.response)
     assert.ok(admin)
     assert.equal((await get('initial gate', '/api/activity', admin)).data.admissionOpen, false)
@@ -113,6 +186,7 @@ function disconnect({ socket }) {
     assert.match(guest.response.headers.get('location'), /guest=saved/)
     const staff = (await get('qa admin', '/api/discussion/admin', admin)).data
     const guestId = staff.guests.find(row => row.name === 'M6 测试嘉宾').id
+    openedGate = true
     const { data: gate } = await request('open isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: true } })
     assert.equal(gate.admissionOpen, true)
     const config = (await get('read QR', '/api/meetup/screen', admin)).data
@@ -132,13 +206,14 @@ function disconnect({ socket }) {
     const members = scans.map(item => cookieFrom(item.response))
     assert.equal(new Set(members).size, USERS)
     await request('close isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: false } })
+    openedGate = false
     await measure('nickname', members.map((cookie, i) => post('nickname', '/api/discussion', cookie,
       { action: 'nickname', name: 'M6 观众 ' + (i + 1) })))
     await measure('presence', members.map(cookie => post('presence', '/api/personal/presence', cookie)))
     await post('start QA', '/api/discussion/admin', admin, { action: 'start', guestId, activeRoundId: null, latestRoundId: null })
     const qa = (await get('active QA', '/api/discussion/admin', admin)).data.activeRound
     assert.ok(qa)
-    await measure('initialFeed', members.map(cookie => get('initialFeed', '/api/discussion', cookie)))
+    await measure('initialFeed', members.map(cookie => getFeed('initialFeed', cookie)))
     const initialSockets = await connectMembers('initialWebSocket', members)
 
     const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
@@ -152,7 +227,7 @@ function disconnect({ socket }) {
       window.m6SeenAt = {}
       const check = () => {
         const at = Date.now()
-        for (const row of document.querySelectorAll('section[aria-label="嘉宾问答"] li > p:first-child')) {
+        for (const row of document.querySelectorAll('section[aria-label="嘉宾问答"] article[aria-label="当前最高票问题"] > p, ol[aria-label="接下来"] li > p')) {
           const label = row.textContent
           if (!(label in window.m6SeenAt)) window.m6SeenAt[label] = at
         }
@@ -164,13 +239,13 @@ function disconnect({ socket }) {
     const labels = indices.map(i => 'M6 问题 ' + String(i + 1).padStart(3, '0'))
     const questionPosts = measure('question', members.map((cookie, i) => post('question', '/api/discussion', cookie,
       { action: 'question', section: qa.section, roundId: qa.id, body: labels[i] })))
-    const fanout = delay(180).then(() => measure('concurrentFeedRefresh', members.map(cookie => get('concurrentFeedRefresh', '/api/discussion', cookie))))
+    const fanout = delay(180).then(() => measure('concurrentFeedRefresh', members.map(cookie => getFeed('concurrentFeedRefresh', cookie))))
     const [posted] = await Promise.all([questionPosts, fanout])
     const questionView = (await get('question reconciliation', '/api/screen', admin)).data
     assert.equal(questionView.questions.length, USERS)
     const projectedLabels = questionView.questions.slice(0, 3).map(item => item.body)
     await page.waitForFunction(labels => {
-      const shown = Array.from(document.querySelectorAll('section[aria-label="嘉宾问答"] li > p:first-child'), row => row.textContent)
+      const shown = Array.from(document.querySelectorAll('section[aria-label="嘉宾问答"] article[aria-label="当前最高票问题"] > p, ol[aria-label="接下来"] li > p'), row => row.textContent)
       return shown.length === labels.length && labels.every((label, i) => shown[i] === label && window.m6SeenAt[label])
     }, projectedLabels, { timeout: 12000 })
     const seen = await page.evaluate(() => window.m6SeenAt)
@@ -186,8 +261,8 @@ function disconnect({ socket }) {
     for (const id of likeTarget) expectedLikes.set(id, (expectedLikes.get(id) || 0) + 1)
     await measure('like', members.map((cookie, i) => post('like', '/api/discussion', cookie,
       { action: 'like', id: likeTarget[i], liked: true })))
-    await page.getByText('100 个赞 · 未答', { exact: true }).waitFor()
-    const top = await page.locator('section[aria-label="嘉宾问答"] li').first().textContent()
+    await page.getByText('100 个赞', { exact: true }).waitFor()
+    const top = await page.getByRole('article', { name: '当前最高票问题' }).textContent()
     assert.ok(top.includes(labels[0]))
     await Promise.all(initialSockets.map(disconnect))
     const offline = await post('question while offline', '/api/discussion', members[0],
@@ -195,25 +270,109 @@ function disconnect({ socket }) {
     runs.offlineProbeWrite = stats([offline.elapsed])
     await delay(3000)
     const reconnected = await connectMembers('reconnectWebSocket', members)
-    const hydrated = await measure('reconnectFeed', members.map(cookie => get('reconnectFeed', '/api/discussion', cookie)))
+    const hydrated = await measure('reconnectFeed', members.map(cookie => getFeed('reconnectFeed', cookie)))
     for (const snapshot of hydrated) {
       assert.equal(snapshot.data.questions.length, USERS + 1)
       assert.ok(snapshot.data.questions.some(item => item.body === 'M6 断线期间新增的问题'))
       for (const q of snapshot.data.questions) assert.equal(q.likes, expectedLikes.get(q.id) || 0)
     }
+    await Promise.all(reconnected.map(disconnect))
+    await post('answer while offline', '/api/discussion/admin', admin, {
+      action: 'answer', id: likeTarget[0], answered: true,
+    })
+    await page.getByRole('article', { name: '当前最高票问题' }).getByText(questionView.questions.find(item => expectedLikes.get(item.id) === 1).body, { exact: true }).waitFor()
+    const recoveryStart = performance.now()
+    const progressiveReads = []
+    let progressive
+    try {
+      progressive = await connectMembers('progressiveWebSocket', members, cookie => {
+        const read = getFeed('progressiveReconnectFeed', cookie)
+          .then(result => ({ ...result, restored: performance.now() - recoveryStart }))
+        progressiveReads.push(read)
+        void read.catch(() => {})
+      })
+    } catch (error) {
+      await Promise.allSettled(progressiveReads)
+      throw error
+    }
+    const restored = await measure('progressiveReconnectFeed', progressiveReads)
+    runs.progressiveReconnectVisible = stats(restored.map(result => result.restored))
+    for (const snapshot of restored) {
+      const top = snapshot.data.questions.find(item => item.id === likeTarget[0])
+      assert.ok(top?.answered, 'Answered state missing after reconnect')
+      const own = snapshot.data.questions.find(item => item.mine && labels.includes(item.body))
+      assert.ok(own)
+      const index = labels.indexOf(own.body)
+      assert.ok(index >= 0)
+      assert.equal(top.liked, index < 100, 'Shared snapshot must preserve per-viewer likes')
+    }
     await post('end QA', '/api/discussion/admin', admin, { action: 'end', roundId: qa.id })
     await page.waitForFunction(() => document.querySelector('main')?.textContent === '')
     await delay(100)
     assert.equal(sockets.size, USERS)
-    const reconnectionDeliveries = reconnected.filter(entry => entry.received > 0).length
+    const reconnectionDeliveries = progressive.filter(entry => entry.received > 0).length
     assert.equal(reconnectionDeliveries, USERS)
     const historical = (await get('qa history', '/api/screen/preview?mode=qa&roundId=' + qa.id, admin)).data
     assert.equal(historical.questions.length, USERS + 1)
-    await Promise.all(reconnected.map(disconnect))
+    await Promise.all(progressive.map(disconnect))
     reconciliation = { uniqueSessions: new Set(members).size, initialWebSocketEventRecipients: firstDeliveries,
       questionBroadcastsPerMember: Math.max(...initialSockets.map(entry => entry.received)), questions: historical.questions.length, likes: historical.questions.reduce((sum, item) => sum + item.likes, 0),
       expectedTopQuestionLikes: 100, reconnectEventRecipients: reconnectionDeliveries,
       reconnectSnapshots: hydrated.length, reconnectMissing: 0 }
+
+    // A fresh round keeps every sample visible on the actual projection. Use two
+    // browser sessions to time both the submitter and an independently connected viewer.
+    const browserSamples = 12
+    const clients = []
+    for (const cookie of members.slice(0, 2)) {
+      const [cookieName, cookieValue] = cookie.split('=')
+      const viewer = await browser.newContext({ viewport: { width: 390, height: 844 } })
+      await viewer.addCookies([{ name: cookieName, value: cookieValue, url: base }])
+      const client = await viewer.newPage()
+      client.on('response', response => { if (response.status() >= 500) browser5xx++ })
+      clients.push(client)
+    }
+    await post('start browser feedback QA', '/api/discussion/admin', admin, {
+      action: 'start', guestId, activeRoundId: null, latestRoundId: qa.id,
+    })
+    const feedbackRound = (await get('browser feedback QA', '/api/discussion/admin', admin)).data.activeRound
+    await Promise.all(clients.map(client => client.goto(base + '/feed')))
+    const [author, observer] = clients
+    await Promise.all(clients.map(client => client.getByLabel('你的问题', { exact: true }).waitFor()))
+    for (const target of [author, observer, page]) {
+      await target.evaluate(() => {
+        window.feedbackSeen = {}
+        const check = () => {
+          for (const p of document.querySelectorAll('section[aria-label="问答"] li > p, article[aria-label="当前最高票问题"] > p')) {
+            if (p.textContent.startsWith('M6 页面反馈 ')) window.feedbackSeen[p.textContent] ??= Date.now()
+          }
+        }
+        new MutationObserver(check).observe(document.body, { childList: true, subtree: true, characterData: true })
+        check()
+      })
+    }
+    const feedback = { author: [], observer: [], screen: [] }
+    for (let sample = 0; sample < browserSamples; sample++) {
+      const label = 'M6 页面反馈 ' + (sample + 1)
+      await author.getByLabel('你的问题', { exact: true }).fill(label)
+      const started = await author.getByRole('button', { name: '提交问题', exact: true }).evaluate(button => {
+        const started = Date.now()
+        button.click()
+        return started
+      })
+      await Promise.all([author, observer, page].map(target =>
+        target.waitForFunction(label => window.feedbackSeen[label] !== undefined, label, { timeout: 8000 })))
+      for (const [key, target] of [['author', author], ['observer', observer], ['screen', page]]) {
+        feedback[key].push(await target.evaluate(label => window.feedbackSeen[label], label) - started)
+      }
+      const live = (await get('browser feedback answer lookup', '/api/screen', admin)).data
+      await post('answer browser sample', '/api/discussion/admin', admin, {
+        action: 'answer', id: live.questions.find(item => item.body === label).id, answered: true,
+      })
+    }
+    browserFeedback = Object.fromEntries(Object.entries(feedback).map(([key, samples]) => [key, stats(samples)]))
+    await post('end browser feedback QA', '/api/discussion/admin', admin, { action: 'end', roundId: feedbackRound.id })
+    await Promise.all(clients.map(client => client.context().close()))
 
     await post('raffle seed post', '/api/discussion', members[0], { action: 'post', section: qa.section, body: 'M6 加权样例' })
     const seed = (await get('raffle seed read', '/api/discussion', members[1])).data.items.find(item => item.body === 'M6 加权样例')
@@ -231,14 +390,16 @@ function disconnect({ socket }) {
     assert.equal(winning.candidates.length, USERS)
     assert.equal(winning.candidates.find(candidate => candidate.name === 'M6 观众 1').weight, 3)
     const d1 = (await get('direct database reconciliation', '/__m6_d1_reconcile')).data
-    assert.deepEqual(d1, { attendees: 200, questions: 201, likes: 200, winners: 1, prizeMessages: 1, admissionOpen: 0 })
+    assert.deepEqual(d1, { attendees: 200, questions: 201 + browserSamples, likes: 200, winners: 1, prizeMessages: 1, admissionOpen: 0 })
     reconciliation.database = d1
     const out = { environment: base, httpConnections: connections, handshakeBatch, commit: process.env.DAMS_M6_COMMIT || 'working-tree-candidate',
-      runs, statusCounts, failures, browser5xx, projectionResults, reconciliation, raffle: { pool: USERS, winnerInboxNotifications: onePrize } }
+      runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, reconciliation, raffle: { pool: USERS, winnerInboxNotifications: onePrize } }
     const d1Stats = (await get('database metrics', '/__m6_d1_stats')).data
     fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
     assert.ok(runs.qrEntry.p95 <= 2000, 'QR entry p95 exceeded 2 seconds')
     assert.ok(runs.question.p95 <= 2000, 'Question p95 exceeded 2 seconds')
+    assert.ok(runs.concurrentFeedRefresh.p95 <= 2000, 'Concurrent feed refresh p95 exceeded 2 seconds')
+    assert.ok(runs.reconnectFeed.p95 <= 2000, 'Reconnect feed p95 exceeded 2 seconds')
     assert.ok(projectionResults.max <= 2000, 'Projection exceeded 2 seconds')
     assert.equal(browser5xx, 0)
     assert.deepEqual(failures, [])
@@ -247,7 +408,7 @@ function disconnect({ socket }) {
   } catch (error) {
     const d1Stats = admin ? (await get('database metrics', '/__m6_d1_stats').catch(() => null))?.data : null
     if (d1Stats) fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
-    const out = { error: error.message, handshakeBatch, runs, statusCounts, failures, browser5xx, projectionResults, reconciliation, onePrize }
+    const out = { error: error.message, handshakeBatch, runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, reconciliation, onePrize }
     fs.writeFileSync(path.join(output, 'failed.json'), JSON.stringify(out, null, 2) + '\n')
     console.error(error.stack)
     process.exitCode = 1
@@ -256,7 +417,7 @@ function disconnect({ socket }) {
       expectedClose.add(socket)
       socket.terminate()
     }
-    if (admin) await request('final close isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: false } }).catch(() => {})
+    if (admin && openedGate) await request('final close isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: false } }).catch(() => {})
     await browser.close()
     await dispatcher?.close()
   }
