@@ -13,8 +13,9 @@ import WebSocket from "ws"
 
 const base = process.argv[3]
 const remote = process.env.DAMS_M6_REMOTE === '1'
-const field = process.env.DAMS_M6_FIELD === '1'
-const withRehearsal = field || process.env.DAMS_M6_REHEARSAL === '1'
+const fieldRefresh = process.env.DAMS_M6_FIELD_REFRESH === '1'
+const field = fieldRefresh || process.env.DAMS_M6_FIELD === '1'
+const withRehearsal = process.env.DAMS_M6_REHEARSAL === '1' || (field && process.env.DAMS_M6_REHEARSAL !== '0')
 if (remote) {
   assert.match(base, /^https:\/\/dams-meetup-perf-85-[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/)
   assert.ok(process.env.DAMS_M6_ADMIN_TOKEN && process.env.DAMS_M6_OBSERVER_TOKEN)
@@ -30,6 +31,8 @@ wsUrl.protocol = remote ? 'wss:' : 'ws:'
 const testLiveUpdates = field || process.env.DAMS_M6_LIVE_UPDATES === '1'
 if (testLiveUpdates) wsUrl.searchParams.set('qa', 'member')
 let liveWatch
+const scenario = fieldRefresh ? 'field-refresh' : field ? 'field' : testLiveUpdates ? 'live-updates' : 'forced-refresh'
+const setup = withRehearsal ? 'rehearsal' : 'qr'
 const USERS = 200
 const indices = Array.from({ length: USERS }, (_, i) => i)
 const runs = {}
@@ -267,7 +270,7 @@ function disconnect({ socket }) {
       }, 15000 / background.length)
       try {
         samples = await runFieldQa({
-          browser, base, admin, members: members.slice(0, FIELD_BROWSER_MEMBERS), online: () => sockets.size,
+          browser, base, admin, members: members.slice(0, FIELD_BROWSER_MEMBERS), online: () => sockets.size, refresh: fieldRefresh,
           onResponse: response => { if (response.status() >= 500) browser5xx++ },
           readRound: async () => (await get('field question lookup', '/api/discussion/admin', admin)).data,
           answer: id => post('field answer', '/api/discussion/admin', admin, { action: 'answer', id, answered: true }),
@@ -293,9 +296,15 @@ function disconnect({ socket }) {
       assert.deepEqual(d1, { ...baseline, questions: baseline.questions + FIELD_QUESTIONS + 1, likes: baseline.likes + FIELD_LIKES })
       assert.equal(browser5xx, 0)
       assert.deepEqual(failures, [])
+      const metrics = fieldRefresh ? ['own', 'projection', 'refreshLoading', 'refreshLatest'] : ['own', 'other', 'projection']
       const out = {
-        environment: base, commit: process.env.DAMS_M6_COMMIT, attendees: USERS, authors: 3, baseline, periodicReads,
-        timings: Object.fromEntries(['own', 'other', 'projection'].map(key => [key, stats(samples.map(sample => sample[key]))])),
+        environment: base, httpConnections: connections, handshakeBatch, commit: process.env.DAMS_M6_COMMIT || 'working-tree-candidate',
+        scenario, setup, attendees: USERS, authors: 3, baseline, periodicReads,
+        timings: Object.fromEntries(metrics.map(key => {
+          const measured = samples.map(sample => sample[key]).filter(value => Number.isFinite(value))
+          return [key, measured.length ? stats(measured) : null]
+        })),
+        ...(fieldRefresh && { loadingVisible: samples.filter(sample => sample.refreshLoading !== null).length }),
         reconnect: { clients: feeds.length, missing: reconnectMissing, feed: runs['field reconnect feed'] },
         samples, d1, failures, browser5xx,
       }
@@ -501,7 +510,7 @@ function disconnect({ socket }) {
     })
     reconciliation.database = d1
     const out = { environment: base, httpConnections: connections, handshakeBatch, commit: process.env.DAMS_M6_COMMIT || 'working-tree-candidate',
-      runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, baseline, reconciliation, raffle: { pool: rafflePool, winnerInboxNotifications: onePrize } }
+      scenario, setup, runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, baseline, reconciliation, raffle: { pool: rafflePool, winnerInboxNotifications: onePrize } }
     const d1Stats = (await get('database metrics', '/__m6_d1_stats')).data
     fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
     if (runs.qrEntry) assert.ok(runs.qrEntry.p95 <= 2000, 'QR entry p95 exceeded 2 seconds')
@@ -516,7 +525,7 @@ function disconnect({ socket }) {
   } catch (error) {
     const d1Stats = admin ? (await get('database metrics', '/__m6_d1_stats').catch(() => null))?.data : null
     if (d1Stats) fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
-    const out = { error: error.message, handshakeBatch, runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, reconciliation, onePrize }
+    const out = { error: error.message, scenario, setup, handshakeBatch, runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, reconciliation, onePrize }
     fs.writeFileSync(path.join(output, 'failed.json'), JSON.stringify(out, null, 2) + '\n')
     console.error(error.stack)
     process.exitCode = 1

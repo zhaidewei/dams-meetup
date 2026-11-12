@@ -45,3 +45,28 @@ DAMS_M6_FIELD=1 bash loadtest/meetup15/start.sh
 ```
 
 复用彩排预设的 200 个账号。196 个脚本连接和 4 个手机浏览器会话同时在线，另开 4:3 投影页。脚本会话错开执行每 15 秒一次的兜底读取。3 人轮流提交共 24 条问题，每 3 条做一次点赞，并在下一条开始前标记已答。报告分别记录点击提交到自己手机、另一位观众手机和大屏出现问题的时间。随后让 25 个脚本连接断开，在断线期间写入一条问题，重连后核对全部 25 份快照。
+
+## 手机手动刷新
+
+```sh
+DAMS_M6_FIELD_REFRESH=1 bash loadtest/meetup15/start.sh
+```
+
+沿用 200 人、3 位提问者和 24 条问题。让其中一台模拟手机漏收单条实时推送，确认旧页面还没有这条问题，再执行浏览器普通刷新。报告分别记录从刷新到「正在加载讨论区…」出现和到最新问题出现的耗时，也记录提交者看到自己问题的耗时。加载提示未出现的样本不计入该项 p95，`loadingVisible` 单独记录出现次数。
+
+## 复跑对照
+
+下表的参数都加在 `bash loadtest/meetup15/start.sh` 前。对比两个版本时使用同一场景、HTTP 连接数、WebSocket 批大小、浏览器及部署环境。统一重连补拉和连上后立即补拉分别看。用同一份压测脚本分别指向两版应用，先保存每次的 `results.json`，再对比同名指标的 p95、失败数和漏题数。报告记录版本、场景和账号准备方式。
+
+| 场景 | 参数 | 指标 |
+| --- | --- | --- |
+| 扫码、集中提问加 200 次强制刷新 | 默认 | `qrEntry`、`question`、`concurrentFeedRefresh`、`reconnectFeed`、`progressiveReconnectFeed` |
+| 48 / 200 条 HTTP 连接与 25 / 200 个握手一批 | `DAMS_M6_MATRIX=1` | 同上，按对应组合对比 |
+| 在线观众收齐整批问题 | `DAMS_M6_LIVE_UPDATES=1` | `liveQa.visible`、`liveQa.httpRequests` |
+| 用 200 人预设跑集中提问和重连 | `DAMS_M6_REHEARSAL=1 DAMS_M6_LIVE_UPDATES=1` | 整批收齐、重连补拉、抽奖及数据库对账 |
+| 少数人轮流提问 | `DAMS_M6_FIELD=1` | `timings.own`、`timings.other`、`timings.projection` |
+| 手机普通刷新 | `DAMS_M6_FIELD_REFRESH=1` | `timings.refreshLoading`、`timings.refreshLatest`、`timings.own`、`loadingVisible` |
+
+和还没有「管理彩排」的版本比较时，现场节奏和手机刷新都加 `DAMS_M6_REHEARSAL=0`，两个版本均通过扫码建立 200 个会话。
+
+本机对比旧版本时，可把同一份当前的 `loadtest/meetup15/` 复制到两个临时检出目录，再从各自的仓库根目录运行，确保应用构建与脚本版本各自可辨。
