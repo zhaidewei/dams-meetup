@@ -16,12 +16,11 @@ const roundTime = new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Europe/Amsterdam', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 })
 
-function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
+function DraftPreview({ draft, changed, stale, pending, onConfirm }: {
   draft: Draft
   changed: boolean
   stale: boolean
   pending: boolean
-  onReset: () => void
   onConfirm: (selection: ProjectionSelection) => void
 }) {
   const selection: ProjectionSelection | null = draft.mode === 'qa'
@@ -40,15 +39,19 @@ function DraftPreview({ draft, changed, stale, pending, onReset, onConfirm }: {
             : !selection ? '待选择问答轮次' : changed ? `待切换 · ${PROJECTION_MODES[draft.mode]}` : '与当前画面一致'}
         </p>
       </div>
-      <div aria-label="仅管理员可见的画面预览" className={'grid min-h-48 min-w-0 content-center rounded-lg p-4 text-center ' +
-        (data && data.mode !== 'hidden' ? 'bg-dams-wash text-slate-950' : 'bg-black text-zinc-100')}>
-        {!selection ? <p>请选择要投屏的问答轮次</p> : error
-          ? <p role="alert">{error}</p> : data
-            ? <ScreenContent data={data} compact /> : <p>正在加载预览…</p>}
+      <div className="relative aspect-[4/3] w-full">
+        <section key={query.toString()} aria-label="仅管理员可见的画面预览" tabIndex={0}
+          className={'absolute inset-0 flex flex-col overflow-auto rounded-lg p-4 text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue ' +
+            (data && data.mode !== 'hidden' ? 'bg-dams-wash text-slate-950' : 'bg-black text-zinc-100')}>
+          <div className="my-auto w-full shrink-0">
+            {!selection ? <p>请选择要投屏的问答轮次</p> : error
+              ? <p role="alert">{error}</p> : data
+                ? <ScreenContent data={data} compact /> : <p>正在加载预览…</p>}
+          </div>
+        </section>
       </div>
-      <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" className={discussionButton} disabled={pending || (!changed && !stale)} onClick={onReset}>放弃修改</button>
-        <button type="button" className="rounded-md bg-dams-hover px-4 py-2 text-white disabled:opacity-50"
+      <div className="flex justify-end">
+        <button type="button" className="min-h-11 rounded-md bg-dams-hover px-4 py-2 text-white disabled:opacity-50"
           disabled={pending || stale || !changed || !selection || !data || Boolean(error)}
           onClick={() => selection && onConfirm(selection)}>确认切换</button>
       </div>
@@ -144,7 +147,6 @@ export function ProjectionAdmin({ draft, setDraft }: {
           )}
         </section>
         <DraftPreview key={draft?.baseRevision ?? revision} draft={selected} changed={changed} stale={stale} pending={pending}
-          onReset={() => setDraft(null)}
           onConfirm={async (selection) => {
             if (draft && !stale && await submit({ ...selection, revision: draft.baseRevision })) {
               setDraft((latest) => latest === draft ? null : latest)
