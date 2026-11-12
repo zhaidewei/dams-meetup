@@ -10,9 +10,9 @@ const slides = [
     title: '发帖、找同好、聊下去',
     body: (
       <ol className="mx-auto grid w-fit list-decimal gap-3 pl-6 text-left marker:text-amber-300">
-        <li>在「我」填写昵称。</li>
-        <li>进讨论区或分组板块，发帖分享想法，也可以回复或点赞。</li>
-        <li>想继续聊？点对方头像发私信，在「我 → 私信」查看回复。</li>
+        <li>在「我的 → 资料」填写昵称。</li>
+        <li>在「自由讨论区」发帖交流，或到「议程讨论区」加入对应环节的讨论。</li>
+        <li>想继续聊？点对方头像发私信，在「我的 → 私信」查看回复。</li>
       </ol>
     ),
   },
@@ -21,7 +21,7 @@ const slides = [
     body: (
       <dl className="grid gap-3 sm:grid-cols-2">
         {[
-          ['嘉宾问答', '主持人开启问答后，可以提交问题，也可以给别人的问题点赞。大屏优先展示点赞最多的待答问题。'],
+          ['嘉宾问答', '主持人开启问答后，到标有「问答中」的板块提问，也可以给别人的问题点赞。大屏优先展示点赞最多的待答问题。'],
           ['现场抽奖', '抽奖结果在大屏公布，中奖者会收到站内私信。'],
         ].map(([label, description]) => (
           <div key={label} className="rounded-xl bg-slate-800 p-3 text-left md:p-5">
@@ -70,7 +70,7 @@ export function OpeningDeck({ compact = false }: { compact?: boolean }) {
         </h1>
         <div className={compact ? 'space-y-2 text-sm' : 'space-y-3 text-[clamp(1rem,2vw,2rem)]'}>
           {slide.body ?? <AdmissionScreen compact={compact} />}
-          {slide.body === null && <p>换手机时，用「恢复链接」找回同一个身份。</p>}
+          {slide.body === null && <p>从「我的 → 恢复链接」保存链接，换手机时可找回同一个身份。</p>}
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 text-sm text-slate-300">
