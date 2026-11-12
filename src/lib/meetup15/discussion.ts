@@ -60,12 +60,33 @@ export type FeedSnapshot = DiscussionContext & {
   section: MeetupSection
   items: DiscussionItem[]
   nextBefore: number | null
+  qaRevision?: number
 }
 
 export const FEED_VERSIONS_HEADER = 'X-Discussion-Versions'
 export type FeedVersions = { questions: string; posts: string }
 export type VersionedFeed = FeedSnapshot & { versions: FeedVersions }
 export type QuestionDelta = { upsert: DiscussionItem[]; remove: number[] }
+export type QaPush = {
+  type: 'qa.updated'
+  section: MeetupSection
+  roundId: number
+  revision: number
+  baseRevision: number | null
+} & QuestionDelta
+
+export type QaWriteAck = { revision: number; roundId: number } & (
+  | { question: DiscussionItem }
+  | { like: { id: number; liked: boolean } }
+)
+
+export function mergeQuestions(questions: DiscussionItem[], delta: QuestionDelta) {
+  const merged = new Map(questions.map(question => [question.id, question]))
+  for (const id of delta.remove) merged.delete(id)
+  for (const question of delta.upsert) merged.set(question.id, question)
+  return [...merged.values()].sort(compareQuestions)
+}
+
 export type FeedUpdate = { questionDelta?: QuestionDelta } & Omit<VersionedFeed, 'items' | 'questions' | 'nextBefore'> &
   Partial<Pick<VersionedFeed, 'items' | 'questions' | 'nextBefore'>>
 

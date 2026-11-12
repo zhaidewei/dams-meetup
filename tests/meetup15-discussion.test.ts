@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
-import { FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
+import { FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type QaPush, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
 import { MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
@@ -77,7 +77,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     })
   const ok = async (cookie: string, input: object, suffix = '') =>
     expect((await command(cookie, input, suffix)).status).toBe(204)
-  const connect = (cookie: string) => runtime.dispatchFetch(path + '/updates', {
+  const connect = (cookie: string, query = '') => runtime.dispatchFetch(path + '/updates' + query, {
     headers: { Cookie: cookie, Origin: origin, Upgrade: 'websocket' },
   })
 
@@ -290,7 +290,45 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     await ok(alice, { action: 'like', id: newer.id, liked: false })
     expect((await feed(alice, '?section=expert')).questions.find(item => item.id === newer.id))
       .toMatchObject({ likes: 0, liked: false })
+    const legacy = (await connect(alice)).webSocket!
+    legacy.accept()
+    const notification = new Promise(resolve => legacy.addEventListener('message', resolve, { once: true }))
     await ok(alice, { action: 'like', id: newer.id, liked: true })
+    await notification
+    legacy.close()
+
+    const pushed = await Promise.all([alice, bob, admin].map(async cookie => {
+      const socket = (await connect(cookie, cookie === admin ? '?qa=projection' : '?qa=member')).webSocket!
+      socket.accept()
+      return socket
+    }))
+    const nextPush = () => Promise.all(pushed.map(socket => new Promise<QaPush>(resolve => {
+      const listener = (event: { data: unknown }) => {
+        if (typeof event.data !== 'string' || !event.data.startsWith('{')) return
+        const message = JSON.parse(event.data) as QaPush
+        if (message.type !== 'qa.updated') return
+        socket.removeEventListener('message', listener)
+        resolve(message)
+      }
+      socket.addEventListener('message', listener)
+    })))
+    const firstPush = nextPush()
+    await ok(bob, { action: 'like', id: newer.id, liked: true })
+    const [mineAlice, mineBob, screenPush] = await firstPush
+    for (const message of [mineAlice, mineBob, screenPush]) {
+      expect(message).toMatchObject({ roundId: first.id, section: 'expert', baseRevision: null })
+      expect(message.upsert.find(item => item.id === newer.id)).not.toHaveProperty('likedBy')
+    }
+    expect(mineAlice.upsert.find(item => item.id === newer.id)).toMatchObject({ likes: 2, liked: true, mine: false })
+    expect(mineBob.upsert.find(item => item.id === newer.id)).toMatchObject({ likes: 2, liked: true, mine: true })
+    expect(screenPush.upsert.find(item => item.id === newer.id)).toMatchObject({ likes: 2, liked: false, mine: false })
+    const secondPush = nextPush()
+    await ok(bob, { action: 'like', id: newer.id, liked: false })
+    const [aliceDelta, bobDelta] = await secondPush
+    expect(aliceDelta).toMatchObject({ baseRevision: mineAlice.revision, upsert: [{ id: newer.id, likes: 1, liked: true }] })
+    expect(bobDelta).toMatchObject({ baseRevision: mineBob.revision, upsert: [{ id: newer.id, likes: 1, liked: false }] })
+    expect((await conditionalFeed(alice)).qaRevision).toBe(aliceDelta.revision)
+    for (const socket of pushed) socket.close()
 
     const attendeeSocket = (await connect(alice)).webSocket!
     const screenSocket = (await connect(admin)).webSocket!

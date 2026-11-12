@@ -64,7 +64,7 @@ type FeedState = {
 type Cached<T> = { revision: number; stamp: string; rows: Promise<T> }
 
 // Each isolate is bound to one activity database. Revisions invalidate all isolates.
-const questionSnapshots = new Map<string, Cached<SharedQuestion[]>>()
+const questionSnapshots = new Map<string, Cached<QuestionState | null>>()
 const postSnapshots = new Map<string, Cached<SharedPost[]>>()
 const roundSnapshots = new Map<string, Cached<QuestionRound[]>>()
 
@@ -96,29 +96,40 @@ async function loadRounds(db: D1Database) {
   return (await db.prepare(`${ROUNDS} ORDER BY r.id DESC`).all<QuestionRound>()).results
 }
 
-async function loadSharedQuestions(db: D1Database, roundId: number): Promise<SharedQuestion[]> {
-  const [questions, likes] = await db.batch([
+type QuestionState = { roundId: number; section: QuestionRound['section']; revision: number; questions: SharedQuestion[] }
+
+export async function loadSharedQuestions(db: D1Database, roundId: number | null): Promise<QuestionState | null> {
+  const round = roundId === null ? '(SELECT id FROM meetup15_qa_rounds WHERE closed_at IS NULL)' : '?'
+  const bindings = roundId === null ? [] : [roundId]
+  const [metadata, questions, likes] = await db.batch([
+    db.prepare(`
+      SELECT r.id AS roundId, r.section, a.question_revision AS revision
+      FROM meetup15_qa_rounds r CROSS JOIN activity_state a WHERE r.id = ${round} AND a.id = 1
+    `).bind(...bindings),
     db.prepare(`
       SELECT ${ITEM_CONTENT}
       FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
-      WHERE d.round_id = ?
-    `).bind(roundId),
+      WHERE d.round_id = ${round}
+    `).bind(...bindings),
     db.prepare(`
       SELECT l.item_id AS itemId, l.member_id AS memberId
       FROM meetup15_discussion d JOIN meetup15_discussion_likes l ON l.item_id = d.id
-      WHERE d.round_id = ?
-    `).bind(roundId),
+      WHERE d.round_id = ${round}
+    `).bind(...bindings),
   ])
+  const state = metadata.results[0] as Omit<QuestionState, 'questions'> | undefined
+  if (!state) return null
   const byQuestion = new Map<number, Set<string>>()
   for (const { itemId, memberId } of likes.results as { itemId: number; memberId: string }[]) {
     const likedBy = byQuestion.get(itemId) ?? new Set<string>()
     likedBy.add(memberId)
     byQuestion.set(itemId, likedBy)
   }
-  return (questions.results as QuestionContentRow[]).map(row => {
+  const rows = (questions.results as QuestionContentRow[]).map(row => {
     const likedBy = byQuestion.get(row.id) ?? new Set<string>()
     return { ...row, tags: JSON.parse(row.tags), answered: Boolean(row.answered), likes: likedBy.size, likedBy }
   }).sort(compareQuestions)
+  return { ...state, questions: rows }
 }
 
 function questionsQuery(db: D1Database, roundId: number, viewer: string) {
@@ -174,11 +185,11 @@ function parseQuestionToken(token: string | undefined, viewer: string, round: nu
   return { revision, stamp, token }
 }
 
-function questionForViewer({ likedBy, ...question }: SharedQuestion, viewer: string): DiscussionItem {
+export function questionForViewer({ likedBy, ...question }: SharedQuestion, viewer: string): DiscussionItem {
   return { ...question, mine: question.authorId === viewer, liked: likedBy.has(viewer) }
 }
 
-function questionChanges(previous: SharedQuestion[], current: SharedQuestion[], viewer: string): QuestionDelta {
+export function questionChanges(previous: SharedQuestion[], current: SharedQuestion[], viewer: string): QuestionDelta {
   const old = new Map(previous.map(question => [question.id, question]))
   const upsert = []
   for (const question of current) {
@@ -224,22 +235,24 @@ export async function readFeed(
   const questionSnapshot = viewedRound && !unchangedQuestions
     ? sharedSnapshot(questionSnapshots, `${viewedRound.id}:${state.question_revision}`, state.question_revision,
       () => loadSharedQuestions(db, viewedRound.id), 12, execution) : null
+  const postVersion = version([viewer, postKey, state.post_revision])
+  const postSnapshot = knownPosts !== postVersion
+    ? sharedSnapshot(postSnapshots, postKey, state.post_revision, () => loadSharedPosts(db, section, cursor), 32, execution) : null
+  const [qa, posts] = await Promise.all([questionSnapshot?.rows, postSnapshot?.rows])
+  const qaRevision = viewedRound ? qa?.revision ?? state.question_revision : undefined
   const versions: FeedVersions = {
     questions: viewedRound
-      ? questionSnapshot ? questionToken(viewer, viewedRound.id, state.question_revision, questionSnapshot.stamp) : previous!.token
+      ? questionSnapshot ? questionToken(viewer, viewedRound.id, qaRevision!, questionSnapshot.stamp) : previous!.token
       : noQuestionsVersion,
-    posts: version([viewer, postKey, state.post_revision]),
+    posts: postVersion,
   }
-  const postSnapshot = knownPosts !== versions.posts
-    ? sharedSnapshot(postSnapshots, postKey, state.post_revision, () => loadSharedPosts(db, section, cursor), 32, execution) : null
-  const [questions, posts] = await Promise.all([questionSnapshot?.rows, postSnapshot?.rows])
-  const data: FeedUpdate = { ...context, nickname: state.display_name, section, viewedRound, versions }
+  const data: FeedUpdate = { ...context, nickname: state.display_name, section, viewedRound, versions, qaRevision }
   if (!unchangedQuestions) {
-    const current = questions ?? []
+    const current = qa?.questions ?? []
     if (previousCache && previousCache.stamp === previous?.stamp) {
       const old = await previousCache.rows.catch(() => null)
       if (old) {
-        const delta = questionChanges(old, current, viewer)
+        const delta = questionChanges(old.questions, current, viewer)
         if (delta.upsert.length + delta.remove.length < current.length) data.questionDelta = delta
       }
     }
@@ -324,7 +337,10 @@ export async function readProjectionRound(db: D1Database, roundId: number, revis
     : db.prepare(`${ROUNDS} WHERE r.id = ? AND EXISTS (
         SELECT 1 FROM activity_state WHERE id = 1 AND projection_revision = ?
       )`).bind(roundId, revision)
-  const [rounds, questions] = await db.batch([roundQuery, questionsQuery(db, roundId, '')])
+  const [rounds, questions, version] = await db.batch([roundQuery, questionsQuery(db, roundId, ''),
+    db.prepare('SELECT question_revision AS qaRevision FROM activity_state WHERE id = 1'),
+  ])
   const round = rounds.results[0] as QuestionRound | undefined
-  return round ? { round, questions: (questions.results as unknown as ItemRow[]).map(item) } : null
+  const qaRevision = (version.results[0] as { qaRevision?: number } | undefined)?.qaRevision
+  return round ? { round, qaRevision, questions: (questions.results as unknown as ItemRow[]).map(item) } : null
 }

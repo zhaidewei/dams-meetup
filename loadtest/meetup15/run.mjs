@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks"
 import { channel } from "node:diagnostics_channel"
 import fs from "node:fs"
 import path from "node:path"
+import { watchLiveQa } from "./live-qa.mjs"
 import { chromium } from "playwright"
 import { Agent } from "undici"
 const connections = Number(process.env.DAMS_M6_CONNECTIONS) || 0
@@ -22,6 +23,9 @@ const handshakeBatch = Number(process.env.DAMS_WS_BATCH ?? 25)
 assert.ok(Number.isInteger(handshakeBatch) && handshakeBatch >= 1 && handshakeBatch <= 200)
 const wsUrl = new URL('/api/discussion/updates', base)
 wsUrl.protocol = remote ? 'wss:' : 'ws:'
+const testLiveUpdates = process.env.DAMS_M6_LIVE_UPDATES === '1'
+if (testLiveUpdates) wsUrl.searchParams.set('qa', 'member')
+let liveWatch
 const USERS = 200
 const indices = Array.from({ length: USERS }, (_, i) => i)
 const runs = {}
@@ -95,6 +99,8 @@ async function getFeed(stage, cookie) {
     data.questions = [...merged.values()].sort((a, b) =>
       Number(a.answered) - Number(b.answered) || b.likes - a.likes || a.createdAt - b.createdAt || a.id - b.id)
   }
+  const current = feedSnapshots.get(cookie)
+  if (current && current !== previous) return { ...result, data: current }
   feedSnapshots.set(cookie, data)
   return { ...result, data }
 }
@@ -133,7 +139,11 @@ function openSocket(cookie) {
     const socket = new WebSocket(wsUrl, { headers: { Cookie: cookie, Origin: base, 'X-M6-Stage': 'memberWebSocket' }, handshakeTimeout: 12000 })
     const result = { socket, received: 0, elapsed: 0 }
     sockets.add(socket)
-    socket.on('message', message => { if (message.toString() === 'activity.updated') result.received++ })
+    socket.on('message', message => {
+      const payload = message.toString()
+      if (payload === 'activity.updated' || payload.startsWith('{"type":"qa.updated"')) result.received++
+      liveWatch?.receive(cookie, payload)
+    })
     socket.on('error', error => { failures.push({ stage: 'WebSocket', error: error.message, cause: error.cause?.code, detail: error.cause?.message }); reject(error) })
     socket.once('close', code => {
       sockets.delete(socket)
@@ -175,6 +185,7 @@ function disconnect({ socket }) {
   let reconciliation
   let onePrize
   let browserFeedback
+  let liveQa
   try {
     if (remote) assert.deepEqual((await get('isolation preflight', '/__m6_isolation')).data, { fresh: true })
     const auth = await request('admin login', '/api/activity/session', { method: 'POST', form: { token: remote ? process.env.DAMS_M6_ADMIN_TOKEN : 'dams-local-admin' }, expect: 303 })
@@ -237,10 +248,21 @@ function disconnect({ socket }) {
     })
     assert.equal(sockets.size, USERS)
     const labels = indices.map(i => 'M6 问题 ' + String(i + 1).padStart(3, '0'))
+    const beforeLive = testLiveUpdates ? (await get('before live notifications', '/__m6_d1_stats')).data : null
+    if (testLiveUpdates) liveWatch = watchLiveQa(members, labels, feedSnapshots, cookie => getFeed('liveNotificationFeed', cookie))
     const questionPosts = measure('question', members.map((cookie, i) => post('question', '/api/discussion', cookie,
       { action: 'question', section: qa.section, roundId: qa.id, body: labels[i] })))
-    const fanout = delay(180).then(() => measure('concurrentFeedRefresh', members.map(cookie => getFeed('concurrentFeedRefresh', cookie))))
-    const [posted] = await Promise.all([questionPosts, fanout])
+    const fanout = liveWatch?.finished ??
+      delay(180).then(() => measure('concurrentFeedRefresh', members.map(cookie => getFeed('concurrentFeedRefresh', cookie))))
+    const [posted, delivery] = await Promise.all([questionPosts, fanout])
+    if (testLiveUpdates) {
+      const { samples, ...messages } = delivery
+      liveWatch = undefined
+      const after = (await get('after live notifications', '/__m6_d1_stats')).data
+      const workerReads = after.liveNotificationFeed?.d1Ms.length ?? 0
+      const objectReads = after.discussionDurableObject.d1Ms.length - beforeLive.discussionDurableObject.d1Ms.length
+      liveQa = { visible: stats(samples), ...messages, workerReads, objectReads }
+    }
     const questionView = (await get('question reconciliation', '/api/screen', admin)).data
     assert.equal(questionView.questions.length, USERS)
     const projectedLabels = questionView.questions.slice(0, 3).map(item => item.body)
@@ -393,12 +415,12 @@ function disconnect({ socket }) {
     assert.deepEqual(d1, { attendees: 200, questions: 201 + browserSamples, likes: 200, winners: 1, prizeMessages: 1, admissionOpen: 0 })
     reconciliation.database = d1
     const out = { environment: base, httpConnections: connections, handshakeBatch, commit: process.env.DAMS_M6_COMMIT || 'working-tree-candidate',
-      runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, reconciliation, raffle: { pool: USERS, winnerInboxNotifications: onePrize } }
+      runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, reconciliation, raffle: { pool: USERS, winnerInboxNotifications: onePrize } }
     const d1Stats = (await get('database metrics', '/__m6_d1_stats')).data
     fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
     assert.ok(runs.qrEntry.p95 <= 2000, 'QR entry p95 exceeded 2 seconds')
     assert.ok(runs.question.p95 <= 2000, 'Question p95 exceeded 2 seconds')
-    assert.ok(runs.concurrentFeedRefresh.p95 <= 2000, 'Concurrent feed refresh p95 exceeded 2 seconds')
+    if (runs.concurrentFeedRefresh) assert.ok(runs.concurrentFeedRefresh.p95 <= 2000, 'Concurrent feed refresh p95 exceeded 2 seconds')
     assert.ok(runs.reconnectFeed.p95 <= 2000, 'Reconnect feed p95 exceeded 2 seconds')
     assert.ok(projectionResults.max <= 2000, 'Projection exceeded 2 seconds')
     assert.equal(browser5xx, 0)
@@ -408,11 +430,12 @@ function disconnect({ socket }) {
   } catch (error) {
     const d1Stats = admin ? (await get('database metrics', '/__m6_d1_stats').catch(() => null))?.data : null
     if (d1Stats) fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
-    const out = { error: error.message, handshakeBatch, runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, reconciliation, onePrize }
+    const out = { error: error.message, handshakeBatch, runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, reconciliation, onePrize }
     fs.writeFileSync(path.join(output, 'failed.json'), JSON.stringify(out, null, 2) + '\n')
     console.error(error.stack)
     process.exitCode = 1
   } finally {
+    liveWatch?.stop()
     for (const socket of sockets) {
       expectedClose.add(socket)
       socket.terminate()

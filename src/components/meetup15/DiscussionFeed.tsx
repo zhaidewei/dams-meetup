@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { compareQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type ReplyPage } from '@/lib/meetup15/discussion'
+import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
 import { isBreakoutGroup, MEETUP_AGENDA_SECTIONS, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
@@ -17,7 +17,7 @@ type Submit = (command: MemberCommand) => Promise<boolean>
 
 function PostCard({ post, snapshot, named, pending, submit }: {
   post: DiscussionItem
-  snapshot: FeedSnapshot
+  snapshot: FeedView
   named: boolean
   pending: boolean
   submit: Submit
@@ -113,10 +113,10 @@ function PostCard({ post, snapshot, named, pending, submit }: {
     <article className="space-y-3 border-b border-dams-line bg-white px-4 py-4 sm:px-6">
       {renderEntry(post)}
       {threadOpen && (
-        <ReplyList postId={post.id} snapshot={snapshot} render={reply => (
+        <ReplyList postId={post.id} feedRead={snapshot.feedRead} render={reply => (
           <>
             {renderEntry(reply)}
-            {children.has(reply.id) && <ReplyList postId={post.id} parentId={reply.id} snapshot={snapshot} render={renderEntry} />}
+            {children.has(reply.id) && <ReplyList postId={post.id} parentId={reply.id} feedRead={snapshot.feedRead} render={renderEntry} />}
           </>
         )} />
       )}
@@ -124,10 +124,10 @@ function PostCard({ post, snapshot, named, pending, submit }: {
   )
 }
 
-function ReplyList({ postId, parentId, snapshot, render }: {
+function ReplyList({ postId, parentId, feedRead, render }: {
   postId: number
   parentId?: number
-  snapshot: FeedSnapshot
+  feedRead: number
   render: (reply: DiscussionItem) => ReactNode
 }) {
   const [cursors, setCursors] = useState([0])
@@ -154,7 +154,7 @@ function ReplyList({ postId, parentId, snapshot, render }: {
       if (!controller.signal.aborted) setError(true)
     })
     return () => controller.abort()
-  }, [postId, parentId, cursors, snapshot, retry])
+  }, [postId, parentId, cursors, feedRead, retry])
 
   const next = pages.at(-1)?.nextAfter
   const replies = new Map(pages.flatMap(page => page.items.map(reply => [reply.id, reply] as const)))
@@ -171,7 +171,27 @@ function ReplyList({ postId, parentId, snapshot, render }: {
   )
 }
 
-type FeedView = FeedSnapshot & { versions?: FeedVersions; confirmedBase?: DiscussionItem[] }
+type FeedView = FeedSnapshot & {
+  feedRead: number
+  versions?: FeedVersions
+  confirmedBase?: DiscussionItem[]
+  confirmedWrites?: QaWriteAck[]
+}
+
+function displayQuestions(view: FeedView, base: DiscussionItem[], writes: QaWriteAck[]): FeedView {
+  const pending = writes.filter(write => view.qaRevision !== undefined && write.revision > view.qaRevision)
+  if (!pending.length) return { ...view, confirmedBase: undefined, confirmedWrites: undefined, questions: base }
+  const items = new Map(base.map(question => [question.id, question]))
+  for (const write of pending) {
+    if ('question' in write) {
+      if (!items.has(write.question.id)) items.set(write.question.id, write.question)
+    } else {
+      const question = items.get(write.like.id)
+      if (question) items.set(question.id, { ...question, liked: write.like.liked })
+    }
+  }
+  return { ...view, confirmedBase: base, confirmedWrites: pending, questions: [...items.values()].sort(compareQuestions) }
+}
 
 const feedTransport: DiscussionTransport<FeedView> = {
   headers(snapshot) {
@@ -182,22 +202,30 @@ const feedTransport: DiscussionTransport<FeedView> = {
     const { questionDelta, ...data } = await response.json<FeedUpdate>()
     const items = data.items ?? snapshot?.items
     let questions = data.questions ?? snapshot?.confirmedBase ?? snapshot?.questions
-    if (questionDelta && questions) {
-      const merged = new Map(questions.map(question => [question.id, question]))
-      for (const id of questionDelta.remove) merged.delete(id)
-      for (const question of questionDelta.upsert) merged.set(question.id, question)
-      questions = [...merged.values()].sort(compareQuestions)
-    }
+    if (questionDelta && questions) questions = mergeQuestions(questions, questionDelta)
     if (!items || !questions) throw new Error('Missing discussion snapshot')
-    return { ...data, items, questions, nextBefore: data.items ? data.nextBefore ?? null : snapshot?.nextBefore ?? null }
+    const view = { ...data, items, questions, feedRead: (snapshot?.feedRead ?? 0) + 1,
+      nextBefore: data.items ? data.nextBefore ?? null : snapshot?.nextBefore ?? null }
+    const writes = snapshot?.viewedRound?.id === view.viewedRound?.id ? snapshot?.confirmedWrites ?? [] : []
+    return displayQuestions(view, questions, writes)
   },
   async applyWrite(response, snapshot) {
-    if (response.status !== 200) return null
-    const { roundId, question } = await response.json<{ roundId: number; question: DiscussionItem }>()
-    if (snapshot.viewedRound?.id !== roundId || snapshot.viewedRound.closedAt !== null) return null
-    if (snapshot.questions.some(item => item.id === question.id)) return snapshot
-    return { ...snapshot, confirmedBase: snapshot.confirmedBase ?? snapshot.questions,
-      questions: [...snapshot.questions, question].sort(compareQuestions) }
+    if (response.status !== 200 || snapshot.qaRevision === undefined) return null
+    const ack = await response.json<QaWriteAck>()
+    if (!Number.isSafeInteger(ack.revision) || snapshot.viewedRound?.id !== ack.roundId ||
+        snapshot.viewedRound.closedAt !== null) return null
+    if (ack.revision <= snapshot.qaRevision) return snapshot
+    return displayQuestions(snapshot, snapshot.confirmedBase ?? snapshot.questions, [...(snapshot.confirmedWrites ?? []), ack])
+  },
+  onQaPush(push, snapshot) {
+    if (snapshot.section !== push.section || snapshot.viewedRound?.closedAt != null) return
+    if (snapshot.viewedRound?.id !== push.roundId) return null
+    if (snapshot.qaRevision !== undefined && push.revision <= snapshot.qaRevision) return
+    if (push.baseRevision !== null && push.baseRevision !== snapshot.qaRevision) return null
+    const base = push.baseRevision === null ? [] : snapshot.confirmedBase ?? snapshot.questions
+    const versions = snapshot.versions ? { ...snapshot.versions, questions: '' } : undefined
+    const view = { ...snapshot, qaRevision: push.revision, versions }
+    return displayQuestions(view, mergeQuestions(base, push), snapshot.confirmedWrites ?? [])
   },
 }
 
