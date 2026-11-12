@@ -1,6 +1,7 @@
 import { REHEARSAL_END } from '../src/lib/meetup15/event'
 import { requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
+import { rehearsalFixtures } from './rehearsal-fixtures'
 import type { ActivityEnv } from './activity'
 
 const headers = { 'Cache-Control': 'private, no-store' }
@@ -25,30 +26,11 @@ async function clearRehearsal(db: D1Database, revision: number) {
   return results.at(-1)?.meta.changes === 1
 }
 
-const names = ['彩排观众 · 林', '彩排观众 · 周', '彩排观众 · 陈', '彩排观众 · 许', '彩排观众 · 吴', '彩排观众 · 郑']
-const posts = [
-  ['lounge', '大家好，我在代尔夫特做数据产品，想认识在欧洲创业的朋友。'],
-  ['lightning', '如何从第一个试点找到可以复用的销售流程？'],
-  ['expert', '融资前可以提前准备哪些资料？欢迎分享经验。'],
-  ['breakout', '想交流一下技术团队在荷兰做早期产品的经历。'],
-  ['panel', '圆桌结束后想找做企业软件的朋友聊一聊。'],
-] as const
-const questions = [
-  '创业初期还没有成熟产品和市场预算时，你会怎样找到第一批真正愿意付费的客户？能否分享一个从访谈走到试点，再到签约的例子？',
-  '在欧洲融资时，投资人最看重哪些早期指标？',
-  '从技术原型到商业化，哪项成本最容易被低估？',
-  '你会怎样决定先验证哪个细分市场？',
-  '什么情况下应该开始寻找联合创始人？',
-  '如果首个试点反响一般，应该继续迭代还是换一个方向？',
-]
-
 async function fillRehearsal(db: D1Database, revision: number, now: number) {
-  const [first, ...others] = names.map((name) => ({ name, id: crypto.randomUUID() }))
-  const guests = 'SELECT id FROM meetup15_members WHERE role = \'guest\' ORDER BY created_at, id LIMIT 1'
-  const fixture = 'EXISTS (SELECT 1 FROM meetup15_members WHERE id = ?)'
-  const openRound = '(SELECT id FROM meetup15_qa_rounds WHERE closed_at IS NULL)'
-  const rehearsalPost = '(SELECT id FROM meetup15_discussion WHERE author_id = ? AND kind = \'post\' AND section = \'lounge\')'
   const timestamp = Math.floor(now / 1000)
+  const { members, posts, replies, questions, likes, candidates } = rehearsalFixtures(timestamp)
+  const [first, ...others] = members
+  const fixture = 'EXISTS (SELECT 1 FROM meetup15_members WHERE id = ?)'
   const results = await db.batch([
     // 此次操作的随机观众 ID 也用来标识是否成功取得填充资格。并发请求只有一个能写入。
     db.prepare(`
@@ -58,44 +40,50 @@ async function fillRehearsal(db: D1Database, revision: number, now: number) {
         AND NOT EXISTS (SELECT 1 FROM meetup15_members WHERE role = 'attendee')
         AND EXISTS (SELECT 1 FROM meetup15_members WHERE role = 'guest')
         ${dataTables.map(table => `AND NOT EXISTS (SELECT 1 FROM ${table})`).join(' ')}
-    `).bind(first.id, first.name, timestamp, revision),
-    ...others.map(({ id, name }) => db.prepare(`
+    `).bind(first.id, first.name, first.lastSeen, revision),
+    db.prepare(`
       INSERT INTO meetup15_members (id, role, display_name, last_seen_at)
-      SELECT ?, 'attendee', ?, ? WHERE ${fixture}
-    `).bind(id, name, timestamp, first.id)),
-    ...posts.map(([section, body], i) => db.prepare(`
-      INSERT INTO meetup15_discussion (kind, author_id, section, body, tags)
-      SELECT 'post', ?, ?, ?, '["彩排"]' WHERE ${fixture}
-    `).bind(i === 0 ? first.id : others[i - 1].id, section, body, first.id)),
-    ...['欢迎！我在做早期客户访谈，可以交流。', '我也在代尔夫特，茶歇时一起聊。'].map((body, i) => db.prepare(`
-      INSERT INTO meetup15_discussion (kind, author_id, section, body, post_id)
-      SELECT 'reply', ?, 'lounge', ?, ${rehearsalPost} WHERE ${fixture}
-    `).bind(others[i].id, body, first.id, first.id)),
+      SELECT value->>'id', 'attendee', value->>'name', value->>'lastSeen'
+      FROM json_each(?) WHERE ${fixture}
+    `).bind(JSON.stringify(others), first.id),
+    db.prepare(`
+      INSERT INTO meetup15_discussion (kind, author_id, section, body, tags, created_at)
+      SELECT 'post', value->>'author', value->>'section', value->>'body', '["彩排"]', value->>'createdAt'
+      FROM json_each(?) WHERE ${fixture}
+    `).bind(JSON.stringify(posts), first.id),
+    db.prepare(`
+      INSERT INTO meetup15_discussion (kind, author_id, section, body, post_id, created_at)
+      SELECT 'reply', value->>'author', p.section, value->>'body', p.id, value->>'createdAt'
+      FROM json_each(?) JOIN meetup15_discussion p ON p.author_id = value->>'target' AND p.kind = 'post'
+      WHERE ${fixture}
+    `).bind(JSON.stringify(replies), first.id),
     db.prepare(`
       INSERT INTO meetup15_qa_rounds (guest_id, section, opened_at)
-      SELECT (${guests}), 'expert', ? WHERE ${fixture}
-    `).bind(timestamp, first.id),
-    ...questions.map((body, i) => db.prepare(`
-      INSERT INTO meetup15_discussion (kind, author_id, section, body, round_id, answered)
-      SELECT 'question', ?, 'expert', ?, ${openRound}, ? WHERE ${fixture}
-    `).bind(i === 0 ? first.id : others[i - 1].id, body, Number(i >= 4), first.id)),
+      SELECT id, 'expert', ? FROM meetup15_members WHERE role = 'guest' AND ${fixture}
+      ORDER BY created_at, rowid LIMIT 1
+    `).bind(timestamp - 300, first.id),
+    db.prepare(`
+      INSERT INTO meetup15_discussion (kind, author_id, section, body, round_id, answered, created_at)
+      SELECT 'question', value->>'author', 'expert', value->>'body', r.id, value->>'answered', value->>'createdAt'
+      FROM json_each(?) CROSS JOIN meetup15_qa_rounds r WHERE r.closed_at IS NULL AND ${fixture}
+    `).bind(JSON.stringify(questions), first.id),
     db.prepare(`
       INSERT INTO meetup15_discussion_likes (item_id, member_id)
-      SELECT q.id, m.id FROM meetup15_discussion q CROSS JOIN meetup15_members m
-      WHERE q.kind = 'question' AND q.author_id = ? AND m.id IN (?, ?) AND ${fixture}
-    `).bind(first.id, others[0].id, others[1].id, first.id),
+      SELECT d.id, value->>'member' FROM json_each(?)
+      JOIN meetup15_discussion d ON d.author_id = value->>'target' AND d.kind = value->>'kind'
+      WHERE d.author_id <> value->>'member' AND ${fixture}
+    `).bind(JSON.stringify(likes), first.id),
     db.prepare(`
       INSERT INTO meetup15_raffles (candidates, ready_at, finished_at, winner_id, winner_name, weighted, require_participation)
       SELECT ?, ?, ?, ?, ?, 1, 0 WHERE ${fixture}
-    `).bind(JSON.stringify([first, ...others].map(({ id, name }, i) => ({ id, name, weight: [3, 2, 2, 2, 2, 1][i] }))),
-      now, now, first.id, first.name, first.id),
+    `).bind(JSON.stringify(candidates), now, now, first.id, first.name, first.id),
     db.prepare(`
       INSERT INTO meetup15_dm_threads (member_a)
       SELECT ? WHERE ${fixture}
     `).bind(first.id, first.id),
     db.prepare(`
       INSERT INTO meetup15_dm_messages (thread_id, raffle_id, body)
-      SELECT t.id, r.id, '恭喜你获得彩排抽奖奖品。'
+      SELECT t.id, r.id, '恭喜你中奖！这是彩排抽奖通知。'
       FROM meetup15_dm_threads t JOIN meetup15_raffles r ON r.winner_id = t.member_a
       WHERE t.member_a = ? AND t.member_b IS NULL
     `).bind(first.id),

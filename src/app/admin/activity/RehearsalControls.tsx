@@ -40,9 +40,9 @@ export async function RehearsalControls({ status }: { status?: string }) {
           <input type="hidden" name="revision" value={state?.revision} />
           <h2 className="font-semibold">填入预设</h2>
           <p className="text-sm text-zinc-700">
-            加入 6 位模拟观众、5 篇帖子、2 条回复、1 轮专家分享问答和 1 轮历史抽奖。使用最早配置的嘉宾开启问答。
+            加入 200 位模拟观众、70 篇帖子、140 条回复、40 条问答及 260 次点赞。覆盖全部讨论板块，含一轮历史抽奖和中奖私信。
           </p>
-          <p className="text-sm text-zinc-700">互动数据为空且已配置嘉宾时可填充。填充后观众入口关闭，大屏隐藏。</p>
+          <p className="text-sm text-zinc-700">互动数据为空且已配置嘉宾时可填充。用最早配置的嘉宾开启专家分享问答，观众入口关闭、大屏隐藏。</p>
           <button disabled={!canFill} className="min-h-11 rounded-md bg-dams-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             填入彩排预设
           </button>

@@ -3,7 +3,7 @@ import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
-import { REHEARSAL_END } from '../src/lib/meetup15/event'
+import { MEETUP_SECTIONS, REHEARSAL_END } from '../src/lib/meetup15/event'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
 
 it('clears rehearsal data atomically, preserves guests and the recap, and only fills an empty rehearsal once', async () => {
@@ -97,8 +97,11 @@ it('clears rehearsal data atomically, preserves guests and the recap, and only f
     const seeded = await Promise.all([request('fill', 1), request('fill', 1)])
     expect(seeded.map(status).sort()).toEqual(['blocked', 'filled'])
     expect(await counts()).toEqual({
-      attendees: 6, posts: 5, replies: 2, questions: 6, answered: 2, likes: 2, open_rounds: 1, raffles: 1, messages: 1,
+      attendees: 200, posts: 70, replies: 140, questions: 40, answered: 8, likes: 260, open_rounds: 1, raffles: 1, messages: 1,
     })
+    const boards = await db.prepare("SELECT DISTINCT section FROM meetup15_discussion WHERE kind = 'post'").all<{section: string}>()
+    expect(boards.results.map(row => row.section).sort()).toEqual(Object.keys(MEETUP_SECTIONS).sort())
+    expect(await db.prepare('SELECT json_array_length(candidates) AS size FROM meetup15_raffles').first('size')).toBe(200)
     expect(await state()).toMatchObject({ admission_open: 0, revision: 2, section_override: 'expert', projection_mode: 'hidden', projection_round_id: null })
     expect(status(await request('clear', 1))).toBe('changed')
     expect(status(await request('clear', 2))).toBe('cleared')

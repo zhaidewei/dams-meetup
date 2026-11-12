@@ -67,6 +67,14 @@ const observer = {
       `).first('fixtureCount')
       return Response.json({ fresh: count === 0 })
     }
+    if (pathname === '/__m6_rehearsal_members') {
+      const { results } = await env.ACTIVITY_DB.prepare(`
+        SELECT id FROM meetup15_members
+        WHERE role = 'attendee' AND display_name GLOB '彩排观众 · [0-9][0-9][0-9]'
+        ORDER BY display_name
+      `).all()
+      return Response.json(results.map(row => row.id), { headers: { 'Cache-Control': 'no-store' } })
+    }
     if (pathname === '/__m6_d1_stats') return Response.json({
       ...totals,
       discussionDurableObject: await env.ACTIVITY_UPDATES.getByName('meetup-15-discussion').benchmarkD1Stats(),
