@@ -1,10 +1,10 @@
-import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS } from '../src/lib/meetup15/discussion'
+import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS, type DiscussionItem } from '../src/lib/meetup15/discussion'
 import { isMeetupAgendaSection, isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
 
 type Input = Record<string, unknown>
-type Result = { changed: boolean } | { error: string; status: number }
+type Result = { changed: boolean; question?: DiscussionItem } | { error: string; status: number }
 
 const invalid = { error: '请检查输入后重试。', status: 400 }
 const unavailable = { error: '内容已变更，请刷新后重试。', status: 409 }
@@ -90,12 +90,19 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
       return write(db.prepare(`UPDATE meetup15_discussion SET body = ?,
         tags = CASE WHEN kind = 'post' THEN ? ELSE tags END
         WHERE id = ? AND author_id = ? AND kind IN ('post', 'reply')`).bind(body, tags, id, member.id))
-    case 'question':
+    case 'question': {
       if (!validId(input.roundId) || !isMeetupSection(input.section)) return invalid
-      return write(db.prepare(`
+      const row = await db.prepare(`
         INSERT INTO meetup15_discussion (kind, author_id, section, body, round_id)
         SELECT 'question', ?, section, ?, id FROM meetup15_qa_rounds
-        WHERE id = ? AND section = ? AND closed_at IS NULL`).bind(member.id, body, input.roundId, input.section))
+        WHERE id = ? AND section = ? AND closed_at IS NULL
+        RETURNING id, created_at AS createdAt`).bind(member.id, body, input.roundId, input.section)
+        .first<{ id: number; createdAt: number }>()
+      return row ? { changed: true, question: {
+        ...row, kind: 'question', author: member.display_name, authorId: member.id, authorRole: member.role,
+        body, tags: [], postId: null, parentId: null, answered: false, likes: 0, mine: true, liked: false,
+      } } : unavailable
+    }
     default:
       return invalid
   }

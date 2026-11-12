@@ -1,11 +1,13 @@
+import { FEED_VERSIONS_HEADER } from '../src/lib/meetup15/discussion'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
-import { getMember, MEMBER_COOKIE, requestCookie } from '../src/lib/meetup15/identity'
+import { getMember, MEMBER_COOKIE, memberSessionId, requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
 import { readFeed, readDiscussionAdmin, readModerationPosts, readReplies } from './discussion-read'
 import { deleteStaffPost, writeMember, writeStaff } from './discussion-write'
 
 const headers = { 'Cache-Control': 'private, no-store' }
+const denied = () => Response.json({ error: '请重新登录后继续。' }, { status: 401, headers })
 
 export async function handleDiscussion(request: Request, env: ActivityEnv, clock = Date.now, execution?: ExecutionContext) {
   const url = new URL(request.url)
@@ -29,10 +31,20 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
     : path === '/api/discussion/admin/posts' ? 'moderation'
     : path === '/api/discussion' ? 'feed' : path === '/api/discussion/replies' ? 'replies' : null
   if (!view) return new Response(null, { status: 404, headers })
+  const cookie = requestCookie(request, MEMBER_COOKIE)
+  if (view === 'feed' && request.method === 'GET') {
+    const viewer = memberSessionId(env, cookie, now)
+    if (!viewer) return denied()
+    const feed = await readFeed(db, viewer, url, now, request.headers.get(FEED_VERSIONS_HEADER), execution)
+    if (!feed) return denied()
+    const timing = Object.entries(feed.cache).flatMap(([name, status]) => status ? [`${name};desc="${status}"`] : [])
+    return Response.json(feed.data, { headers: { ...headers, 'Server-Timing': timing.join(', ') } })
+  }
+
   const staffView = view === 'admin' || view === 'moderation'
-  const member = staffView ? null : await getMember(env, requestCookie(request, MEMBER_COOKIE), now)
+  const member = staffView ? null : await getMember(env, cookie, now)
   if (staffView ? !admin : !member) {
-    return Response.json({ error: '请重新登录后继续。' }, { status: 401, headers })
+    return denied()
   }
 
   if (view === 'replies' && member) {
@@ -51,7 +63,6 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
 
   if (request.method === 'GET') {
     const snapshot = view === 'moderation' ? await readModerationPosts(db, url, now)
-      : member ? await readFeed(db, member, url, now, execution)
       : await readDiscussionAdmin(db, now)
     return Response.json(snapshot, { headers })
   }
@@ -70,11 +81,13 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   if ('error' in result) return Response.json({ error: result.error }, { status: result.status, headers })
 
   if (result.changed) {
-    try {
-      await updates().queueDiscussionUpdate()
-    } catch (error) {
-      console.error('Discussion update notification failed', error)
-    }
+    const notify = Promise.resolve().then(() => updates().queueDiscussionUpdate())
+      .catch(error => console.error('Discussion update notification failed', error))
+    if (execution) execution.waitUntil(notify)
+    else await notify
+  }
+  if (result.question && request.headers.has(FEED_VERSIONS_HEADER)) {
+    return Response.json({ roundId: input.roundId, question: result.question }, { headers })
   }
   return new Response(null, { status: 204, headers })
 }

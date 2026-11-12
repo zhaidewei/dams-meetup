@@ -32,6 +32,11 @@ export type DiscussionItem = {
   createdAt: number
 }
 
+export function compareQuestions(a: Omit<DiscussionItem, 'mine' | 'liked'>, b: Omit<DiscussionItem, 'mine' | 'liked'>) {
+  return Number(a.answered) - Number(b.answered) || b.likes - a.likes ||
+    a.createdAt - b.createdAt || a.id - b.id
+}
+
 export type QuestionRound = {
   id: number
   guest: string
@@ -56,6 +61,13 @@ export type FeedSnapshot = DiscussionContext & {
   items: DiscussionItem[]
   nextBefore: number | null
 }
+
+export const FEED_VERSIONS_HEADER = 'X-Discussion-Versions'
+export type FeedVersions = { questions: string; posts: string }
+export type VersionedFeed = FeedSnapshot & { versions: FeedVersions }
+export type QuestionDelta = { upsert: DiscussionItem[]; remove: number[] }
+export type FeedUpdate = { questionDelta?: QuestionDelta } & Omit<VersionedFeed, 'items' | 'questions' | 'nextBefore'> &
+  Partial<Pick<VersionedFeed, 'items' | 'questions' | 'nextBefore'>>
 
 export type ReplyPage = { items: DiscussionItem[]; nextAfter: number | null; refreshAt: null }
 

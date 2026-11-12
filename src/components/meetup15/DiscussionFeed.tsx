@@ -3,12 +3,12 @@
 import Link from 'next/link'
 import { Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type MemberCommand, type ReplyPage } from '@/lib/meetup15/discussion'
+import { compareQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type ReplyPage } from '@/lib/meetup15/discussion'
 import { isBreakoutGroup, MEETUP_AGENDA_SECTIONS, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
 import { DiscussionReactions } from './DiscussionReactions'
-import { useDiscussion } from './useDiscussion'
+import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
 const tabButton = 'min-h-11 min-w-0 wrap-anywhere rounded-lg border border-dams-line bg-white px-2 py-1 text-sm leading-tight font-medium text-slate-700 hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:min-h-12 md:shrink-0 md:rounded-none md:border-0 md:border-b-2 md:border-transparent md:bg-transparent md:px-3 md:aria-pressed:border-dams-blue md:aria-pressed:bg-transparent'
@@ -171,6 +171,36 @@ function ReplyList({ postId, parentId, snapshot, render }: {
   )
 }
 
+type FeedView = FeedSnapshot & { versions?: FeedVersions; confirmedBase?: DiscussionItem[] }
+
+const feedTransport: DiscussionTransport<FeedView> = {
+  headers(snapshot) {
+    const versions = snapshot?.versions
+    return { [FEED_VERSIONS_HEADER]: versions ? `${versions.questions},${versions.posts}` : ',' }
+  },
+  async read(response, snapshot) {
+    const { questionDelta, ...data } = await response.json<FeedUpdate>()
+    const items = data.items ?? snapshot?.items
+    let questions = data.questions ?? snapshot?.confirmedBase ?? snapshot?.questions
+    if (questionDelta && questions) {
+      const merged = new Map(questions.map(question => [question.id, question]))
+      for (const id of questionDelta.remove) merged.delete(id)
+      for (const question of questionDelta.upsert) merged.set(question.id, question)
+      questions = [...merged.values()].sort(compareQuestions)
+    }
+    if (!items || !questions) throw new Error('Missing discussion snapshot')
+    return { ...data, items, questions, nextBefore: data.items ? data.nextBefore ?? null : snapshot?.nextBefore ?? null }
+  },
+  async applyWrite(response, snapshot) {
+    if (response.status !== 200) return null
+    const { roundId, question } = await response.json<{ roundId: number; question: DiscussionItem }>()
+    if (snapshot.viewedRound?.id !== roundId || snapshot.viewedRound.closedAt !== null) return null
+    if (snapshot.questions.some(item => item.id === question.id)) return snapshot
+    return { ...snapshot, confirmedBase: snapshot.confirmedBase ?? snapshot.questions,
+      questions: [...snapshot.questions, question].sort(compareQuestions) }
+  },
+}
+
 export function DiscussionFeed() {
   const [selected, setSelected] = useState<MeetupSection | null>(null)
   const [round, setRound] = useState<number | null>(null)
@@ -180,7 +210,7 @@ export function DiscussionFeed() {
   if (selected) params.set('section', selected)
   if (round) params.set('round', String(round))
   if (before) params.set('before', String(before))
-  const { data, error, pending, submit, retry, unauthorized } = useDiscussion<FeedSnapshot>(`/api/discussion?${params}`)
+  const { data, error, pending, submit, retry, unauthorized } = useDiscussion<FeedView>(`/api/discussion?${params}`, 'discussion', feedTransport)
   const named = Boolean(data?.nickname)
 
   function choose(section: MeetupSection | null) {

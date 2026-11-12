@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
-import type { FeedSnapshot, ReplyPage, StaffSnapshot } from '../src/lib/meetup15/discussion'
+import { FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
 import { MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
@@ -238,12 +238,47 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     })).status).toBe(409)
     const question = '问'.repeat(99) + '？'
     expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: question + '。' })).status).toBe(400)
-    await ok(alice, { action: 'question', section: 'expert', roundId: first.id, body: question })
+    const conditionalFeed = async (cookie: string, versions = ',') => {
+      const response = await runtime.dispatchFetch(path + '?section=expert', {
+        headers: { Cookie: cookie, [FEED_VERSIONS_HEADER]: versions },
+      })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+      return await response.json() as FeedUpdate
+    }
+    const feedToken = ({ versions }: FeedUpdate) => versions.questions + ',' + versions.posts
+    const beforeQuestion = await conditionalFeed(alice)
+    expect(beforeQuestion.questions).toEqual([])
+    expect((await conditionalFeed(alice, feedToken(beforeQuestion))).items).toBeUndefined()
+    const confirmed = await runtime.dispatchFetch(path, {
+      method: 'POST', headers: { Cookie: alice, Origin: origin, 'Content-Type': 'application/json', [FEED_VERSIONS_HEADER]: ',' },
+      body: JSON.stringify({ action: 'question', section: 'expert', roundId: first.id, body: question }),
+    })
+    expect(confirmed.status).toBe(200)
+    expect(await confirmed.json()).toMatchObject({ roundId: first.id, question: { mine: true, body: question } })
+    const questionUpdate = await conditionalFeed(alice, feedToken(beforeQuestion))
+    expect(questionUpdate.questions).toMatchObject([{ body: question, mine: true }])
+    expect(questionUpdate.items).toBeUndefined()
+    expect((await conditionalFeed(bob, feedToken(questionUpdate))).questions).toMatchObject([{ body: question, mine: false }])
+    await ok(alice, { action: 'post', section: 'expert', body: '验证帖子版本' })
+    const postUpdate = await conditionalFeed(alice, feedToken(questionUpdate))
+    expect(postUpdate.questions).toBeUndefined()
+    expect(postUpdate.items?.[0]).toMatchObject({ body: '验证帖子版本', mine: true })
+    await ok(alice, { action: 'delete', id: postUpdate.items![0].id })
     await ok(bob, { action: 'question', section: 'expert', roundId: first.id, body: '后问的问题' })
     const [older, newer] = (await activeQa()).questions
     expect([older.body, newer.body]).toEqual([question, '后问的问题'])
+    const beforeLike = await conditionalFeed(alice)
     await ok(alice, { action: 'like', id: newer.id, liked: true })
     expect((await activeQa()).questions[0].id).toBe(newer.id)
+    const likedDelta = await conditionalFeed(alice, feedToken(beforeLike))
+    expect(likedDelta.questions).toBeUndefined()
+    expect(likedDelta.questionDelta).toMatchObject({
+      upsert: [{ id: newer.id, likes: 1, liked: true }], remove: [],
+    })
+    const differentViewer = await conditionalFeed(bob, feedToken(beforeLike))
+    expect(differentViewer.questionDelta).toBeUndefined()
+    expect(differentViewer.questions?.[0]).toMatchObject({ id: newer.id, likes: 1, liked: false, mine: true })
     const [aliceQuestions, bobQuestions] = await Promise.all([
       feed(alice, '?section=expert'), feed(bob, '?section=expert'),
     ])
