@@ -22,7 +22,7 @@ const worker = {
         pathname === '/api/activity/session' || pathname === '/api/activity/stats') {
       return handleActivityRequest(request, env, clock())
     }
-    if (pathname === '/api/admin/meetup-rehearsal') return handleMeetupRehearsal(request, env, clock())
+    if (pathname === '/api/admin/meetup-rehearsal') return handleMeetupRehearsal(request, env, clock)
     if (pathname === '/api/admin/meetup-summary') return handleMeetupSummary(request, env, clock())
     if (pathname.startsWith('/api/meetup/')) return handleMeetupAccess(request, env, clock)
     if (pathname === '/api/raffle') return handleRaffle(request, env, clock)

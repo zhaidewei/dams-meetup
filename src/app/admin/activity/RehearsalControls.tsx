@@ -7,7 +7,7 @@ const feedback: Record<string, { message: string; success?: boolean }> = {
   filled: { message: '预设已填入。问答在「专家分享」板块，观众入口已关闭。', success: true },
   closed: { message: '彩排数据操作已关闭。' },
   invalid: { message: '请求无效，请刷新后重试。' },
-  changed: { message: '活动状态已变化，请核对当前数据后重试。' },
+  changed: { message: '入场设置或彩排状态已变化，请核对后重试。' },
   blocked: { message: '请核对活动状态。填充需要至少一位嘉宾，且本届互动数据为空。' },
 }
 
@@ -27,7 +27,7 @@ export async function RehearsalControls({ status }: { status?: string }) {
     <section className="max-w-3xl space-y-5">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">管理彩排</h1>
-        <p className="text-sm text-zinc-700">11 月 14 日 00:00（荷兰时间）起停用这两个操作，保护正式活动数据。</p>
+        <p className="text-sm text-zinc-700">请在 11 月 14 日 00:00（荷兰时间）前清空彩排数据。到时停用这两个操作，保护正式活动数据。</p>
         {counts && <p className="text-sm text-zinc-700">
           当前数据 · {counts.attendees} 位观众 · {counts.guests} 位嘉宾 · {counts.posts} 篇帖子 · {counts.questions} 条问题
         </p>}
@@ -52,7 +52,7 @@ export async function RehearsalControls({ status }: { status?: string }) {
           <input type="hidden" name="revision" value={state?.revision} />
           <h2 className="font-semibold">清空彩排</h2>
           <p className="text-sm text-zinc-700">
-            删除本届所有观众账号、帖子、回复、问答、私信和抽奖记录，保留嘉宾资料及登录凭据。
+            删除本届所有观众账号、帖子、回复、问答、私信、抽奖及旧投票记录，保留嘉宾资料及登录凭据。
           </p>
           <p className="text-sm text-zinc-700">清空后观众入口关闭、议程恢复自动、大屏隐藏。此操作无法撤销。</p>
           <button disabled={disabled} className="min-h-11 rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">

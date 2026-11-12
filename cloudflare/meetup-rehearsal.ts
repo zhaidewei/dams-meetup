@@ -99,15 +99,15 @@ function result(status: string) {
   })
 }
 
-export async function handleMeetupRehearsal(request: Request, env: ActivityEnv, now = Date.now()) {
+export async function handleMeetupRehearsal(request: Request, env: ActivityEnv, clock = Date.now) {
   if (verifySessionCookie(ACTIVITY_ADMIN_COOKIE, requestCookie(request, ACTIVITY_ADMIN_COOKIE), env.SESSION_SECRET) !== '1') {
     return new Response(null, { status: 401, headers })
   }
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { ...headers, Allow: 'POST' } })
   if (request.headers.get('Origin') !== new URL(request.url).origin) return new Response(null, { status: 403, headers })
-  if (now >= REHEARSAL_END) return result('closed')
-
   const form = await request.formData().catch(() => null)
+  const now = clock()
+  if (now >= REHEARSAL_END) return result('closed')
   const action = form?.get('action')
   const value = form?.get('revision')
   const revision = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN

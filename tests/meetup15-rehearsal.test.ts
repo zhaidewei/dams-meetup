@@ -20,7 +20,7 @@ it('clears rehearsal data atomically, preserves guests and the recap, and only f
           const url = new URL(request.url)
           if (url.pathname === '/api/discussion/updates') return handleDiscussion(request, env, () => ${REHEARSAL_END} - 1)
           const closed = url.searchParams.has('closed')
-          return handleMeetupRehearsal(request, env, ${REHEARSAL_END} - Number(!closed))
+          return handleMeetupRehearsal(request, env, () => ${REHEARSAL_END} - Number(!closed))
         } }
       `,
       resolveDir: process.cwd(),
