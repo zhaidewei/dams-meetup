@@ -98,7 +98,7 @@ async function waitConnected(views) {
   assert.ok(views.every(view => view.connected()), 'Browser WebSockets did not connect')
 }
 
-export async function runFieldQa({ browser, base, admin, members, online, onResponse, readRound, answer, like, refresh }) {
+export async function runFieldQa({ browser, base, admin, members, online, onResponse, readRound, answer, like, refresh, samples, displayFailures }) {
   const mobileViewport = { width: 390, height: 844 }
   const phones = await Promise.all(members.map((cookie, i) => openPage(browser, base, cookie, '/feed', mobileViewport, onResponse, refresh && i === 3)))
   const screen = await openPage(browser, base, admin, '/screen', { width: 1024, height: 768 }, onResponse)
@@ -113,7 +113,6 @@ export async function runFieldQa({ browser, base, admin, members, online, onResp
       ...observedPhones.map(({ page }) => watchDisplay(page, questionRows, refresh)),
       watchDisplay(screen.page, 'article[aria-label="当前最高票问题"] > p', refresh),
     ])
-    const samples = []
     for (let i = 0; i < FIELD_QUESTIONS; i++) {
       if (refresh) await waitConnected([phones[3]])
       assert.equal(online() + phones.filter(phone => phone.connected()).length, 200, 'Expected 200 online attendees')
@@ -136,20 +135,34 @@ export async function runFieldQa({ browser, base, admin, members, online, onResp
       })
       const response = await ack
       assert.ok(response.ok(), 'Question submission failed')
-      const views = refresh ? [author, screen.page] : [author, screen.page, observer]
-      const [own, projection, other] = await Promise.all(views.map(async page => {
-        await page.waitForFunction(label => window.m6FieldSeen[label] !== undefined, label, { timeout: 8000 })
-        return await page.evaluate(label => window.m6FieldSeen[label], label) - started
+      const views = [['own', author], ['projection', screen.page]]
+      if (!refresh) views.push(['other', observer])
+      const sample = { label }
+      const shown = await Promise.allSettled(views.map(async ([surface, page]) => {
+        try {
+          await page.waitForFunction(label => window.m6FieldSeen[label] !== undefined, label, { timeout: 8000 })
+          sample[surface] = await page.evaluate(label => window.m6FieldSeen[label], label) - started
+        } catch (error) {
+          displayFailures.push({ label, surface, error: error.message })
+          throw error
+        }
       }))
-      const refreshTimes = refresh ? await refreshPhone(observer, label) : undefined
-      samples.push({ label, own, other, projection, ...refreshTimes })
+      samples.push(sample)
+      if (shown.some(result => result.status === 'rejected')) throw new Error('Field question did not appear on every display')
+      if (refresh) {
+        try {
+          Object.assign(sample, await refreshPhone(observer, label))
+        } catch (error) {
+          displayFailures.push({ label, surface: 'refresh', error: error.message })
+          throw error
+        }
+      }
       const question = (await readRound()).questions.find(question => question.body === label)
       assert.ok(question, 'Question missing from the round')
       if (i % 3 === 2) await like(question.id, Math.floor(i / 3))
       await answer(question.id)
       await delay(1000 + (i * 431) % 500)
     }
-    return samples
   } finally {
     await Promise.all([...phones, screen].map(view => view.context.close()))
   }
