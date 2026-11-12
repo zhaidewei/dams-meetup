@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Heart, MessageCircle } from 'lucide-react'
+import { ChevronDown, Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
 import { isBreakoutGroup, MEETUP_AGENDA_SECTIONS, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
@@ -11,7 +11,7 @@ import { DiscussionReactions } from './DiscussionReactions'
 import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
-const tabButton = 'min-h-11 min-w-0 wrap-anywhere rounded-lg border border-dams-line bg-white px-2 py-1 text-sm leading-tight font-medium text-slate-700 hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:min-h-12 md:shrink-0 md:rounded-none md:border-0 md:border-b-2 md:border-transparent md:bg-transparent md:px-3 md:aria-pressed:border-dams-blue md:aria-pressed:bg-transparent'
+const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm font-medium text-slate-700 hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:font-semibold aria-pressed:text-dams-hover'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
 
@@ -257,8 +257,30 @@ export function DiscussionFeed() {
   const active = data?.activeRound
   const section = selected ?? data?.section
   const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
+  const mobileNavigation = (
+    <nav key="mobile-discussion-sections" aria-label="讨论板块" className="border-b border-dams-line px-4 pb-3 md:hidden">
+      <div className="relative">
+        <label htmlFor="mobile-discussion-section" className="sr-only">切换讨论板块</label>
+        <select id="mobile-discussion-section"
+          className={`${discussionInput} appearance-none border-dams-line pr-10 font-medium text-slate-900`}
+          value={selected ?? ''} onChange={(event) => choose((event.currentTarget.value || null) as MeetupSection | null)}>
+          <option value="">跟随现场{data && ` · ${MEETUP_SECTIONS[data.currentSection]}`}</option>
+          {Object.entries(MEETUP_AGENDA_SECTIONS).filter(([key]) => key !== 'breakout').map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+          <optgroup label="分组交流">
+            <option value="breakout">分组交流 · 公共交流</option>
+            {Object.entries(MEETUP_BREAKOUT_GROUPS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </optgroup>
+        </select>
+        <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-slate-500" />
+      </div>
+    </nav>
+  )
   const navigation = (
-    <nav key="discussion-sections" aria-label="讨论板块" className="grid grid-cols-3 gap-2 border-b border-dams-line px-4 py-2 md:flex md:gap-0 md:overflow-x-auto md:px-2 md:py-0">
+    <nav key="discussion-sections" aria-label="讨论板块" className="hidden overflow-x-auto border-b border-dams-line px-2 md:flex">
       <button className={tabButton} aria-pressed={selected === null}
         onClick={() => choose(null)}>跟随现场</button>
       {Object.entries(MEETUP_AGENDA_SECTIONS).map(([key, label]) => (
@@ -273,7 +295,7 @@ export function DiscussionFeed() {
     </nav>
   )
   const breakoutNavigation = inBreakout && (
-    <div key="breakout-groups" className="flex flex-col gap-1 border-b border-dams-line bg-dams-wash px-4 py-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3 sm:px-6">
+    <div key="breakout-groups" className="hidden items-center gap-3 border-b border-dams-line bg-dams-wash px-6 py-2 md:flex">
       <label htmlFor="breakout-group" className="shrink-0 text-sm font-semibold">交流分组</label>
       <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={section}
         onChange={(event) => choose(event.currentTarget.value as MeetupSection)}>
@@ -294,6 +316,7 @@ export function DiscussionFeed() {
   )
   if (!data) return (
     <div>
+      {mobileNavigation}
       {navigation}
       {breakoutNavigation}
       <div className="px-4 py-5 sm:px-6">
@@ -318,23 +341,25 @@ export function DiscussionFeed() {
             onClick={() => choose(active.section)}>前往提问</button>
         </aside>
       )}
+      {mobileNavigation}
       {navigation}
       {breakoutNavigation}
       <div className="space-y-4 border-b border-dams-line px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">{MEETUP_SECTIONS[data.section]}</h2>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="contents flex-wrap items-center justify-between gap-2 md:flex">
+          <h2 className="sr-only text-sm font-semibold md:not-sr-only">{MEETUP_SECTIONS[data.section]}</h2>
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             <p className="rounded-full bg-dams-wash px-3 py-1 text-xs text-dams-hover">现场 · {MEETUP_SECTIONS[data.currentSection]}</p>
             <a href="#feed-compose" className="inline-flex min-h-11 items-center rounded-full border border-dams-selection bg-white px-3 text-sm font-semibold text-dams-hover hover:bg-dams-wash">发帖</a>
           </div>
         </div>
         {feedback}
         {!named && (
-          <form id="feed-compose" className="scroll-mt-4 space-y-2 rounded-xl border border-dams-line p-3" onSubmit={setNickname}>
-            <label className="block text-sm">填写昵称后可以发帖、回复和提问
-              <input name="nickname" className={discussionInput} maxLength={48} required />
-            </label>
-            <button className={discussionButton} disabled={pending}>保存昵称</button>
+          <form id="feed-compose" className="scroll-mt-4 space-y-2 rounded-xl border border-dams-line bg-white p-3" onSubmit={setNickname}>
+            <label htmlFor="feed-nickname" className="block text-sm text-slate-600">填个昵称，就能发帖、回复和提问</label>
+            <div className="flex gap-2">
+              <input id="feed-nickname" name="nickname" className={discussionInput} placeholder="昵称" autoComplete="nickname" maxLength={48} required />
+              <button className={`${discussionButton} shrink-0 border-dams-line text-dams-hover`} disabled={pending}>保存昵称</button>
+            </div>
           </form>
         )}
         {data.rounds.some((entry) => entry.section === data.section) && (

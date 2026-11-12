@@ -46,7 +46,7 @@ export default async function FeedPage() {
           <h1 className="text-xl font-bold tracking-tight">讨论区</h1>
           <p className="text-xs text-slate-600">荷兰华人数据社群 · 第 15 期 Meetup</p>
         </div>
-        <a href="#feed-compose" className="rounded-full bg-dams-blue px-4 py-2 text-sm font-semibold text-white md:hidden">发帖</a>
+        <a href="#feed-compose" className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-dams-blue px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue md:hidden">发帖</a>
         {member.role === 'guest' && <GuestVipBadge />}
       </header>
       <DiscussionFeed />
