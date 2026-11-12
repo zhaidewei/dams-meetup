@@ -6,6 +6,7 @@ import {
   matchesRecoveryToken, MEMBER_COOKIE, requestCookie,
 } from '../src/lib/meetup15/identity'
 import type { ActivityEnv } from './activity'
+import { notifyDiscussion } from './discussion-notifications'
 
 const noStore = { 'Cache-Control': 'private, no-store' }
 
@@ -55,7 +56,9 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
       WHERE username = ? AND role = 'guest'
         AND NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
     `).bind(displayName, title || null, hash, username).run()
-    return redirect(saved.meta.changes ? '/admin/activity?guest=saved' : invalid)
+    if (!saved.meta.changes) return redirect(invalid)
+    await notifyDiscussion(env)
+    return redirect('/admin/activity?guest=saved')
   }
   const salt = randomBytes(16).toString('hex')
   const saved = await env.ACTIVITY_DB.prepare(
@@ -66,7 +69,10 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
        display_name = excluded.display_name, title = excluded.title, password_hash = excluded.password_hash
      WHERE ?`,
   ).bind(randomUUID(), displayName, title || null, username, `${salt}:${guestHash(password, salt)}`, Number(!creating)).run()
-  if (saved.meta.changes) return redirect('/admin/activity?guest=saved')
+  if (saved.meta.changes) {
+    await notifyDiscussion(env)
+    return redirect('/admin/activity?guest=saved')
+  }
   if (creating && await env.ACTIVITY_DB.prepare(
     'SELECT 1 FROM meetup15_members WHERE username = ?',
   ).bind(username).first()) return redirect('/admin/activity?guest=duplicate')

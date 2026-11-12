@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { MemberCommand, QaPush, StaffCommand } from '@/lib/meetup15/discussion'
+import { FEED_TIME_HEADER, type MemberCommand, type QaPush, type StaffCommand } from '@/lib/meetup15/discussion'
 
 export type DiscussionTransport<T> = {
   skipPollingWhenConnected?: boolean
@@ -63,13 +63,15 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
           return
         }
         if (!response.ok) throw new Error('Discussion read failed')
+        const serverTime = Number(response.headers.get(FEED_TIME_HEADER))
         const data = transport?.read ? await transport.read(response, snapshot) : await response.json<T>()
         if (controller.signal.aborted || generation !== writeGeneration) return
         snapshot = data
         needsSnapshot = false
         setView({ url, data, error: '' })
         clearTimeout(boundary)
-        const delay = data.refreshAt === null ? 0 : data.refreshAt - Date.now()
+        const clock = Number.isSafeInteger(serverTime) && serverTime > 0 ? serverTime : Date.now()
+        const delay = data.refreshAt === null ? 0 : data.refreshAt - clock
         if (delay > 0) boundary = setTimeout(schedule, delay)
         else if (skipPollingWhenConnected && data.refreshAt !== null && data.refreshAt !== retriedBoundary) {
           // A read started just before the agenda changed can finish after the boundary.

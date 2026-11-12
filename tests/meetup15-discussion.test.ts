@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
-import { FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type QaPush, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
+import { FEED_TIME_HEADER, FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type QaPush, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
 import { INTERACTION_END, MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
@@ -114,7 +114,9 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(alice, { action: 'post' }, '', 'https://another.example')).status).toBe(403)
     expect((await feed(alice)).section).toBe('lightning')
     await ok(admin, { action: 'section', section: 'expert' }, '/admin')
-    expect(await feed(alice)).toMatchObject({ section: 'expert', refreshAt: INTERACTION_END })
+    const feedResponse = await read(alice)
+    expect(feedResponse.headers.get(FEED_TIME_HEADER)).toBe(String(now))
+    expect(await feedResponse.json()).toMatchObject({ section: 'expert', refreshAt: INTERACTION_END })
     expect((await feed(alice, '?section=lounge')).section).toBe('lounge')
 
     await ok(admin, { action: 'section', section: 'breakout' }, '/admin')
