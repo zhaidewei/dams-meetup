@@ -1,6 +1,29 @@
 const sort = (a, b) => Number(a.answered) - Number(b.answered) || b.likes - a.likes ||
   a.createdAt - b.createdAt || a.id - b.id
 
+// undefined means the frame is irrelevant. null means an HTTP snapshot is needed.
+export function applyQaMessage(snapshot, message) {
+  if (message === 'activity.updated') return null
+  if (!message.startsWith('{')) return
+  let change
+  try {
+    change = JSON.parse(message)
+  } catch {
+    return null
+  }
+  if (change?.type !== 'qa.updated') return
+  if (!snapshot) return null
+  if (change.section !== snapshot.section || snapshot.viewedRound?.closedAt != null) return
+  if (change.roundId !== snapshot.viewedRound?.id) return null
+  if (change.revision <= snapshot.qaRevision) return
+  if (change.baseRevision !== null && change.baseRevision !== snapshot.qaRevision) return null
+  const questions = new Map((change.baseRevision === null ? [] : snapshot.questions).map(question => [question.id, question]))
+  for (const id of change.remove) questions.delete(id)
+  for (const question of change.upsert) questions.set(question.id, question)
+  return { ...snapshot, qaRevision: change.revision, questions: [...questions.values()].sort(sort),
+    versions: snapshot.versions ? { ...snapshot.versions, questions: '' } : undefined }
+}
+
 export function watchLiveQa(members, labels, snapshots, load) {
   const started = performance.now()
   const expected = new Set(labels)
@@ -56,27 +79,10 @@ export function watchLiveQa(members, labels, snapshots, load) {
 
   function receive(cookie, message) {
     if (!pending.has(cookie)) return
-    if (message === 'activity.updated') return schedule(cookie)
-    if (!message.startsWith('{')) return
-    let change
-    try {
-      change = JSON.parse(message)
-    } catch {
-      return schedule(cookie)
-    }
-    const snapshot = snapshots.get(cookie)
-    if (change?.type !== 'qa.updated') return
-    if (!snapshot) return schedule(cookie)
-    if (change.section !== snapshot.section || snapshot.viewedRound?.closedAt != null) return
-    if (change.roundId !== snapshot.viewedRound?.id) return schedule(cookie)
-    if (change.revision <= snapshot.qaRevision) return
-    if (change.baseRevision !== null && change.baseRevision !== snapshot.qaRevision) return schedule(cookie)
+    const next = applyQaMessage(snapshots.get(cookie), message)
+    if (next === null) return schedule(cookie)
+    if (next === undefined) return
     pushMessages++
-    const questions = new Map((change.baseRevision === null ? [] : snapshot.questions).map(question => [question.id, question]))
-    for (const id of change.remove) questions.delete(id)
-    for (const question of change.upsert) questions.set(question.id, question)
-    const next = { ...snapshot, qaRevision: change.revision, questions: [...questions.values()].sort(sort),
-      versions: snapshot.versions ? { ...snapshot.versions, questions: '' } : undefined }
     snapshots.set(cookie, next)
     record(cookie, next)
   }
