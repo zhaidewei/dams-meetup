@@ -246,7 +246,10 @@ export async function readFeed(
       : noQuestionsVersion,
     posts: postVersion,
   }
-  const data: FeedUpdate = { ...context, nickname: state.display_name, section, viewedRound, versions, qaRevision }
+  const data: FeedUpdate = {
+    ...context, refreshAt: Math.min(context.refreshAt ?? INTERACTION_END, INTERACTION_END),
+    nickname: state.display_name, section, viewedRound, versions, qaRevision,
+  }
   if (!unchangedQuestions) {
     const current = qa?.questions ?? []
     if (previousCache && previousCache.stamp === previous?.stamp) {

@@ -194,6 +194,7 @@ function displayQuestions(view: FeedView, base: DiscussionItem[], writes: QaWrit
 }
 
 const feedTransport: DiscussionTransport<FeedView> = {
+  skipPollingWhenConnected: true,
   headers(snapshot) {
     const versions = snapshot?.versions
     return { [FEED_VERSIONS_HEADER]: versions ? `${versions.questions},${versions.posts}` : ',' }
