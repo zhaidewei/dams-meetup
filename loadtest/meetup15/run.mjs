@@ -12,9 +12,11 @@ import WebSocket from "ws"
 
 const base = process.argv[3]
 const remote = process.env.DAMS_M6_REMOTE === '1'
+const withRehearsal = process.env.DAMS_M6_REHEARSAL === '1'
 if (remote) {
   assert.match(base, /^https:\/\/dams-meetup-perf-85-[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/)
   assert.ok(process.env.DAMS_M6_ADMIN_TOKEN && process.env.DAMS_M6_OBSERVER_TOKEN)
+  if (withRehearsal) assert.ok(process.env.DAMS_M6_SESSION_SECRET, 'Use the isolated Worker session key')
 } else {
   assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/)
 }
@@ -197,31 +199,55 @@ function disconnect({ socket }) {
     assert.match(guest.response.headers.get('location'), /guest=saved/)
     const staff = (await get('qa admin', '/api/discussion/admin', admin)).data
     const guestId = staff.guests.find(row => row.name === 'M6 测试嘉宾').id
-    openedGate = true
-    const { data: gate } = await request('open isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: true } })
-    assert.equal(gate.admissionOpen, true)
-    const config = (await get('read QR', '/api/meetup/screen', admin)).data
-    const qr = new URLSearchParams(new URL(config.qrPath, base).hash.slice(1)).get('qr')
-    assert.ok(qr)
-    const scans = []
-    for (let offset = 0; offset < USERS; offset += 25) {
-      scans.push(...await Promise.all(indices.slice(offset, offset + 25).map(() => request('qrEntry', '/api/meetup/enter', {
-      method: 'POST', form: { method: 'qr', credential: qr }, expect: 303,
-    }).then(result => {
-      assert.equal(result.response.headers.get('location'), '/feed')
-      assert.ok(cookieFrom(result.response))
-      return result
-    }))))
+    let members
+    let seededRoundId = null
+    if (withRehearsal) {
+      const state = (await get('read rehearsal revision', '/api/activity', admin)).data
+      const filled = await request('fill rehearsal', '/api/admin/meetup-rehearsal', {
+        method: 'POST', cookie: admin, form: { action: 'fill', revision: state.revision }, expect: 303,
+      })
+      assert.match(filled.response.headers.get('location'), /rehearsal=filled$/)
+      const ids = (await get('read seeded members', '/__m6_rehearsal_members')).data
+      assert.equal(new Set(ids).size, USERS)
+      const { signSessionCookie } = await import('../../src/lib/session-cookie-crypto.ts')
+      const { INTERACTION_END } = await import('../../src/lib/meetup15/event.ts')
+      const key = remote ? process.env.DAMS_M6_SESSION_SECRET : 'dams-local-fixture-signing-key-never-production'
+      const cookieName = 'dams-meetup-15-member'
+      members = ids.map(id => cookieName + '=' + signSessionCookie(cookieName, id, new Date(INTERACTION_END), key))
+      const seededRound = (await get('read rehearsal round', '/api/discussion/admin', admin)).data.activeRound
+      assert.ok(seededRound)
+      seededRoundId = seededRound.id
+      await post('archive rehearsal round', '/api/discussion/admin', admin, { action: 'end', roundId: seededRoundId })
+    } else {
+      openedGate = true
+      const { data: gate } = await request('open isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: true } })
+      assert.equal(gate.admissionOpen, true)
+      const config = (await get('read QR', '/api/meetup/screen', admin)).data
+      const qr = new URLSearchParams(new URL(config.qrPath, base).hash.slice(1)).get('qr')
+      assert.ok(qr)
+      const scans = []
+      for (let offset = 0; offset < USERS; offset += 25) {
+        scans.push(...await Promise.all(indices.slice(offset, offset + 25).map(() => request('qrEntry', '/api/meetup/enter', {
+        method: 'POST', form: { method: 'qr', credential: qr }, expect: 303,
+      }).then(result => {
+        assert.equal(result.response.headers.get('location'), '/feed')
+        assert.ok(cookieFrom(result.response))
+        return result
+      }))))
+      }
+      runs.qrEntry = stats(scans.map(scan => scan.elapsed))
+      members = scans.map(item => cookieFrom(item.response))
+      assert.equal(new Set(members).size, USERS)
+      await request('close isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: false } })
+      openedGate = false
     }
-    runs.qrEntry = stats(scans.map(scan => scan.elapsed))
-    const members = scans.map(item => cookieFrom(item.response))
-    assert.equal(new Set(members).size, USERS)
-    await request('close isolated gate', '/api/activity', { cookie: admin, method: 'PATCH', json: { admissionOpen: false } })
-    openedGate = false
-    await measure('nickname', members.map((cookie, i) => post('nickname', '/api/discussion', cookie,
-      { action: 'nickname', name: 'M6 观众 ' + (i + 1) })))
+    const baseline = (await get('database baseline', '/__m6_d1_reconcile')).data
+    if (!withRehearsal) {
+      await measure('nickname', members.map((cookie, i) => post('nickname', '/api/discussion', cookie,
+        { action: 'nickname', name: 'M6 观众 ' + (i + 1) })))
+    }
     await measure('presence', members.map(cookie => post('presence', '/api/personal/presence', cookie)))
-    await post('start QA', '/api/discussion/admin', admin, { action: 'start', guestId, activeRoundId: null, latestRoundId: null })
+    await post('start QA', '/api/discussion/admin', admin, { action: 'start', guestId, activeRoundId: null, latestRoundId: seededRoundId })
     const qa = (await get('active QA', '/api/discussion/admin', admin)).data.activeRound
     assert.ok(qa)
     await measure('initialFeed', members.map(cookie => getFeed('initialFeed', cookie)))
@@ -396,29 +422,37 @@ function disconnect({ socket }) {
     await post('end browser feedback QA', '/api/discussion/admin', admin, { action: 'end', roundId: feedbackRound.id })
     await Promise.all(clients.map(client => client.context().close()))
 
-    await post('raffle seed post', '/api/discussion', members[0], { action: 'post', section: qa.section, body: 'M6 加权样例' })
-    const seed = (await get('raffle seed read', '/api/discussion', members[1])).data.items.find(item => item.body === 'M6 加权样例')
-    await post('raffle seed reply', '/api/discussion', members[1], { action: 'reply', postId: seed.id, parentId: null, body: 'M6 加权回复' })
+    const raffleAuthor = withRehearsal ? 1 : 0
+    const raffleReader = raffleAuthor + 1
+    const rafflePool = USERS - baseline.winners
+    await post('raffle seed post', '/api/discussion', members[raffleAuthor], { action: 'post', section: qa.section, body: 'M6 加权样例' })
+    const seed = (await get('raffle seed read', '/api/discussion', members[raffleReader])).data.items.find(item => item.body === 'M6 加权样例')
+    await post('raffle seed reply', '/api/discussion', members[raffleReader], { action: 'reply', postId: seed.id, parentId: null, body: 'M6 加权回复' })
     const current = (await get('projection state', '/api/screen/admin', admin)).data
     await post('switch raffle', '/api/screen/admin', admin, { mode: 'raffle', revision: current.revision })
-    await post('start raffle', '/api/raffle', admin, { action: 'start', weighted: true, requireParticipation: false, latestId: 0 })
-    await page.getByText('抽奖进行中 · 200 位候选人', { exact: true }).waitFor()
-    await page.getByText(/^恭喜 M6 观众/).waitFor({ timeout: 12000 })
+    await post('start raffle', '/api/raffle', admin, { action: 'start', weighted: true, requireParticipation: false, latestId: current.raffleRounds[0]?.id ?? 0 })
+    await page.getByText('抽奖进行中 · ' + rafflePool + ' 位候选人', { exact: true }).waitFor()
+    await page.getByText(withRehearsal ? /^恭喜 彩排观众/ : /^恭喜 M6 观众/).waitFor({ timeout: 12000 })
     const winning = (await get('winner projection', '/api/screen', admin)).data
     const nameIndex = Number(winning.lottery.winner.split(' ').at(-1)) - 1
     const inbox = (await get('winning member inbox', '/api/personal', members[nameIndex])).data
     onePrize = inbox.threads.filter(thread => thread.system && thread.body.includes('中奖')).length
     assert.equal(onePrize, 1)
-    assert.equal(winning.candidates.length, USERS)
-    assert.equal(winning.candidates.find(candidate => candidate.name === 'M6 观众 1').weight, 3)
+    assert.equal(winning.candidates.length, rafflePool)
+    const weightedName = withRehearsal ? '彩排观众 · 002' : 'M6 观众 1'
+    assert.equal(winning.candidates.find(candidate => candidate.name === weightedName).weight, 3)
     const d1 = (await get('direct database reconciliation', '/__m6_d1_reconcile')).data
-    assert.deepEqual(d1, { attendees: 200, questions: 201 + browserSamples, likes: 200, winners: 1, prizeMessages: 1, admissionOpen: 0 })
+    assert.deepEqual(d1, {
+      attendees: USERS, questions: baseline.questions + USERS + 1 + browserSamples,
+      likes: baseline.likes + USERS, winners: baseline.winners + 1,
+      prizeMessages: baseline.prizeMessages + 1, admissionOpen: 0,
+    })
     reconciliation.database = d1
     const out = { environment: base, httpConnections: connections, handshakeBatch, commit: process.env.DAMS_M6_COMMIT || 'working-tree-candidate',
-      runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, reconciliation, raffle: { pool: USERS, winnerInboxNotifications: onePrize } }
+      runs, statusCounts, failures, browser5xx, projectionResults, browserFeedback, liveQa, baseline, reconciliation, raffle: { pool: rafflePool, winnerInboxNotifications: onePrize } }
     const d1Stats = (await get('database metrics', '/__m6_d1_stats')).data
     fs.writeFileSync(path.join(output, 'd1.json'), JSON.stringify(d1Stats, null, 2) + '\n')
-    assert.ok(runs.qrEntry.p95 <= 2000, 'QR entry p95 exceeded 2 seconds')
+    if (runs.qrEntry) assert.ok(runs.qrEntry.p95 <= 2000, 'QR entry p95 exceeded 2 seconds')
     assert.ok(runs.question.p95 <= 2000, 'Question p95 exceeded 2 seconds')
     if (runs.concurrentFeedRefresh) assert.ok(runs.concurrentFeedRefresh.p95 <= 2000, 'Concurrent feed refresh p95 exceeded 2 seconds')
     assert.ok(runs.reconnectFeed.p95 <= 2000, 'Reconnect feed p95 exceeded 2 seconds')

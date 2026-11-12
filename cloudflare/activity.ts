@@ -44,6 +44,16 @@ export class ActivityUpdates extends DurableObject<ActivityEnv> {
     }
   }
 
+  resetRehearsalConnections(): void {
+    this.qaSnapshot = null
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket.readyState !== WebSocket.OPEN) continue
+      socket.serializeAttachment(null)
+      socket.send('activity.updated')
+      socket.close(1001, 'Activity reset')
+    }
+  }
+
   queueDiscussionUpdate(update: DiscussionUpdate = 'all'): void {
     if (this.pendingDiscussionUpdate !== 'all') this.pendingDiscussionUpdate = update
     if (this.discussionUpdateQueued) return
