@@ -10,33 +10,9 @@ export async function GuestAccounts({ edit, status }: { edit?: string; status?: 
   const editing = guests.find(guest => guest.username === edit)
 
   return (
-    <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <section aria-labelledby="registered-guests" className="space-y-3 rounded-2xl border border-dams-line bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 id="registered-guests" className="text-lg font-semibold">已登记嘉宾</h1>
-          <p className="text-sm text-slate-600">{guests.length} 位</p>
-        </div>
-        {guests.length ? (
-          <ul className="divide-y divide-dams-line">
-            {guests.map(guest => (
-              <li key={guest.username} className="flex items-start justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="break-words font-semibold">{guest.displayName}</p>
-                  <p className="break-all text-sm text-slate-700">{guest.username}</p>
-                  {guest.title && <p className="break-words text-sm text-slate-600">{guest.title}</p>}
-                </div>
-                <Link href={`/admin/activity?tab=guests&edit=${encodeURIComponent(guest.username)}#guest-account`}
-                  aria-label={`修改 ${guest.displayName}（${guest.username}）`}
-                  className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-dams-hover hover:bg-dams-wash">
-                  修改
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="text-sm text-slate-600">暂无已登记嘉宾。</p>}
-      </section>
-      <section id="guest-account" className="scroll-mt-4 space-y-3 rounded-2xl border border-dams-line bg-white p-4">
-        <h2 className="text-lg font-semibold">{editing ? '修改嘉宾账号' : '新增嘉宾账号'}</h2>
+    <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <section id="guest-account" aria-labelledby="guest-account-heading" className="scroll-mt-4 space-y-3 rounded-2xl border border-dams-line bg-white p-4">
+        <h1 id="guest-account-heading" className="text-lg font-semibold">{editing ? '修改嘉宾账号' : '新增嘉宾账号'}</h1>
         <p className="text-sm text-zinc-600">{editing ? '可以修改姓名、头衔，或设置新密码。' : '新增嘉宾时需要设置初始密码。'}</p>
         {status === 'saved' && <p role="status">嘉宾账号已保存。</p>}
         {status === 'duplicate' && <p role="alert">该用户名已登记，请从名单中选择要修改的嘉宾。</p>}
@@ -70,6 +46,30 @@ export async function GuestAccounts({ edit, status }: { edit?: string; status?: 
           <button className="min-h-11 rounded-full bg-dams-blue px-5 py-2 text-white">保存嘉宾账号</button>
         </form>
         {editing && <Link className="inline-flex min-h-11 items-center text-sm text-dams-hover underline" href="/admin/activity?tab=guests">返回新增</Link>}
+      </section>
+      <section aria-labelledby="registered-guests" className="space-y-3 rounded-2xl border border-dams-line bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="registered-guests" className="text-lg font-semibold">已登记嘉宾</h2>
+          <p className="text-sm text-slate-600">{guests.length} 位</p>
+        </div>
+        {guests.length ? (
+          <ul className="divide-y divide-dams-line">
+            {guests.map(guest => (
+              <li key={guest.username} className="flex items-start justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="break-words font-semibold">{guest.displayName}</p>
+                  <p className="break-all text-sm text-slate-700">{guest.username}</p>
+                  {guest.title && <p className="break-words text-sm text-slate-600">{guest.title}</p>}
+                </div>
+                <Link href={`/admin/activity?tab=guests&edit=${encodeURIComponent(guest.username)}#guest-account`}
+                  aria-label={`修改 ${guest.displayName}（${guest.username}）`}
+                  className="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-sm font-semibold text-dams-hover hover:bg-dams-wash">
+                  修改
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-sm text-slate-600">暂无已登记嘉宾。</p>}
       </section>
     </div>
   )

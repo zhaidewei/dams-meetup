@@ -1,18 +1,6 @@
 import Link from 'next/link'
-import { MEETUP_ADDRESS, MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_THEME, MEETUP_VENUE } from '@/lib/meetup15/event'
-
-export function MeetupNav({ closed = false }: { closed?: boolean }) {
-  return (
-    <nav aria-label="活动导航" className="flex flex-wrap gap-x-2 rounded-xl border border-dams-line bg-white px-2 py-1 text-sm font-medium text-dams-hover [&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center [&>a]:rounded-lg [&>a]:px-2 [&>a:hover]:bg-dams-wash">
-      <Link href="/">活动首页</Link>
-      <Link href="/agenda">完整议程</Link>
-      {closed ? <Link href="/summary/15">活动复盘</Link> : <>
-        <Link href="/feed">互动区</Link>
-        <Link href="/me">我</Link>
-      </>}
-    </nav>
-  )
-}
+import { ChevronRight } from 'lucide-react'
+import { MEETUP_ADDRESS, MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_THEME, MEETUP_VENUE, meetupDiscussionPath } from '@/lib/meetup15/event'
 
 export function MeetupHeading() {
   return (
@@ -25,16 +13,25 @@ export function MeetupHeading() {
   )
 }
 
-export function MeetupAgenda() {
+export function MeetupAgenda({ linkToDiscussion = false }: { linkToDiscussion?: boolean }) {
   return (
-    <section aria-labelledby="agenda-title" className="space-y-5">
+    <section id="agenda" aria-labelledby="agenda-title" className="space-y-5">
       <h2 id="agenda-title" className="text-2xl font-semibold">活动议程</h2>
       <ol className="divide-y divide-dams-line overflow-hidden rounded-2xl border border-dams-line bg-white">
-        {MEETUP_AGENDA.map(({ start, end, title, details }) => (
-          <li key={start} className="grid gap-2 px-4 py-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:px-5">
+        {MEETUP_AGENDA.map(({ start, end, section, title, details }) => (
+          <li key={start} className={`relative grid gap-2 px-4 py-4 sm:grid-cols-[8rem_minmax(0,1fr)] sm:px-5 ${linkToDiscussion ? 'hover:bg-dams-wash' : ''}`}>
             <span className="text-sm font-medium tabular-nums text-dams-blue">{start}–{end}</span>
             <div className="space-y-2">
-              <h3 className="font-semibold">{title}</h3>
+              <h3 className="font-semibold">
+                {linkToDiscussion ? (
+                  <Link href={meetupDiscussionPath(section)}
+                    className="flex items-start justify-between gap-2 text-dams-hover after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-dams-blue">
+                    {title}
+                    <span className="sr-only">，进入{section === 'lounge' ? '自由讨论区' : '议程讨论区'}</span>
+                    <ChevronRight aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  </Link>
+                ) : title}
+              </h3>
               {details && (
                 <ul className="space-y-1 text-sm leading-relaxed text-zinc-600">
                   {details.map((detail) => <li key={detail}>{detail}</li>)}

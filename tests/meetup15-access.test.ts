@@ -36,14 +36,16 @@ it('isolates members and gates both first-entry methods without blocking guests 
     plugins: [{
       name: 'fixture-event-window',
       setup(build) {
-        build.onLoad({ filter: /meetup15\/event\.ts$/ }, () => ({
-          contents: `
-            export let ADMISSION_END = ${now} + 60_000
-            export const INTERACTION_END = ${now} + 120_000
-            export function setAdmissionEnd(value) { ADMISSION_END = value }
-          `,
-          loader: 'js',
-        }))
+        build.onLoad({ filter: /meetup15\/event\.ts$/ }, async ({ path }) => {
+          const source = await readFile(path, 'utf8')
+          return {
+            contents: source
+              .replace(/^export const ADMISSION_END = .*$/m, `export let ADMISSION_END = ${now} + 60_000`)
+              .replace(/^export const INTERACTION_END = .*$/m, `export const INTERACTION_END = ${now} + 120_000`)
+              + '\nexport function setAdmissionEnd(value: number) { ADMISSION_END = value }',
+            loader: 'ts',
+          }
+        })
       },
     }],
   })
@@ -103,7 +105,11 @@ it('isolates members and gates both first-entry methods without blocking guests 
     expect(await (await screen(admin)).json()).toMatchObject({
       open: true, password: credentials.password, qrPath: `/auto-login#qr=${credentials.qr}`,
     })
-    const attendeeA = cookie(await post('enter', manual))
+    expect((await post('enter', { ...manual, section: 'expert', credential: 'wrong' })).headers.get('Location'))
+      .toBe('/?entry=invalid&section=expert#entry-title')
+    const agendaEntry = await post('enter', { ...manual, section: 'expert' })
+    expect(agendaEntry.headers.get('Location')).toBe('/feed?section=expert')
+    const attendeeA = cookie(agendaEntry)
     const attendeeB = cookie(await post('enter', qr))
     const id = memberId(attendeeA)
     expect(id).toBeTruthy()
@@ -116,6 +122,8 @@ it('isolates members and gates both first-entry methods without blocking guests 
     expect((await post('enter', manual)).headers.get('Location')).toBe('/?entry=closed')
     expect((await post('enter', qr)).headers.get('Location')).toBe('/?entry=closed')
     expect((await post('enter', manual, attendeeA)).headers.get('Location')).toBe('/feed')
+    expect((await post('enter', { ...manual, section: 'lounge' }, attendeeA)).headers.get('Location')).toBe('/feed?view=free')
+    expect((await post('enter', { ...manual, section: '//example.test' }, attendeeA)).headers.get('Location')).toBe('/feed')
     expect(await (await screen(admin)).json()).toEqual({ open: false })
 
     const link = new URL(recoveryPath(id!, secret), origin)

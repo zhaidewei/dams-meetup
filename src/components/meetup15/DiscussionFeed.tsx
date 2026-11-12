@@ -1,17 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronDown, Heart, MessageCircle } from 'lucide-react'
+import { Heart, MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
-import { isBreakoutGroup, MEETUP_AGENDA_SECTIONS, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, type MeetupSection } from '@/lib/meetup15/event'
+import { isBreakoutGroup, MEETUP_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
 import { DiscussionReactions } from './DiscussionReactions'
 import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
-const tabButton = 'min-h-12 shrink-0 border-b-2 border-transparent px-3 text-sm font-medium text-slate-700 hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:font-semibold aria-pressed:text-dams-hover'
+const agendaBoards = MEETUP_AGENDA.filter(({ section }) => section !== 'lounge')
+const qaStatus = 'inline-block whitespace-nowrap rounded-full bg-red-700 px-2 py-0.5 text-xs font-bold text-white'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
 
@@ -124,7 +125,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
   )
 }
 
-function ReplyList({ postId, parentId, feedRead, render }: {
+export function ReplyList({ postId, parentId, feedRead, render }: {
   postId: number
   parentId?: number
   feedRead: number
@@ -230,8 +231,9 @@ const feedTransport: DiscussionTransport<FeedView> = {
   },
 }
 
-export function DiscussionFeed() {
-  const [selected, setSelected] = useState<MeetupSection | null>(null)
+export function DiscussionFeed({ free, initialSection }: { free: boolean; initialSection: MeetupSection | null }) {
+  const [selection, setSelected] = useState(initialSection)
+  const selected = free ? 'lounge' : selection
   const [round, setRound] = useState<number | null>(null)
   const [pageStack, setPageStack] = useState<number[]>([])
   const before = pageStack.at(-1)
@@ -257,45 +259,31 @@ export function DiscussionFeed() {
   const active = data?.activeRound
   const section = selected ?? data?.section
   const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
-  const mobileNavigation = (
-    <nav key="mobile-discussion-sections" aria-label="讨论板块" className="border-b border-dams-line px-4 pb-3 md:hidden">
-      <div className="relative">
-        <label htmlFor="mobile-discussion-section" className="sr-only">切换讨论板块</label>
-        <select id="mobile-discussion-section"
-          className={`${discussionInput} appearance-none border-dams-line pr-10 font-medium text-slate-900`}
-          value={selected ?? ''} onChange={(event) => choose((event.currentTarget.value || null) as MeetupSection | null)}>
-          <option value="">跟随现场{data && ` · ${MEETUP_SECTIONS[data.currentSection]}`}</option>
-          {Object.entries(MEETUP_AGENDA_SECTIONS).filter(([key]) => key !== 'breakout').map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-          <optgroup label="分组交流">
-            <option value="breakout">分组交流 · 公共交流</option>
-            {Object.entries(MEETUP_BREAKOUT_GROUPS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </optgroup>
-        </select>
-        <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-slate-500" />
-      </div>
-    </nav>
-  )
-  const navigation = (
-    <nav key="discussion-sections" aria-label="讨论板块" className="hidden overflow-x-auto border-b border-dams-line px-2 md:flex">
-      <button className={tabButton} aria-pressed={selected === null}
-        onClick={() => choose(null)}>跟随现场</button>
-      {Object.entries(MEETUP_AGENDA_SECTIONS).map(([key, label]) => (
-        <button key={key} className={tabButton} aria-pressed={selected === key || (key === 'breakout' && selected !== null && isBreakoutGroup(selected))}
-          onClick={() => choose(key as MeetupSection)}>
-          {label}
-          {active?.section === key && (
-            <span className="mx-auto mt-0.5 block w-fit rounded-full bg-dams-wash px-1.5 py-0.5 text-xs md:ml-2 md:inline font-semibold text-dams-hover">问答中</span>
-          )}
-        </button>
-      ))}
+  const navigation = !free && (
+    <nav key="discussion-sections" aria-label="议程板块" className="border-b border-dams-line px-4 pb-3 sm:px-6">
+      <ul className="divide-y divide-dams-line overflow-hidden rounded-xl border border-dams-line bg-white md:grid md:grid-cols-4 md:divide-x md:divide-y-0">
+        {agendaBoards.map(({ section: key, start, end }) => (
+          <li key={key} className="min-w-0">
+            <button type="button" aria-pressed={section === key || (key === 'breakout' && section !== undefined && isBreakoutGroup(section))}
+              className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-dams-wash focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:h-full md:flex-col md:items-start md:justify-center md:gap-1"
+              onClick={() => choose(key)}>
+              <span className="min-w-0 wrap-anywhere">
+                {MEETUP_SECTIONS[key]}
+                {active?.section === key && <span className={`ml-1 ${qaStatus}`}>问答中</span>}
+              </span>
+              <span className="shrink-0 text-xs font-normal tabular-nums text-slate-600">{start}–{end}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {selected !== null ? (
+        <button type="button" className="mt-1 min-h-11 px-2 text-sm font-medium text-dams-hover hover:underline"
+          onClick={() => choose(null)}>恢复跟随现场</button>
+      ) : section === 'lounge' && <p className="pt-2 text-xs text-slate-600">跟随现场 · 公共讨论区</p>}
     </nav>
   )
   const breakoutNavigation = inBreakout && (
-    <div key="breakout-groups" className="hidden items-center gap-3 border-b border-dams-line bg-dams-wash px-6 py-2 md:flex">
+    <div key="breakout-groups" className="flex flex-col gap-1 border-b border-dams-line bg-dams-wash px-4 py-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3 sm:px-6">
       <label htmlFor="breakout-group" className="shrink-0 text-sm font-semibold">交流分组</label>
       <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={section}
         onChange={(event) => choose(event.currentTarget.value as MeetupSection)}>
@@ -316,7 +304,6 @@ export function DiscussionFeed() {
   )
   if (!data) return (
     <div>
-      {mobileNavigation}
       {navigation}
       {breakoutNavigation}
       <div className="px-4 py-5 sm:px-6">
@@ -328,20 +315,24 @@ export function DiscussionFeed() {
   const viewed = data.viewedRound
   const liveRound = viewed !== null && viewed.id === active?.id
   const qaSection = active ? MEETUP_SECTIONS[active.section] : null
+  const qaLink = active && (active.section === 'lounge') !== free ? meetupDiscussionPath(active.section) : null
   const posts = data.items.filter((entry) => entry.kind === 'post')
   return (
     <div>
       {active && !liveRound && (
-        <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dams-selection bg-dams-wash px-4 py-3 sm:mx-6">
+        <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:mx-6">
           <div className="min-w-0 wrap-anywhere">
-            <p className="text-sm font-semibold text-dams-hover">问答进行中 · {active.guest}</p>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold"><span className={qaStatus}>问答中</span>{active.guest}</p>
             <p className="text-sm text-slate-700">{qaSection}</p>
           </div>
-          <button className="min-h-11 rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue"
-            onClick={() => choose(active.section)}>前往提问</button>
+          {qaLink ? (
+            <Link href={qaLink} className="inline-flex min-h-11 items-center rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue">前往提问</Link>
+          ) : (
+            <button className="min-h-11 rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue"
+              onClick={() => choose(active.section)}>前往提问</button>
+          )}
         </aside>
       )}
-      {mobileNavigation}
       {navigation}
       {breakoutNavigation}
       <div className="space-y-4 border-b border-dams-line px-4 py-4 sm:px-6">
@@ -349,12 +340,11 @@ export function DiscussionFeed() {
           <h2 className="sr-only text-sm font-semibold md:not-sr-only">{MEETUP_SECTIONS[data.section]}</h2>
           <div className="hidden flex-wrap items-center gap-2 md:flex">
             <p className="rounded-full bg-dams-wash px-3 py-1 text-xs text-dams-hover">现场 · {MEETUP_SECTIONS[data.currentSection]}</p>
-            <a href="#feed-compose" className="inline-flex min-h-11 items-center rounded-full border border-dams-selection bg-white px-3 text-sm font-semibold text-dams-hover hover:bg-dams-wash">发帖</a>
           </div>
         </div>
         {feedback}
         {!named && (
-          <form id="feed-compose" className="scroll-mt-4 space-y-2 rounded-xl border border-dams-line bg-white p-3" onSubmit={setNickname}>
+          <form className="space-y-2 rounded-xl border border-dams-line bg-white p-3" onSubmit={setNickname}>
             <label htmlFor="feed-nickname" className="block text-sm text-slate-600">填个昵称，就能发帖、回复和提问</label>
             <div className="flex gap-2">
               <input id="feed-nickname" name="nickname" className={discussionInput} placeholder="昵称" autoComplete="nickname" maxLength={48} required />
@@ -367,7 +357,7 @@ export function DiscussionFeed() {
             <h3 className="font-semibold">嘉宾问答</h3>
             {liveRound && viewed && (
               <div className="space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
-                <p className="wrap-anywhere font-semibold text-dams-hover">问答进行中 · {viewed.guest}</p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{viewed.guest}</p>
                 {named ? (
                   <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
                     featured maxLength={MAX_QUESTION_BODY} placeholder="你想问这位嘉宾什么？"
@@ -410,7 +400,7 @@ export function DiscussionFeed() {
           </section>
         )}
         {named && (
-          <div id="feed-compose" className="scroll-mt-4 rounded-xl border border-slate-300 bg-white p-4">
+          <div className="rounded-xl border border-slate-300 bg-white p-4">
             <DiscussionComposer label={`发布到${MEETUP_SECTIONS[data.section]}`} action="发布帖子" pending={pending} initialTags={[]}
               featured placeholder="分享你的想法或现场见闻…"
               onSubmit={(body, tags) => submit({ action: 'post', section: data.section, body, tags })} />

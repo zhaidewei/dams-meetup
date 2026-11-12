@@ -2,12 +2,11 @@ import { randomInt } from 'node:crypto'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { requestCookie } from '../src/lib/meetup15/identity'
-import { RAFFLE_ACTIVE_HOURS, type LotteryScreen } from '../src/lib/meetup15/raffle'
+import { RAFFLE_ACTIVE_HOURS, RAFFLE_ANIMATION_MS, type LotteryScreen } from '../src/lib/meetup15/raffle'
 import type { ActivityEnv } from './activity'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 const failure = (status: number, error: string) => Response.json({ error }, { status, headers })
-const ANIMATION_MS = 5000
 const ACTIVE_SECONDS = RAFFLE_ACTIVE_HOURS * 60 * 60
 
 type Candidate = { id: string; name: string; weight: number }
@@ -66,7 +65,9 @@ function updates(env: ActivityEnv) {
 async function startDraw(env: ActivityEnv, latestId: number, weighted: boolean, requireParticipation: boolean, now: number) {
   const db = env.ACTIVITY_DB
   const cutoff = Math.floor(now / 1000) - ACTIVE_SECONDS
-  const readyAt = now + ANIMATION_MS
+  // 彩排可以固定活动时间，动画和 Durable Object 定时器仍使用实际时间。
+  const startedAt = Date.now()
+  const readyAt = startedAt + RAFFLE_ANIMATION_MS
   const draw = await db.prepare(`
       WITH participation AS (
         SELECT author_id, MAX(kind = 'post') AS wrote_post FROM meetup15_discussion
@@ -95,7 +96,7 @@ async function startDraw(env: ActivityEnv, latestId: number, weighted: boolean, 
         AND NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
         AND EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND projection_mode = 'raffle' AND projection_raffle_id IS NULL)
       RETURNING id, finished_at AS finishedAt
-  `).bind(Number(weighted), cutoff, Number(requireParticipation), readyAt, now, Number(weighted), Number(requireParticipation), latestId)
+  `).bind(Number(weighted), cutoff, Number(requireParticipation), readyAt, startedAt, Number(weighted), Number(requireParticipation), latestId)
     .first<{ id: number; finishedAt: number | null }>()
   if (!draw) return failure(409, '抽奖状态已变化，请核对后重试。')
   const screen = updates(env)

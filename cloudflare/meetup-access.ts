@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID, scryptSync } from 'node:crypto'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie, verifySessionCookie } from '../src/lib/session-cookie-crypto'
-import { ADMISSION_END, INTERACTION_END } from '../src/lib/meetup15/event'
+import { ADMISSION_END, INTERACTION_END, isMeetupSection, meetupDiscussionPath } from '../src/lib/meetup15/event'
 import {
   admissionCredentials, equalSecret, findMember, getMember, isAdmissionOpen,
   matchesRecoveryToken, MEMBER_COOKIE, requestCookie,
@@ -14,10 +14,10 @@ function redirect(path: string) {
   return new Response(null, { status: 303, headers: { ...noStore, Location: path } })
 }
 
-function memberRedirect(id: string, secret: string) {
+function memberRedirect(id: string, secret: string, destination = '/feed') {
   const expires = new Date(INTERACTION_END)
   const signed = signSessionCookie(MEMBER_COOKIE, id, expires, secret)
-  const response = redirect('/feed')
+  const response = redirect(destination)
   response.headers.set('Set-Cookie',
     `${MEMBER_COOKIE}=${signed}; Path=/; Expires=${expires.toUTCString()}; Secure; HttpOnly; SameSite=Lax`)
   return response
@@ -96,15 +96,20 @@ async function loginGuest(form: FormData, env: ActivityEnv, secret: string) {
 async function enter(
   form: FormData, env: ActivityEnv, secret: string, request: Request, now: number,
 ) {
+  const section = field(form, 'section')
+  const discussionSection = isMeetupSection(section) ? section : undefined
+  const destination = meetupDiscussionPath(discussionSection)
+  const admissionError = (entry: 'closed' | 'invalid') => redirect(discussionSection
+    ? `/?entry=${entry}&section=${discussionSection}#entry-title` : `/?entry=${entry}`)
   const existing = await getMember(env, requestCookie(request, MEMBER_COOKIE), now)
-  if (existing) return redirect('/feed')
-  if (!await isAdmissionOpen(env, now)) return redirect('/?entry=closed')
+  if (existing) return redirect(destination)
+  if (!await isAdmissionOpen(env, now)) return admissionError('closed')
   const method = field(form, 'method')
   const value = field(form, 'credential')
   const { password, qr } = admissionCredentials(secret)
   const valid = method === 'qr' ? equalSecret(value, qr) :
     method === 'password' && equalSecret(value.replace(/[\s-]/g, '').toUpperCase(), password.replaceAll('-', ''))
-  if (!valid) return redirect('/?entry=invalid')
+  if (!valid) return admissionError('invalid')
 
   // 插入时同时检查手动开关和数据库当前时间，覆盖关闸或跨截止时间的在途请求。
   const member = await env.ACTIVITY_DB.prepare(
@@ -113,7 +118,7 @@ async function enter(
      WHERE id = 1 AND admission_open = 1 AND unixepoch() < ?
      RETURNING id`,
   ).bind(randomUUID(), ADMISSION_END / 1000).first<{ id: string }>()
-  return member ? memberRedirect(member.id, secret) : redirect('/?entry=closed')
+  return member ? memberRedirect(member.id, secret, destination) : admissionError('closed')
 }
 
 export async function handleMeetupAccess(request: Request, env: ActivityEnv, clock = Date.now) {

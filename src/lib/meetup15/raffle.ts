@@ -1,4 +1,5 @@
 export const RAFFLE_ACTIVE_HOURS = 4
+export const RAFFLE_ANIMATION_MS = 5000
 export const RAFFLE_WEIGHT_RULE = '每人基础 1 份，发过帖和收到过他人回复各加 1 份。'
 
 export type RaffleRules = { weighted: boolean; requireParticipation: boolean }
