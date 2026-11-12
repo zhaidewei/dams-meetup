@@ -1,6 +1,6 @@
 import { PROJECTION_MODES, type ProjectionAdminSnapshot,
   type ProjectionMode, type ProjectionSelection, type ProjectionView } from '../src/lib/meetup15/projection'
-import { meetupAgendaAt, nextMeetupAgendaChange } from '../src/lib/meetup15/event'
+import { isMeetupAgendaSection, MEETUP_AGENDA, meetupAgendaAt, nextMeetupAgendaChange } from '../src/lib/meetup15/event'
 import { requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
@@ -14,12 +14,13 @@ type StateRow = {
   roundId: number | null
   raffleId: number | null
   revision: number
+  sectionOverride: string | null
 }
 
 function stateQuery(db: D1Database) {
   return db.prepare(`
     SELECT projection_mode AS mode, projection_round_id AS roundId, projection_raffle_id AS raffleId,
-      projection_revision AS revision
+      projection_revision AS revision, section_override AS sectionOverride
     FROM activity_state WHERE id = 1`)
 }
 
@@ -43,13 +44,22 @@ function parseSelection(mode: unknown, roundId: unknown, raffleId: unknown): Pro
 }
 
 async function readView(
-  db: D1Database, selection: ProjectionSelection, now: number, revision?: number,
+  db: D1Database, selection: ProjectionSelection, now: number, sectionOverride: StateRow['sectionOverride'], revision?: number,
 ): Promise<ProjectionView | null> {
   switch (selection.mode) {
     case 'hidden': return { mode: 'hidden', refreshAt: null }
     case 'opening': return { mode: 'opening', refreshAt: null }
-    case 'agenda': return {
-      mode: 'agenda', currentStart: meetupAgendaAt(now)?.start ?? null, refreshAt: nextMeetupAgendaChange(now),
+    case 'agenda': {
+      if (isMeetupAgendaSection(sectionOverride) && sectionOverride !== 'lounge') {
+        return {
+          mode: 'agenda', currentStart: MEETUP_AGENDA.find(slot => slot.section === sectionOverride)?.start ?? null,
+          refreshAt: null,
+        }
+      }
+      const scheduled = meetupAgendaAt(now)
+      // 公共区对应多个环节，只高亮实际时间所在的公共环节。
+      const current = sectionOverride === 'lounge' && scheduled?.section !== 'lounge' ? undefined : scheduled
+      return { mode: 'agenda', currentStart: current?.start ?? null, refreshAt: nextMeetupAgendaChange(now) }
     }
     case 'qa': {
       const qa = await readProjectionRound(db, selection.roundId, revision)
@@ -91,7 +101,7 @@ export async function handleProjection(request: Request, env: ActivityEnv, clock
       if (!selection) return new Response(null, { status: 400, headers })
       const row = await stateQuery(db).first<StateRow>()
       if (!row) return new Response(null, { status: 503, headers })
-      const view = await readView(db, selection, clock())
+      const view = await readView(db, selection, clock(), row.sectionOverride)
       return view ? Response.json(view, { headers }) : new Response(null, { status: 404, headers })
     }
 
@@ -99,7 +109,7 @@ export async function handleProjection(request: Request, env: ActivityEnv, clock
     for (let attempt = 0; attempt < 2; attempt++) {
       const row = await stateQuery(db).first<StateRow>()
       if (!row) break
-      const view = await readView(db, selectionFrom(row), clock(), row.revision)
+      const view = await readView(db, selectionFrom(row), clock(), row.sectionOverride, row.revision)
       if (view) return Response.json(view, { headers })
     }
     return new Response(null, { status: 503, headers })

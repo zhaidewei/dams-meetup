@@ -1,34 +1,33 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import {
   MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PersonalCommand, type PersonalItem,
   type PersonalSnapshot, type ThreadSnapshot, type ThreadSummary,
 } from '@/lib/meetup15/personal'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
+import { ReplyList } from './DiscussionFeed'
 import { MemberAvatar } from './MemberAvatar'
 import { useDiscussion } from './useDiscussion'
 
-type View = 'profile' | 'posts' | 'replies' | 'messages'
 const profileRow = 'grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]'
-const views = { profile: '资料', posts: '我的帖子', replies: '收到的回复', messages: '私信' } as const
+const views = { profile: '资料', posts: '我的帖子', messages: '私信', recovery: '恢复链接' } as const
+type View = keyof typeof views
 
-export function PersonalPanel({ initialMessages }: { initialMessages: boolean }) {
-  const [view, setView] = useState<View>(initialMessages ? 'messages' : 'profile')
+export function PersonalPanel({ initialView, recovery }: { initialView: View; recovery: ReactNode }) {
+  const [view, setView] = useState(initialView)
   const { data, pending, error, submit } = useDiscussion<PersonalSnapshot, PersonalCommand>('/api/personal', 'personal')
   const lastRead = useRef(0)
   const replyThrough = data?.replies.find(reply => reply.unread)?.id ?? 0
 
   useEffect(() => {
-    if (view === 'replies' && replyThrough > lastRead.current) {
+    if (view === 'posts' && replyThrough > lastRead.current) {
       lastRead.current = replyThrough
       void submit({ action: 'replies-read', through: replyThrough })
     }
   }, [replyThrough, submit, view])
-
-  if (!data) return <p role={error ? 'alert' : 'status'}>{error || '正在读取个人页…'}</p>
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -39,20 +38,23 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
       revision: Number(form.get('revision')) })
   }
 
-  const unreadReplies = data.replies.some(reply => reply.unread)
-  const unreadMessages = data.threads.some(item => item.unread)
+  const unreadMessages = data?.threads.some(item => item.unread)
   return (
     <div className="space-y-4">
-      <nav className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-4 sm:flex sm:flex-wrap" aria-label="个人页">
+      <nav className="grid grid-cols-4 gap-1.5 sm:flex sm:flex-wrap sm:gap-2" aria-label="个人页">
         {(Object.keys(views) as View[]).map((item) => (
-          <button key={item} type="button" className={discussionButton + ' min-h-11 rounded-full aria-pressed:border-dams-selection aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover'} aria-pressed={view === item}
+          <button key={item} type="button" className="relative min-h-11 rounded-full border border-dams-line px-1 text-sm focus-visible:outline-2 focus-visible:outline-dams-blue aria-pressed:border-dams-selection aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover sm:px-4" aria-pressed={view === item}
             onClick={() => setView(item)}>
-            {views[item]}{((item === 'replies' && unreadReplies) || (item === 'messages' && unreadMessages)) && ' · 有未读'}
+            {views[item]}
+            {((item === 'posts' && replyThrough > 0) || (item === 'messages' && unreadMessages)) && (
+              <><span aria-hidden className="absolute top-1.5 right-2 size-1.5 rounded-full bg-dams-blue" /><span className="sr-only"> · 有未读</span></>
+            )}
           </button>
         ))}
       </nav>
-      {error && <p role="alert" className="text-red-700">{error}</p>}
-      {view === 'profile' && (
+      {view !== 'recovery' && error && <p role="alert" className="text-red-700">{error}</p>}
+      {view !== 'recovery' && !data && !error && <p role="status">正在读取个人页…</p>}
+      {data && view === 'profile' && (
         <form key={data.profileRevision} onSubmit={saveProfile} className="max-w-lg space-y-3 rounded-2xl border border-dams-line bg-white p-4">
           <input type="hidden" name="revision" value={data.profileRevision} />
           <label className={profileRow}>昵称
@@ -80,23 +82,42 @@ export function PersonalPanel({ initialMessages }: { initialMessages: boolean })
             disabled={pending}>保存资料</button>
         </form>
       )}
-      {view === 'posts' && <PersonalItems items={data.posts} empty="你还没有发帖。" />}
-      {view === 'replies' && <PersonalItems items={data.replies} empty="你还没有收到回复。" />}
-      {view === 'messages' && <MessageList threads={data.threads} />}
+      {data && view === 'posts' && <PersonalPosts items={data.posts} feedRead={data.replies[0]?.id ?? 0} />}
+      {data && view === 'messages' && <MessageList threads={data.threads} />}
+      {view === 'recovery' && recovery}
     </div>
   )
 }
 
-function PersonalItems({ items, empty }: { items: PersonalItem[]; empty: string }) {
-  if (!items.length) return <p>{empty}</p>
+function PersonalPosts({ items, feedRead }: { items: PersonalItem[]; feedRead: number }) {
+  if (!items.length) return <p>你还没有发帖。</p>
   return <ul className="space-y-2">
     {items.map(item => (
-      <li className="space-y-1 rounded border border-dams-line p-3" key={item.id}>
-        <p className="wrap-anywhere text-xs text-zinc-600">{item.author && `${item.author} · `}{MEETUP_SECTIONS[item.section]}</p>
+      <li className="space-y-1 rounded-xl border border-dams-line bg-white p-3" key={item.id}>
+        <p className="wrap-anywhere text-xs text-zinc-600">{MEETUP_SECTIONS[item.section]}</p>
         <p className="whitespace-pre-wrap wrap-anywhere">{item.body}</p>
+        <PersonalPostReplies postId={item.id} feedRead={feedRead} />
       </li>
     ))}
   </ul>
+}
+
+function PersonalPostReplies({ postId, feedRead, parentId }: { postId: number; feedRead: number; parentId?: number }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="min-h-11 w-fit cursor-pointer rounded py-3 text-sm font-medium text-dams-hover focus-visible:outline-2 focus-visible:outline-dams-blue">
+        {parentId === undefined ? '查看回复' : '查看子回复'}
+      </summary>
+      {open && <ReplyList postId={postId} parentId={parentId} feedRead={feedRead} render={reply => (
+        <>
+          <p className="text-xs font-semibold text-slate-600">{reply.author}</p>
+          <p className="text-sm whitespace-pre-wrap wrap-anywhere">{reply.body}</p>
+          {Boolean(reply.replyCount) && <PersonalPostReplies postId={postId} parentId={reply.id} feedRead={feedRead} />}
+        </>
+      )} />}
+    </details>
+  )
 }
 
 function contactKey(thread: ThreadSummary) {

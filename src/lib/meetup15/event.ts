@@ -123,6 +123,11 @@ export function isMeetupSection(value: unknown): value is MeetupSection {
   return typeof value === 'string' && Object.hasOwn(MEETUP_SECTIONS, value)
 }
 
+export function meetupDiscussionPath(section?: MeetupSection) {
+  if (section === 'lounge') return '/feed?view=free'
+  return section ? `/feed?section=${section}` : '/feed'
+}
+
 export function nextMeetupSectionChange(now: number): number | null {
   for (const slot of MEETUP_AGENDA) {
     for (const time of [slot.start, slot.end]) {

@@ -13,7 +13,7 @@ export default function RecoverPage() {
     <main className="mx-4 my-6 w-auto sm:mx-auto sm:w-full max-w-md rounded-2xl border border-dams-line bg-dams-wash/60 space-y-4 px-5 py-7 sm:p-8">
       <h1 className="text-2xl font-semibold">恢复第 15 期观众身份</h1>
       <LinkAdmission mode="recover" />
-      <p>请使用本届「恢复链接」页面保存的链接，并确认恢复身份。</p>
+      <p>请使用本届「我的」页面里保存的恢复链接，并确认恢复身份。</p>
       <Link className="underline" href="/">返回活动首页</Link>
     </main>
   )
