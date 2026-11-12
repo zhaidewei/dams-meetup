@@ -6,6 +6,7 @@ import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
 import { GuestAccounts } from './GuestAccounts'
 import { LiveStatsPanel } from './LiveStatsPanel'
+import { RehearsalControls } from './RehearsalControls'
 import { SummaryControls } from './SummaryControls'
 
 export const metadata = { title: '第 15 期 Meetup · 主办方控制台' }
@@ -18,15 +19,16 @@ const ADMIN_TABS = {
   posts: '管理帖子',
   guests: '配置嘉宾',
   stats: '查看实时统计',
+  rehearsal: '管理彩排',
   summary: '发布复盘与归档',
 } as const
 
 export default async function ActivityAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; edit?: string; guest?: string; tab?: string; summary?: string }>
+  searchParams: Promise<{ error?: string; edit?: string; guest?: string; tab?: string; summary?: string; rehearsal?: string }>
 }) {
-  const [signedIn, { error, edit, guest, tab, summary }] = await Promise.all([isMeetupAdmin(), searchParams])
+  const [signedIn, { error, edit, guest, tab, summary, rehearsal }] = await Promise.all([isMeetupAdmin(), searchParams])
   const selected = tab && Object.hasOwn(ADMIN_TABS, tab) ? tab : guest ? 'guests' : 'screen'
 
   return (
@@ -51,6 +53,7 @@ export default async function ActivityAdminPage({
           {selected === 'qa' && <DiscussionAdmin view="qa" />}
           {selected === 'posts' && <PostModeration />}
           {selected === 'stats' && <LiveStatsPanel />}
+          {selected === 'rehearsal' && <RehearsalControls status={rehearsal} />}
           {selected === 'summary' && <SummaryControls status={summary} />}
           {selected === 'guests' && <GuestAccounts edit={edit} status={guest} />}
         </ActivityAdminPanels>

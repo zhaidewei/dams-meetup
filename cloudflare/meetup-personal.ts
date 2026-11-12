@@ -3,6 +3,7 @@ import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { MAX_DISCUSSION_BODY } from '../src/lib/meetup15/discussion'
 import { MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PublicProfile } from '../src/lib/meetup15/personal'
 import type { ActivityEnv } from './activity'
+import { notifyDiscussion } from './discussion-notifications'
 import { touchMember } from './meetup-presence'
 import { memberCard, personalOverview, readThread, repliesRead, threadForMember } from './personal-read'
 
@@ -68,6 +69,7 @@ async function updateProfile(db: D1Database, member: Member, input: Record<strin
   }
   const result = await statement.run()
   if (!result.meta.changes) return failure(409, '资料已在其他设备修改，请核对后再保存。')
+  return name !== member.display_name
 }
 
 export async function handlePersonal(request: Request, env: ActivityEnv, clock = Date.now) {
@@ -112,10 +114,12 @@ export async function handlePersonal(request: Request, env: ActivityEnv, clock =
   if (!input || typeof input !== 'object' || Array.isArray(input)) return failure(400, '请检查输入后重试。')
   if (clock() >= INTERACTION_END) return failure(401, '本届互动区已关闭。')
 
+  let renamed = false
   switch (input.action) {
     case 'profile': {
-      const error = await updateProfile(db, member, input)
-      if (error) return error
+      const saved = await updateProfile(db, member, input)
+      if (saved instanceof Response) return saved
+      renamed = saved
       break
     }
     case 'replies-read':
@@ -153,6 +157,8 @@ export async function handlePersonal(request: Request, env: ActivityEnv, clock =
     }
     default: return failure(400, '请检查输入后重试。')
   }
-  await notify(env, [member.id])
+  const personalUpdate = notify(env, [member.id])
+  if (renamed) await Promise.all([personalUpdate, notifyDiscussion(env)])
+  else await personalUpdate
   return new Response(null, { status: 204, headers })
 }

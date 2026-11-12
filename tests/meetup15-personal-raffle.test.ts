@@ -144,11 +144,14 @@ it('keeps contact and message views private and commits one prize and message ac
 
     expect((await request('screen/admin', admin, { mode: 'raffle', revision: 0 })).status).toBe(204)
     const start = { action: 'start', weighted: true, requireParticipation: true, latestId: 0 }
+    const earliestReady = Date.now() + 5000
     const attempts = await Promise.all([request('raffle', admin, start), request('raffle', admin, start)])
     expect(attempts.map(response => response.status).sort()).toEqual([204, 409])
-    const draw = await db.prepare('SELECT id, candidates, winner_id FROM meetup15_raffles').first<{
-      id: number; candidates: string; winner_id: string | null
+    const draw = await db.prepare('SELECT id, candidates, winner_id, ready_at FROM meetup15_raffles').first<{
+      id: number; candidates: string; winner_id: string | null; ready_at: number
     }>()
+    expect(draw?.ready_at).toBeGreaterThanOrEqual(earliestReady)
+    expect(draw?.ready_at).toBeLessThanOrEqual(Date.now() + 5000)
     expect(JSON.parse(draw!.candidates)).toEqual(expect.arrayContaining([
       { id: 'alice', name: 'Alice', weight: 3 }, { id: 'bob', name: 'Bob', weight: 1 },
     ]))

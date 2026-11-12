@@ -113,6 +113,7 @@ const eventDate = new Intl.DateTimeFormat('zh-CN', {
 
 export const MEETUP_DATE = `${eventDate} ${firstSlot.start}–${lastSlot.end} CET`
 export const ADMISSION_END = agendaTime(lastSlot.end)
+export const REHEARSAL_END = agendaTime('00:00')
 
 export function meetupSectionAt(now = Date.now()): MeetupAgendaSection {
   return meetupAgendaAt(now)?.section ?? 'lounge'
@@ -120,6 +121,11 @@ export function meetupSectionAt(now = Date.now()): MeetupAgendaSection {
 
 export function isMeetupSection(value: unknown): value is MeetupSection {
   return typeof value === 'string' && Object.hasOwn(MEETUP_SECTIONS, value)
+}
+
+export function meetupDiscussionPath(section?: MeetupSection) {
+  if (section === 'lounge') return '/feed?view=free'
+  return section ? `/feed?section=${section}` : '/feed'
 }
 
 export function nextMeetupSectionChange(now: number): number | null {

@@ -2,9 +2,9 @@ import { readFile, readdir } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
-import type { FeedSnapshot, ReplyPage, StaffSnapshot } from '../src/lib/meetup15/discussion'
+import { FEED_TIME_HEADER, FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type QaPush, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
-import { MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
+import { INTERACTION_END, MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -77,7 +77,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     })
   const ok = async (cookie: string, input: object, suffix = '') =>
     expect((await command(cookie, input, suffix)).status).toBe(204)
-  const connect = (cookie: string) => runtime.dispatchFetch(path + '/updates', {
+  const connect = (cookie: string, query = '') => runtime.dispatchFetch(path + '/updates' + query, {
     headers: { Cookie: cookie, Origin: origin, Upgrade: 'websocket' },
   })
 
@@ -114,7 +114,16 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await command(alice, { action: 'post' }, '', 'https://another.example')).status).toBe(403)
     expect((await feed(alice)).section).toBe('lightning')
     await ok(admin, { action: 'section', section: 'expert' }, '/admin')
-    expect((await feed(alice)).section).toBe('expert')
+    expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: '14:30', refreshAt: null })
+    expect(await (await preview('mode=agenda')).json()).toMatchObject({ mode: 'agenda', currentStart: '14:30', refreshAt: null })
+    await ok(admin, { action: 'section', section: 'lounge' }, '/admin')
+    expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: null })
+    await ok(admin, { action: 'section', section: null }, '/admin')
+    expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: '13:30' })
+    await ok(admin, { action: 'section', section: 'expert' }, '/admin')
+    const feedResponse = await read(alice)
+    expect(feedResponse.headers.get(FEED_TIME_HEADER)).toBe(String(now))
+    expect(await feedResponse.json()).toMatchObject({ section: 'expert', refreshAt: INTERACTION_END })
     expect((await feed(alice, '?section=lounge')).section).toBe('lounge')
 
     await ok(admin, { action: 'section', section: 'breakout' }, '/admin')
@@ -238,12 +247,47 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     })).status).toBe(409)
     const question = '问'.repeat(99) + '？'
     expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: question + '。' })).status).toBe(400)
-    await ok(alice, { action: 'question', section: 'expert', roundId: first.id, body: question })
+    const conditionalFeed = async (cookie: string, versions = ',') => {
+      const response = await runtime.dispatchFetch(path + '?section=expert', {
+        headers: { Cookie: cookie, [FEED_VERSIONS_HEADER]: versions },
+      })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+      return await response.json() as FeedUpdate
+    }
+    const feedToken = ({ versions }: FeedUpdate) => versions.questions + ',' + versions.posts
+    const beforeQuestion = await conditionalFeed(alice)
+    expect(beforeQuestion.questions).toEqual([])
+    expect((await conditionalFeed(alice, feedToken(beforeQuestion))).items).toBeUndefined()
+    const confirmed = await runtime.dispatchFetch(path, {
+      method: 'POST', headers: { Cookie: alice, Origin: origin, 'Content-Type': 'application/json', [FEED_VERSIONS_HEADER]: ',' },
+      body: JSON.stringify({ action: 'question', section: 'expert', roundId: first.id, body: question }),
+    })
+    expect(confirmed.status).toBe(200)
+    expect(await confirmed.json()).toMatchObject({ roundId: first.id, question: { mine: true, body: question } })
+    const questionUpdate = await conditionalFeed(alice, feedToken(beforeQuestion))
+    expect(questionUpdate.questions).toMatchObject([{ body: question, mine: true }])
+    expect(questionUpdate.items).toBeUndefined()
+    expect((await conditionalFeed(bob, feedToken(questionUpdate))).questions).toMatchObject([{ body: question, mine: false }])
+    await ok(alice, { action: 'post', section: 'expert', body: '验证帖子版本' })
+    const postUpdate = await conditionalFeed(alice, feedToken(questionUpdate))
+    expect(postUpdate.questions).toBeUndefined()
+    expect(postUpdate.items?.[0]).toMatchObject({ body: '验证帖子版本', mine: true })
+    await ok(alice, { action: 'delete', id: postUpdate.items![0].id })
     await ok(bob, { action: 'question', section: 'expert', roundId: first.id, body: '后问的问题' })
     const [older, newer] = (await activeQa()).questions
     expect([older.body, newer.body]).toEqual([question, '后问的问题'])
+    const beforeLike = await conditionalFeed(alice)
     await ok(alice, { action: 'like', id: newer.id, liked: true })
     expect((await activeQa()).questions[0].id).toBe(newer.id)
+    const likedDelta = await conditionalFeed(alice, feedToken(beforeLike))
+    expect(likedDelta.questions).toBeUndefined()
+    expect(likedDelta.questionDelta).toMatchObject({
+      upsert: [{ id: newer.id, likes: 1, liked: true }], remove: [],
+    })
+    const differentViewer = await conditionalFeed(bob, feedToken(beforeLike))
+    expect(differentViewer.questionDelta).toBeUndefined()
+    expect(differentViewer.questions?.[0]).toMatchObject({ id: newer.id, likes: 1, liked: false, mine: true })
     const [aliceQuestions, bobQuestions] = await Promise.all([
       feed(alice, '?section=expert'), feed(bob, '?section=expert'),
     ])
@@ -255,7 +299,45 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     await ok(alice, { action: 'like', id: newer.id, liked: false })
     expect((await feed(alice, '?section=expert')).questions.find(item => item.id === newer.id))
       .toMatchObject({ likes: 0, liked: false })
+    const legacy = (await connect(alice)).webSocket!
+    legacy.accept()
+    const notification = new Promise(resolve => legacy.addEventListener('message', resolve, { once: true }))
     await ok(alice, { action: 'like', id: newer.id, liked: true })
+    await notification
+    legacy.close()
+
+    const pushed = await Promise.all([alice, bob, admin].map(async cookie => {
+      const socket = (await connect(cookie, cookie === admin ? '?qa=projection' : '?qa=member')).webSocket!
+      socket.accept()
+      return socket
+    }))
+    const nextPush = () => Promise.all(pushed.map(socket => new Promise<QaPush>(resolve => {
+      const listener = (event: { data: unknown }) => {
+        if (typeof event.data !== 'string' || !event.data.startsWith('{')) return
+        const message = JSON.parse(event.data) as QaPush
+        if (message.type !== 'qa.updated') return
+        socket.removeEventListener('message', listener)
+        resolve(message)
+      }
+      socket.addEventListener('message', listener)
+    })))
+    const firstPush = nextPush()
+    await ok(bob, { action: 'like', id: newer.id, liked: true })
+    const [mineAlice, mineBob, screenPush] = await firstPush
+    for (const message of [mineAlice, mineBob, screenPush]) {
+      expect(message).toMatchObject({ roundId: first.id, section: 'expert', baseRevision: null })
+      expect(message.upsert.find(item => item.id === newer.id)).not.toHaveProperty('likedBy')
+    }
+    expect(mineAlice.upsert.find(item => item.id === newer.id)).toMatchObject({ likes: 2, liked: true, mine: false })
+    expect(mineBob.upsert.find(item => item.id === newer.id)).toMatchObject({ likes: 2, liked: true, mine: true })
+    expect(screenPush.upsert.find(item => item.id === newer.id)).toMatchObject({ likes: 2, liked: false, mine: false })
+    const secondPush = nextPush()
+    await ok(bob, { action: 'like', id: newer.id, liked: false })
+    const [aliceDelta, bobDelta] = await secondPush
+    expect(aliceDelta).toMatchObject({ baseRevision: mineAlice.revision, upsert: [{ id: newer.id, likes: 1, liked: true }] })
+    expect(bobDelta).toMatchObject({ baseRevision: mineBob.revision, upsert: [{ id: newer.id, likes: 1, liked: false }] })
+    expect((await conditionalFeed(alice)).qaRevision).toBe(aliceDelta.revision)
+    for (const socket of pushed) socket.close()
 
     const attendeeSocket = (await connect(alice)).webSocket!
     const screenSocket = (await connect(admin)).webSocket!

@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { MEETUP_NAME, MEETUP_THEME } from '@/lib/meetup15/event'
+import { MeetupAgenda } from '@/components/meetup15/MeetupAgenda'
+import { MEETUP_NAME, MEETUP_THEME, meetupNow, meetupPhase } from '@/lib/meetup15/event'
 import { meetupEnv } from '@/lib/meetup15/server'
 import { readMeetupSummary, SUMMARY_METRICS, type SummaryMetrics } from '@/lib/meetup15/summary'
 
@@ -9,13 +10,15 @@ export const metadata = { title: '第 15 期活动复盘 · DAMS' }
 const number = new Intl.NumberFormat('zh-CN')
 
 export default async function MeetupSummaryPage() {
-  const summary = await readMeetupSummary(meetupEnv().ACTIVITY_DB)
+  const env = meetupEnv()
+  const closed = meetupPhase(meetupNow(env)) === 'closed'
+  const summary = await readMeetupSummary(env.ACTIVITY_DB)
   const metrics: SummaryMetrics = summary ? JSON.parse(summary.metrics) : {}
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-8 px-5 py-10 sm:py-16">
       <nav aria-label="活动复盘导航" className="flex flex-wrap gap-4 text-sm">
-        <Link href="/agenda" className="underline">第 15 期议程</Link>
+        <Link href={closed ? '#agenda' : '/#agenda'} className="underline">第 15 期议程</Link>
         <Link href="/summary/14" className="underline">第 14 期复盘</Link>
         <Link href="/admin" className="underline">工作人员入口</Link>
       </nav>
@@ -37,6 +40,7 @@ export default async function MeetupSummaryPage() {
           })}
         </dl>
       ) : <p className="text-sm text-zinc-600">本届复盘尚未发布。</p>}
+      {closed && <MeetupAgenda />}
     </main>
   )
 }

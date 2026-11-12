@@ -32,6 +32,11 @@ export type DiscussionItem = {
   createdAt: number
 }
 
+export function compareQuestions(a: Omit<DiscussionItem, 'mine' | 'liked'>, b: Omit<DiscussionItem, 'mine' | 'liked'>) {
+  return Number(a.answered) - Number(b.answered) || b.likes - a.likes ||
+    a.createdAt - b.createdAt || a.id - b.id
+}
+
 export type QuestionRound = {
   id: number
   guest: string
@@ -55,7 +60,36 @@ export type FeedSnapshot = DiscussionContext & {
   section: MeetupSection
   items: DiscussionItem[]
   nextBefore: number | null
+  qaRevision?: number
 }
+
+export const FEED_VERSIONS_HEADER = 'X-Discussion-Versions'
+export const FEED_TIME_HEADER = 'X-Discussion-Server-Time'
+export type FeedVersions = { questions: string; posts: string }
+export type VersionedFeed = FeedSnapshot & { versions: FeedVersions }
+export type QuestionDelta = { upsert: DiscussionItem[]; remove: number[] }
+export type QaPush = {
+  type: 'qa.updated'
+  section: MeetupSection
+  roundId: number
+  revision: number
+  baseRevision: number | null
+} & QuestionDelta
+
+export type QaWriteAck = { revision: number; roundId: number } & (
+  | { question: DiscussionItem }
+  | { like: { id: number; liked: boolean } }
+)
+
+export function mergeQuestions(questions: DiscussionItem[], delta: QuestionDelta) {
+  const merged = new Map(questions.map(question => [question.id, question]))
+  for (const id of delta.remove) merged.delete(id)
+  for (const question of delta.upsert) merged.set(question.id, question)
+  return [...merged.values()].sort(compareQuestions)
+}
+
+export type FeedUpdate = { questionDelta?: QuestionDelta } & Omit<VersionedFeed, 'items' | 'questions' | 'nextBefore'> &
+  Partial<Pick<VersionedFeed, 'items' | 'questions' | 'nextBefore'>>
 
 export type ReplyPage = { items: DiscussionItem[]; nextAfter: number | null; refreshAt: null }
 

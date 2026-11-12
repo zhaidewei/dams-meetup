@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto'
+import { compareQuestions } from '../src/lib/meetup15/discussion'
 import type {
-  DiscussionItem, FeedSnapshot, ModerationPage, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
+  DiscussionItem, DiscussionEmoji, FeedUpdate, FeedVersions, QuestionDelta, ModerationPage, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
-import type { Member } from '../src/lib/meetup15/identity'
 import { INTERACTION_END, isMeetupAgendaSection, isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
 
 const PAGE_SIZE = 30
@@ -38,77 +39,97 @@ function item({ reactionData, ...row }: ItemRow): DiscussionItem {
     liked: Boolean(row.liked), answered: Boolean(row.answered) }
 }
 
-async function readContext(db: D1Database, now: number) {
-  const [settings, rounds] = await db.batch([
-    db.prepare('SELECT section_override, question_revision FROM activity_state WHERE id = 1'),
-    db.prepare(`${ROUNDS} ORDER BY r.id DESC`),
-  ])
-  const state = settings.results[0] as { section_override: unknown; question_revision: number } | undefined
-  const override = state?.section_override
+function discussionContext(override: unknown, history: QuestionRound[], now: number) {
   const section = isMeetupAgendaSection(override) ? override : null
-  const history = rounds.results as unknown as QuestionRound[]
   return {
-    revision: state?.question_revision,
-    context: {
-      currentSection: section ?? meetupSectionAt(now),
-      override: section,
-      refreshAt: section ? null : nextMeetupSectionChange(now),
-      rounds: history,
-      activeRound: history.find((round) => round.closedAt === null) ?? null,
-    },
+    currentSection: section ?? meetupSectionAt(now),
+    override: section,
+    refreshAt: section ? null : nextMeetupSectionChange(now),
+    rounds: history,
+    activeRound: history.find(round => round.closedAt === null) ?? null,
   }
 }
 
 type SharedQuestion = Omit<DiscussionItem, 'mine' | 'liked'> & { likedBy: Set<string> }
 type QuestionContentRow = Omit<ItemRow, 'mine' | 'liked' | 'likes'>
+type SharedPost = SharedQuestion & { reactionsByMember: { emoji: DiscussionEmoji; members: string[] }[] }
+type FeedState = {
+  display_name: string | null
+  section_override: unknown
+  question_revision: number
+  post_revision: number
+  round_revision: number
+}
 
-// A Worker isolate serves one activity database. D1 revisions also invalidate other isolates.
-const questionSnapshots = new Map<number, { revision: number; rows: Promise<SharedQuestion[]> }>()
-const MAX_CACHED_ROUNDS = 8
+type Cached<T> = { revision: number; stamp: string; rows: Promise<T> }
 
-async function loadSharedQuestions(db: D1Database, roundId: number): Promise<SharedQuestion[]> {
-  const [questions, likes] = await db.batch([
+// Each isolate is bound to one activity database. Revisions invalidate all isolates.
+const questionSnapshots = new Map<string, Cached<QuestionState | null>>()
+const postSnapshots = new Map<string, Cached<SharedPost[]>>()
+const roundSnapshots = new Map<string, Cached<QuestionRound[]>>()
+
+function sharedSnapshot<Key, Rows>(
+  snapshots: Map<Key, Cached<Rows>>, key: Key, revision: number,
+  load: () => Promise<Rows>, limit: number, execution?: ExecutionContext,
+) {
+  const cached = snapshots.get(key)
+  if (cached?.revision === revision) return { ...cached, status: 'hit' }
+  const stamp = crypto.randomUUID()
+  if (cached && cached.revision > revision) return { stamp, rows: load(), status: 'miss' }
+  const rows = load().catch(error => {
+    if (snapshots.get(key)?.rows === rows) snapshots.delete(key)
+    throw error
+  })
+  execution?.waitUntil(rows.catch(() => {}))
+  snapshots.delete(key)
+  snapshots.set(key, { revision, stamp, rows })
+  if (snapshots.size > limit) {
+    for (const oldest of snapshots.keys()) {
+      snapshots.delete(oldest)
+      break
+    }
+  }
+  return { stamp, rows, status: 'miss' }
+}
+
+async function loadRounds(db: D1Database) {
+  return (await db.prepare(`${ROUNDS} ORDER BY r.id DESC`).all<QuestionRound>()).results
+}
+
+type QuestionState = { roundId: number; section: QuestionRound['section']; revision: number; questions: SharedQuestion[] }
+
+export async function loadSharedQuestions(db: D1Database, roundId: number | null): Promise<QuestionState | null> {
+  const round = roundId === null ? '(SELECT id FROM meetup15_qa_rounds WHERE closed_at IS NULL)' : '?'
+  const bindings = roundId === null ? [] : [roundId]
+  const [metadata, questions, likes] = await db.batch([
+    db.prepare(`
+      SELECT r.id AS roundId, r.section, a.question_revision AS revision
+      FROM meetup15_qa_rounds r CROSS JOIN activity_state a WHERE r.id = ${round} AND a.id = 1
+    `).bind(...bindings),
     db.prepare(`
       SELECT ${ITEM_CONTENT}
       FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
-      WHERE d.round_id = ?
-    `).bind(roundId),
+      WHERE d.round_id = ${round}
+    `).bind(...bindings),
     db.prepare(`
       SELECT l.item_id AS itemId, l.member_id AS memberId
       FROM meetup15_discussion d JOIN meetup15_discussion_likes l ON l.item_id = d.id
-      WHERE d.round_id = ?
-    `).bind(roundId),
+      WHERE d.round_id = ${round}
+    `).bind(...bindings),
   ])
+  const state = metadata.results[0] as Omit<QuestionState, 'questions'> | undefined
+  if (!state) return null
   const byQuestion = new Map<number, Set<string>>()
   for (const { itemId, memberId } of likes.results as { itemId: number; memberId: string }[]) {
     const likedBy = byQuestion.get(itemId) ?? new Set<string>()
     likedBy.add(memberId)
     byQuestion.set(itemId, likedBy)
   }
-  return (questions.results as QuestionContentRow[]).map(row => {
+  const rows = (questions.results as QuestionContentRow[]).map(row => {
     const likedBy = byQuestion.get(row.id) ?? new Set<string>()
     return { ...row, tags: JSON.parse(row.tags), answered: Boolean(row.answered), likes: likedBy.size, likedBy }
-  }).sort((a, b) => Number(a.answered) - Number(b.answered) || b.likes - a.likes ||
-    a.createdAt - b.createdAt || a.id - b.id)
-}
-
-function sharedQuestions(db: D1Database, roundId: number, revision: number | undefined, execution?: ExecutionContext) {
-  const cached = questionSnapshots.get(roundId)
-  if (revision === undefined || (cached && cached.revision > revision)) return loadSharedQuestions(db, roundId)
-  if (cached?.revision === revision) return cached.rows
-  const rows = loadSharedQuestions(db, roundId).catch(error => {
-    if (questionSnapshots.get(roundId)?.rows === rows) questionSnapshots.delete(roundId)
-    throw error
-  })
-  // Keep the shared read alive if the client that started it disconnects.
-  execution?.waitUntil(rows.catch(() => {}))
-  questionSnapshots.delete(roundId)
-  questionSnapshots.set(roundId, { revision, rows })
-  if (questionSnapshots.size > MAX_CACHED_ROUNDS) {
-    const oldest = questionSnapshots.keys().next().value
-    if (oldest !== undefined) questionSnapshots.delete(oldest)
-  }
-  return rows
+  }).sort(compareQuestions)
+  return { ...state, questions: rows }
 }
 
 function questionsQuery(db: D1Database, roundId: number, viewer: string) {
@@ -126,33 +147,138 @@ async function readQuestions(db: D1Database, round: QuestionRound | null, viewer
   return results.map(item)
 }
 
-export async function readFeed(db: D1Database, member: Member, url: URL, now: number, execution?: ExecutionContext): Promise<FeedSnapshot> {
-  const { context, revision } = await readContext(db, now)
-  const viewer = member.id
+async function loadSharedPosts(db: D1Database, section: string, cursor: number): Promise<SharedPost[]> {
+  const { results } = await db.prepare(`
+    SELECT ${ITEM_CONTENT},
+      (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.post_id = d.id) AS replyCount,
+      (SELECT json_group_array(l.member_id) FROM meetup15_discussion_likes l WHERE l.item_id = d.id) AS likeMembers,
+      (SELECT json_group_array(json_object('emoji', emoji, 'members', json(members)))
+       FROM (
+         SELECT emoji, json_group_array(member_id) AS members
+         FROM meetup15_reply_reactions WHERE reply_id = d.id GROUP BY emoji
+       )) AS reactionMembers
+    FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
+    WHERE d.kind = 'post' AND d.section = ? AND d.id < ?
+    ORDER BY d.id DESC LIMIT ?`
+  ).bind(section, cursor, PAGE_SIZE + 1).all<QuestionContentRow & { likeMembers: string; reactionMembers: string }>()
+  return results.map(({ likeMembers, reactionMembers, ...row }) => {
+    const likedBy = new Set<string>(JSON.parse(likeMembers))
+    return { ...row, tags: JSON.parse(row.tags), answered: Boolean(row.answered),
+      likes: likedBy.size, likedBy, reactionsByMember: JSON.parse(reactionMembers) }
+  })
+}
+
+function version(parts: unknown[]) {
+  return createHash('sha256').update(JSON.stringify(parts)).digest('base64url')
+}
+
+function questionToken(viewer: string, round: number, revision: number, stamp: string) {
+  return [revision, stamp, version([viewer, round, revision, stamp])].join('.')
+}
+
+function parseQuestionToken(token: string | undefined, viewer: string, round: number) {
+  if (!token) return null
+  const [rawRevision, stamp] = token.split('.')
+  const revision = Number(rawRevision)
+  if (!stamp || !Number.isSafeInteger(revision) || revision < 0 ||
+      token !== questionToken(viewer, round, revision, stamp)) return null
+  return { revision, stamp, token }
+}
+
+export function questionForViewer({ likedBy, ...question }: SharedQuestion, viewer: string): DiscussionItem {
+  return { ...question, mine: question.authorId === viewer, liked: likedBy.has(viewer) }
+}
+
+export function questionChanges(previous: SharedQuestion[], current: SharedQuestion[], viewer: string): QuestionDelta {
+  const old = new Map(previous.map(question => [question.id, question]))
+  const upsert = []
+  for (const question of current) {
+    const earlier = old.get(question.id)
+    old.delete(question.id)
+    if (!earlier || earlier.body !== question.body || earlier.author !== question.author ||
+        earlier.authorId !== question.authorId || earlier.authorRole !== question.authorRole ||
+        earlier.createdAt !== question.createdAt || earlier.answered !== question.answered ||
+        earlier.likes !== question.likes || earlier.likedBy.has(viewer) !== question.likedBy.has(viewer)) {
+      upsert.push(questionForViewer(question, viewer))
+    }
+  }
+  return { upsert, remove: [...old.keys()] }
+}
+
+export async function readFeed(
+  db: D1Database, viewer: string, url: URL, now: number, knownVersions: string | null, execution?: ExecutionContext,
+) {
+  const state = await db.prepare(`
+    SELECT m.display_name, a.section_override, a.question_revision, a.post_revision, a.round_revision
+    FROM meetup15_members m CROSS JOIN activity_state a WHERE m.id = ? AND a.id = 1
+  `).bind(viewer).first<FeedState>()
+  if (!state) return null
+
+  const history = sharedSnapshot(roundSnapshots, 'rounds', state.round_revision, () => loadRounds(db), 1, execution)
+  const context = discussionContext(state.section_override, await history.rows, now)
   const wantedSection = url.searchParams.get('section')
   const section = isMeetupSection(wantedSection) ? wantedSection : context.currentSection
   const wantedRound = url.searchParams.get('round')
   const viewedRound = wantedRound
-    ? context.rounds.find((round) => String(round.id) === wantedRound && round.section === section) ?? null
+    ? context.rounds.find(round => String(round.id) === wantedRound && round.section === section) ?? null
     : context.activeRound?.section === section ? context.activeRound : null
   const before = Number(url.searchParams.get('before'))
   const cursor = Number.isSafeInteger(before) && before > 0 ? before : Number.MAX_SAFE_INTEGER
-  const [shared, feed] = await Promise.all([
-    viewedRound ? sharedQuestions(db, viewedRound.id, revision, execution) : [],
-    db.prepare(`
-      SELECT ${ITEM_FIELDS}, ${REACTION_DATA},
-        (SELECT COUNT(*) FROM meetup15_discussion r WHERE r.post_id = d.id) AS replyCount
-      FROM meetup15_discussion d JOIN meetup15_members m ON m.id = d.author_id
-      WHERE d.kind = 'post' AND d.section = ? AND d.id < ?
-      ORDER BY d.id DESC LIMIT ?`
-    ).bind(viewer, viewer, viewer, section, cursor, PAGE_SIZE + 1).all<ItemRow>(),
-  ])
-  const items = feed.results.slice(0, PAGE_SIZE)
-  const nextBefore = feed.results.length > PAGE_SIZE ? items.at(-1)?.id ?? null : null
-  const questions = shared.map(({ likedBy, ...question }) => ({
-    ...question, mine: question.authorId === viewer, liked: likedBy.has(viewer),
-  }))
-  return { ...context, nickname: member.display_name, section, viewedRound, questions, items: items.map(item), nextBefore }
+  const postKey = `${section}:${cursor}`
+  const [knownQuestions, knownPosts] = knownVersions?.split(',') ?? []
+  const noQuestionsVersion = version([viewer, null])
+  const previous = viewedRound ? parseQuestionToken(knownQuestions, viewer, viewedRound.id) : null
+  const unchangedQuestions = viewedRound
+    ? previous?.revision === state.question_revision : knownQuestions === noQuestionsVersion
+  const previousCache = viewedRound && previous && previous.revision < state.question_revision
+    ? questionSnapshots.get(`${viewedRound.id}:${previous.revision}`) : undefined
+  const questionSnapshot = viewedRound && !unchangedQuestions
+    ? sharedSnapshot(questionSnapshots, `${viewedRound.id}:${state.question_revision}`, state.question_revision,
+      () => loadSharedQuestions(db, viewedRound.id), 12, execution) : null
+  const postVersion = version([viewer, postKey, state.post_revision])
+  const postSnapshot = knownPosts !== postVersion
+    ? sharedSnapshot(postSnapshots, postKey, state.post_revision, () => loadSharedPosts(db, section, cursor), 32, execution) : null
+  const [qa, posts] = await Promise.all([questionSnapshot?.rows, postSnapshot?.rows])
+  const qaRevision = viewedRound ? qa?.revision ?? state.question_revision : undefined
+  const versions: FeedVersions = {
+    questions: viewedRound
+      ? questionSnapshot ? questionToken(viewer, viewedRound.id, qaRevision!, questionSnapshot.stamp) : previous!.token
+      : noQuestionsVersion,
+    posts: postVersion,
+  }
+  const data: FeedUpdate = {
+    ...context, refreshAt: Math.min(context.refreshAt ?? INTERACTION_END, INTERACTION_END),
+    nickname: state.display_name, section, viewedRound, versions, qaRevision,
+  }
+  if (!unchangedQuestions) {
+    const current = qa?.questions ?? []
+    if (previousCache && previousCache.stamp === previous?.stamp) {
+      const old = await previousCache.rows.catch(() => null)
+      if (old) {
+        const delta = questionChanges(old.questions, current, viewer)
+        if (delta.upsert.length + delta.remove.length < current.length) data.questionDelta = delta
+      }
+    }
+    if (!data.questionDelta) data.questions = current.map(question => questionForViewer(question, viewer))
+  }
+  if (posts) {
+    const page = posts.slice(0, PAGE_SIZE)
+    data.items = page.map(({ likedBy, reactionsByMember, ...post }) => ({
+      ...post, mine: post.authorId === viewer, liked: likedBy.has(viewer),
+      reactions: reactionsByMember.map(({ emoji, members }) => ({
+        emoji, count: members.length, reacted: members.includes(viewer),
+      })),
+    }))
+    data.nextBefore = posts.length > PAGE_SIZE ? page.at(-1)?.id ?? null : null
+  }
+  if (knownVersions === null) {
+    const full: Partial<FeedUpdate> = { ...data }
+    delete full.versions
+    return { data: full, cache: { rounds: history.status, questions: questionSnapshot?.status, posts: postSnapshot?.status } }
+  }
+  return { data, cache: { rounds: history.status, questions: questionSnapshot?.status ?? (unchangedQuestions ? 'unchanged' : 'empty'),
+    questionPayload: data.questionDelta ? 'delta' : data.questions ? 'full' : 'unchanged',
+    posts: postSnapshot?.status ?? 'unchanged' } }
 }
 
 export async function readReplies(db: D1Database, viewer: string, post: number, parent: number | null, after: number): Promise<ReplyPage> {
@@ -191,7 +317,11 @@ export async function readModerationPosts(db: D1Database, url: URL, now: number)
 }
 
 export async function readDiscussionAdmin(db: D1Database, now: number): Promise<StaffSnapshot> {
-  const { context } = await readContext(db, now)
+  const [state, rounds] = await Promise.all([
+    db.prepare('SELECT section_override FROM activity_state WHERE id = 1').first<{ section_override: unknown }>(),
+    loadRounds(db),
+  ])
+  const context = discussionContext(state?.section_override, rounds, now)
   const [questions, guests] = await Promise.all([
     readQuestions(db, context.activeRound, ''),
     db.prepare("SELECT id, display_name AS name FROM meetup15_members WHERE role = 'guest' ORDER BY name, id")
@@ -210,7 +340,10 @@ export async function readProjectionRound(db: D1Database, roundId: number, revis
     : db.prepare(`${ROUNDS} WHERE r.id = ? AND EXISTS (
         SELECT 1 FROM activity_state WHERE id = 1 AND projection_revision = ?
       )`).bind(roundId, revision)
-  const [rounds, questions] = await db.batch([roundQuery, questionsQuery(db, roundId, '')])
+  const [rounds, questions, version] = await db.batch([roundQuery, questionsQuery(db, roundId, ''),
+    db.prepare('SELECT question_revision AS qaRevision FROM activity_state WHERE id = 1'),
+  ])
   const round = rounds.results[0] as QuestionRound | undefined
-  return round ? { round, questions: (questions.results as unknown as ItemRow[]).map(item) } : null
+  const qaRevision = (version.results[0] as { qaRevision?: number } | undefined)?.qaRevision
+  return round ? { round, qaRevision, questions: (questions.results as unknown as ItemRow[]).map(item) } : null
 }

@@ -22,9 +22,13 @@ export type Member = {
 export async function getMember(
   env: MeetupEnv, cookie: string | undefined, now = Date.now(),
 ): Promise<Member | null> {
-  if (now >= INTERACTION_END) return null
-  const id = verifySessionCookie(MEMBER_COOKIE, cookie, env.SESSION_SECRET, now)
+  const id = memberSessionId(env, cookie, now)
   return id ? findMember(env, id) : null
+}
+
+export function memberSessionId(env: MeetupEnv, cookie: string | undefined, now: number) {
+  if (now >= INTERACTION_END) return null
+  return verifySessionCookie(MEMBER_COOKIE, cookie, env.SESSION_SECRET, now)
 }
 
 export function findMember(env: MeetupEnv, id: string) {

@@ -1,11 +1,12 @@
 'use client'
 
 import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/meetup15/event'
+import { mergeQuestions } from '@/lib/meetup15/discussion'
 import type { ProjectionView } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
 import { OpeningDeck } from './OpeningDeck'
 import { RaffleScreen } from './RaffleScreen'
-import { useDiscussion } from './useDiscussion'
+import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 import { useRaffleResolution } from './useRaffleResolution'
 
 const PRIORITY_QUESTION_COUNT = 3
@@ -13,6 +14,7 @@ const PRIORITY_QUESTION_COUNT = 3
 export function ScreenContent({ data, compact = false }: { data: ProjectionView; compact?: boolean }) {
   if (data.mode === 'hidden') return null
   if (data.mode === 'opening') return <OpeningDeck compact={compact} />
+  if (data.mode === 'raffle') return <RaffleScreen data={data} compact={compact} />
   const liveQuestions = data.mode === 'qa' && data.round.closedAt === null
   const questions = data.mode !== 'qa' ? [] : liveQuestions
     ? data.questions.filter(question => !question.answered)
@@ -23,9 +25,8 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
   const nextQuestions = otherQuestions.slice(0, PRIORITY_QUESTION_COUNT - 1)
   const remainingQuestions = otherQuestions.slice(PRIORITY_QUESTION_COUNT - 1)
   const heading = compact ? 'text-lg' : 'text-3xl md:text-5xl'
-  const screenWidth = data.mode === 'raffle' ? 'max-w-[96rem]' : 'max-w-6xl'
   return (
-    <div className={compact ? 'w-full space-y-3 text-sm' : `mx-auto w-full ${screenWidth} space-y-6 text-lg`}>
+    <div className={compact ? 'w-full space-y-3 text-sm' : 'mx-auto w-full max-w-6xl space-y-6 text-lg'}>
       <p className={data.mode === 'qa' ? 'text-left text-sm font-semibold text-dams-blue' : 'font-medium text-dams-blue'}>{MEETUP_NAME}</p>
       {data.mode === 'agenda' && (
         <section aria-label="议程展示" className={compact ? 'space-y-3' : 'space-y-5'}>
@@ -116,16 +117,25 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
           ) : <p className="text-slate-600">{total ? '本轮问题均已回答。' : '本轮还没有问题。'}</p>}
         </section>
       )}
-      {data.mode === 'raffle' && <RaffleScreen data={data} compact={compact} />}
     </div>
   )
 }
 
+const projectionTransport: DiscussionTransport<ProjectionView> = {
+  onQaPush(push, snapshot) {
+    if (snapshot.mode !== 'qa' || snapshot.round.id !== push.roundId || snapshot.round.closedAt !== null) return
+    if (snapshot.qaRevision !== undefined && push.revision <= snapshot.qaRevision) return
+    if (push.baseRevision !== null && push.baseRevision !== snapshot.qaRevision) return null
+    const base = push.baseRevision === null ? [] : snapshot.questions
+    return { ...snapshot, qaRevision: push.revision, questions: mergeQuestions(base, push) }
+  },
+}
+
 export function MeetupScreen() {
-  const { data } = useDiscussion<ProjectionView>('/api/screen', 'projection')
+  const { data } = useDiscussion<ProjectionView>('/api/screen', 'projection', projectionTransport)
   const readyAt = data?.mode === 'raffle' && data.lottery?.phase === 'drawing' ? data.lottery.readyAt : null
   useRaffleResolution(readyAt)
-  if (data?.mode === 'opening') {
+  if (data?.mode === 'opening' || data?.mode === 'raffle') {
     return <main><ScreenContent data={data} /></main>
   }
   const active = data && data.mode !== 'hidden'
