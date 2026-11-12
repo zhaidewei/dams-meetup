@@ -4,6 +4,7 @@ import { channel } from "node:diagnostics_channel"
 import fs from "node:fs"
 import path from "node:path"
 import { watchLiveQa } from "./live-qa.mjs"
+import { FIELD_BROWSER_MEMBERS, FIELD_LIKES, FIELD_QUESTIONS, runFieldQa } from "./field-qa.mjs"
 import { chromium } from "playwright"
 import { Agent } from "undici"
 const connections = Number(process.env.DAMS_M6_CONNECTIONS) || 0
@@ -12,7 +13,8 @@ import WebSocket from "ws"
 
 const base = process.argv[3]
 const remote = process.env.DAMS_M6_REMOTE === '1'
-const withRehearsal = process.env.DAMS_M6_REHEARSAL === '1'
+const field = process.env.DAMS_M6_FIELD === '1'
+const withRehearsal = field || process.env.DAMS_M6_REHEARSAL === '1'
 if (remote) {
   assert.match(base, /^https:\/\/dams-meetup-perf-85-[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/)
   assert.ok(process.env.DAMS_M6_ADMIN_TOKEN && process.env.DAMS_M6_OBSERVER_TOKEN)
@@ -25,7 +27,7 @@ const handshakeBatch = Number(process.env.DAMS_WS_BATCH ?? 25)
 assert.ok(Number.isInteger(handshakeBatch) && handshakeBatch >= 1 && handshakeBatch <= 200)
 const wsUrl = new URL('/api/discussion/updates', base)
 wsUrl.protocol = remote ? 'wss:' : 'ws:'
-const testLiveUpdates = process.env.DAMS_M6_LIVE_UPDATES === '1'
+const testLiveUpdates = field || process.env.DAMS_M6_LIVE_UPDATES === '1'
 if (testLiveUpdates) wsUrl.searchParams.set('qa', 'member')
 let liveWatch
 const USERS = 200
@@ -251,6 +253,56 @@ function disconnect({ socket }) {
     const qa = (await get('active QA', '/api/discussion/admin', admin)).data.activeRound
     assert.ok(qa)
     await measure('initialFeed', members.map(cookie => getFeed('initialFeed', cookie)))
+    if (field) {
+      const background = members.slice(FIELD_BROWSER_MEMBERS)
+      const fieldSockets = await connectMembers('initialWebSocket', background)
+      let samples
+      let periodicReads = 0
+      const pendingReads = new Set()
+      const poll = setInterval(() => {
+        const cookie = background[periodicReads++ % background.length]
+        const read = getFeed('field periodic refresh', cookie)
+        pendingReads.add(read)
+        void read.catch(() => {}).finally(() => pendingReads.delete(read))
+      }, 15000 / background.length)
+      try {
+        samples = await runFieldQa({
+          browser, base, admin, members: members.slice(0, FIELD_BROWSER_MEMBERS), online: () => sockets.size,
+          onResponse: response => { if (response.status() >= 500) browser5xx++ },
+          readRound: async () => (await get('field question lookup', '/api/discussion/admin', admin)).data,
+          answer: id => post('field answer', '/api/discussion/admin', admin, { action: 'answer', id, answered: true }),
+          like: (id, index) => post('field like', '/api/discussion', background[index], { action: 'like', id, liked: true }),
+        })
+      } finally {
+        clearInterval(poll)
+        await Promise.allSettled(pendingReads)
+      }
+      assert.equal(fieldSockets.filter(entry => entry.received > 0).length, background.length)
+      const reconnecting = background.slice(0, 25)
+      await Promise.all(fieldSockets.slice(0, reconnecting.length).map(disconnect))
+      const probe = 'M6 现场断线期间新增的问题'
+      await post('field offline probe', '/api/discussion', background.at(-1),
+        { action: 'question', section: qa.section, roundId: qa.id, body: probe })
+      await connectMembers('field reconnect', reconnecting)
+      const feeds = await measure('field reconnect feed', reconnecting.map(cookie => getFeed('field reconnect feed', cookie)))
+      const expected = new Set([...samples.map(sample => sample.label), probe])
+      const reconnectMissing = feeds.filter(({ data }) =>
+        new Set(data.questions.map(question => question.body).filter(body => expected.has(body))).size !== expected.size).length
+      assert.equal(reconnectMissing, 0)
+      const d1 = (await get('field database reconciliation', '/__m6_d1_reconcile')).data
+      assert.deepEqual(d1, { ...baseline, questions: baseline.questions + FIELD_QUESTIONS + 1, likes: baseline.likes + FIELD_LIKES })
+      assert.equal(browser5xx, 0)
+      assert.deepEqual(failures, [])
+      const out = {
+        environment: base, commit: process.env.DAMS_M6_COMMIT, attendees: USERS, authors: 3, baseline, periodicReads,
+        timings: Object.fromEntries(['own', 'other', 'projection'].map(key => [key, stats(samples.map(sample => sample[key]))])),
+        reconnect: { clients: feeds.length, missing: reconnectMissing, feed: runs['field reconnect feed'] },
+        samples, d1, failures, browser5xx,
+      }
+      fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(out, null, 2) + '\n')
+      console.log(JSON.stringify(out))
+      return
+    }
     const initialSockets = await connectMembers('initialWebSocket', members)
 
     const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
