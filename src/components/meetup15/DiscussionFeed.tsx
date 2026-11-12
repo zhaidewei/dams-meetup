@@ -273,16 +273,16 @@ export function DiscussionFeed() {
     </nav>
   )
   const breakoutNavigation = inBreakout && (
-    <nav key="breakout-groups" aria-label="分组交流子版块" className="space-y-2 border-b border-dams-line bg-dams-wash px-4 py-4 sm:px-6">
-      <h2 className="text-sm font-semibold">分组交流</h2>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-        {[['breakout', '公共交流'] as const, ...Object.entries(MEETUP_BREAKOUT_GROUPS)].map(([key, label]) => (
-          <button key={key} type="button" aria-pressed={section === key}
-            className="min-h-11 rounded-lg border border-dams-line bg-white px-3 py-2 text-left text-sm hover:border-dams-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover"
-            onClick={() => choose(key as MeetupSection)}>{label}</button>
+    <div key="breakout-groups" className="flex flex-col gap-1 border-b border-dams-line bg-dams-wash px-4 py-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3 sm:px-6">
+      <label htmlFor="breakout-group" className="shrink-0 text-sm font-semibold">交流分组</label>
+      <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={section}
+        onChange={(event) => choose(event.currentTarget.value as MeetupSection)}>
+        <option value="breakout">公共交流</option>
+        {Object.entries(MEETUP_BREAKOUT_GROUPS).map(([key, label]) => (
+          <option key={key} value={key}>{label}</option>
         ))}
-      </div>
-    </nav>
+      </select>
+    </div>
   )
   const feedback = error && (
     <div className="flex flex-wrap items-center gap-2">
