@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { MemberCommand, StaffCommand } from '@/lib/meetup15/discussion'
+import type { MemberCommand, QaPush, StaffCommand } from '@/lib/meetup15/discussion'
 
 export type DiscussionTransport<T> = {
-  headers(snapshot: T | null): Record<string, string>
-  read(response: Response, snapshot: T | null): Promise<T>
-  applyWrite(response: Response, snapshot: T): Promise<T | null>
+  headers?(snapshot: T | null): Record<string, string>
+  read?(response: Response, snapshot: T | null): Promise<T>
+  applyWrite?(response: Response, snapshot: T): Promise<T | null>
+  onQaPush?(push: QaPush, snapshot: T): T | null | undefined
 }
 
 export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
@@ -27,6 +28,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     let boundary: ReturnType<typeof setTimeout> | undefined
     let reading: Promise<void> | undefined
     let readAgain = false
+    let needsSnapshot = false
     let snapshot: T | null = null
     let writeGeneration = 0
 
@@ -42,7 +44,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       const generation = writeGeneration
       try {
         const response = await fetch(url, {
-          cache: 'no-store', headers: transport?.headers(snapshot), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(7000)]),
+          cache: 'no-store', headers: transport?.headers?.(snapshot), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(7000)]),
         })
         if (controller.signal.aborted) return
         if (response.status === 401) {
@@ -51,9 +53,10 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
           return
         }
         if (!response.ok) throw new Error('Discussion read failed')
-        const data = transport ? await transport.read(response, snapshot) : await response.json<T>()
+        const data = transport?.read ? await transport.read(response, snapshot) : await response.json<T>()
         if (controller.signal.aborted || generation !== writeGeneration) return
         snapshot = data
+        needsSnapshot = false
         setView({ url, data, error: '' })
         clearTimeout(boundary)
         const delay = data.refreshAt === null ? 0 : data.refreshAt - Date.now()
@@ -83,10 +86,31 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     function connect() {
       const address = new URL(topic === 'personal' ? '/api/personal/updates' : '/api/discussion/updates', window.location.href)
       address.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      if (transport?.onQaPush) address.searchParams.set('qa', topic === 'projection' ? 'projection' : 'member')
       socket = new WebSocket(address)
       socket.onopen = schedule
       socket.onmessage = ({ data }) => {
-        if (data === 'activity.updated' || (topic === 'projection' && data === 'screen.updated')) schedule()
+        if (data === 'activity.updated' || (topic === 'projection' && data === 'screen.updated')) {
+          needsSnapshot = true
+          schedule()
+          return
+        }
+        if (!transport?.onQaPush || typeof data !== 'string' || !data.startsWith('{')) return
+        try {
+          const push = JSON.parse(data) as QaPush
+          if (push.type !== 'qa.updated') return
+          if (needsSnapshot) return schedule()
+          const next = snapshot ? transport.onQaPush(push, snapshot) : null
+          if (next === null) schedule()
+          if (next) {
+            snapshot = next
+            writeGeneration++
+            setView({ url, data: next, error: '' })
+            if (reading) readAgain = true
+          }
+        } catch {
+          schedule()
+        }
       }
       socket.onclose = () => {
         if (!controller.signal.aborted) retry = setTimeout(connect, 3000)
@@ -94,16 +118,18 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     }
 
     applyWrite.current = async response => {
-      if (!transport || !snapshot || controller.signal.aborted) return false
+      if (!transport?.applyWrite || !snapshot || controller.signal.aborted) return false
       const current = snapshot
       const next = await transport.applyWrite(response, current)
       if (!next || controller.signal.aborted) return false
       // A read completed while the write body was decoded. Use the authoritative read path.
       if (snapshot !== current) return false
+      if (next === current) return true
       snapshot = next
       writeGeneration++
+      if (reading) readAgain = true
       setView({ url, data: next, error: '' })
-      schedule()
+      if (!transport.onQaPush || socket?.readyState !== WebSocket.OPEN) schedule()
       return true
     }
     refresh.current = async () => {
@@ -131,7 +157,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     setActionError('')
     try {
       const response = await fetch(topic === 'personal' ? url : url.split('?')[0], {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...transport?.headers(null) },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...transport?.headers?.(null) },
         body: JSON.stringify(command), signal: AbortSignal.timeout(8000),
       })
       if (!response.ok) {

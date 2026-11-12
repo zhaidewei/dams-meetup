@@ -29,12 +29,12 @@ export function signSessionCookie(
   return `${VERSION}.${payload}.${signature(name, payload, key)}`
 }
 
-export function verifySessionCookie(
+export function readSessionCookie(
   name: string,
   token: string | undefined,
   key: string | undefined,
   now = Date.now(),
-): string | null {
+): { value: string; expiresAt: number } | null {
   if (!validKey(key) || !token || token.length > MAX_TOKEN_LENGTH) return null
   const parts = token.split('.')
   if (parts.length !== 3) return null
@@ -51,8 +51,14 @@ export function verifySessionCookie(
     const { value, expiresAt } = data as Record<string, unknown>
     if (typeof value !== 'string' || !value || !Number.isSafeInteger(expiresAt)) return null
     if ((expiresAt as number) <= now) return null
-    return value
+    return { value, expiresAt: expiresAt as number }
   } catch {
     return null
   }
+}
+
+export function verifySessionCookie(
+  name: string, token: string | undefined, key: string | undefined, now = Date.now(),
+): string | null {
+  return readSessionCookie(name, token, key, now)?.value ?? null
 }

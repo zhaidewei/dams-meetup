@@ -25,3 +25,5 @@ DAMS_M6_MATRIX=1 bash loadtest/meetup15/start.sh
 脚本先统一重连并读取，再模拟客户端逐个连上后立即读取。第二轮验证旧题标记已答后能补位，同时检查点赞与作者标记按当前登录身份返回。另用两个真实浏览器会话和投影页测量点击提问到页面显示的时间。最终对账还覆盖抽奖和中奖私信。
 
 远程测试只接受专用 `dams-meetup-perf-85-*.workers.dev` Worker 和全新 D1。Worker 需要单独绑定 D1、Durable Object、两项限流、静态资源及自身 service，观测入口需要独立的 `DAMS_M6_OBSERVER_TOKEN`。设置 `DAMS_M6_REMOTE=1`、`DAMS_M6_ADMIN_TOKEN` 和观测密钥后，运行 `node loadtest/meetup15/run.mjs <报告目录> <隔离 Worker URL>`。远程 `d1.json` 是单个 isolate 的采样，客户端 `results.json` 汇总收到的响应计时。
+
+用 `DAMS_M6_LIVE_UPDATES=1 DAMS_M6_CONNECTIONS=200 DAMS_WS_BATCH=25 bash loadtest/meetup15/start.sh` 对比实时问答。200 人保持在线，同时提交问题。客户端按 Worker 的通知或增量消息更新，报告 `liveQa.visible` 记录从集中提交开始到每个客户端收到整批问题的耗时。`liveQa.httpRequests` 统计这批通知触发的讨论区请求，`workerReads` 和 `objectReads` 分别统计 Worker 读请求和 Durable Object 广播在这段时间的 D1 绑定调用。关闭该选项可复跑原有的 200 人强制刷新场景。

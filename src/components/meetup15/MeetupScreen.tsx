@@ -1,11 +1,12 @@
 'use client'
 
 import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/meetup15/event'
+import { mergeQuestions } from '@/lib/meetup15/discussion'
 import type { ProjectionView } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
 import { OpeningDeck } from './OpeningDeck'
 import { RaffleScreen } from './RaffleScreen'
-import { useDiscussion } from './useDiscussion'
+import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 import { useRaffleResolution } from './useRaffleResolution'
 
 const PRIORITY_QUESTION_COUNT = 3
@@ -121,8 +122,18 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
   )
 }
 
+const projectionTransport: DiscussionTransport<ProjectionView> = {
+  onQaPush(push, snapshot) {
+    if (snapshot.mode !== 'qa' || snapshot.round.id !== push.roundId || snapshot.round.closedAt !== null) return
+    if (snapshot.qaRevision !== undefined && push.revision <= snapshot.qaRevision) return
+    if (push.baseRevision !== null && push.baseRevision !== snapshot.qaRevision) return null
+    const base = push.baseRevision === null ? [] : snapshot.questions
+    return { ...snapshot, qaRevision: push.revision, questions: mergeQuestions(base, push) }
+  },
+}
+
 export function MeetupScreen() {
-  const { data } = useDiscussion<ProjectionView>('/api/screen', 'projection')
+  const { data } = useDiscussion<ProjectionView>('/api/screen', 'projection', projectionTransport)
   const readyAt = data?.mode === 'raffle' && data.lottery?.phase === 'drawing' ? data.lottery.readyAt : null
   useRaffleResolution(readyAt)
   if (data?.mode === 'opening') {

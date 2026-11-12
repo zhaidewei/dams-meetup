@@ -1,14 +1,15 @@
-import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS, type DiscussionItem } from '../src/lib/meetup15/discussion'
+import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS, type QaWriteAck } from '../src/lib/meetup15/discussion'
 import { isMeetupAgendaSection, isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
 
 type Input = Record<string, unknown>
-type Result = { changed: boolean; question?: DiscussionItem } | { error: string; status: number }
+type Result = { changed: boolean; qa?: true; ack?: QaWriteAck } | { error: string; status: number }
 
 const invalid = { error: '请检查输入后重试。', status: 400 }
 const unavailable = { error: '内容已变更，请刷新后重试。', status: 409 }
 const unchanged = { changed: false }
+const qaRevision = 'SELECT question_revision AS revision FROM activity_state WHERE id = 1'
 
 function validId(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
@@ -45,7 +46,14 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
       ? db.prepare(`INSERT OR IGNORE INTO meetup15_discussion_likes (item_id, member_id)
           SELECT ?, ? WHERE ${likeable}`)
       : db.prepare(`DELETE FROM meetup15_discussion_likes WHERE item_id = ? AND member_id = ? AND ${likeable}`)
-    return { changed: Boolean((await statement.bind(id, member.id, id).run()).meta.changes) }
+    const [liked, version] = await db.batch([
+      statement.bind(id, member.id, id),
+      db.prepare(`SELECT d.round_id AS roundId, a.question_revision AS revision
+        FROM meetup15_discussion d CROSS JOIN activity_state a WHERE d.id = ? AND a.id = 1`).bind(id),
+    ])
+    const state = version.results[0] as { roundId: number | null; revision: number } | undefined
+    const ack = liked.meta.changes && state?.roundId ? { roundId: state.roundId, revision: state.revision, like: { id, liked: input.liked } } : undefined
+    return { changed: Boolean(liked.meta.changes), qa: ack ? true : undefined, ack }
   }
   if (input.action === 'nickname') {
     const name = typeof input.name === 'string' ? input.name.trim() : ''
@@ -92,15 +100,20 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
         WHERE id = ? AND author_id = ? AND kind IN ('post', 'reply')`).bind(body, tags, id, member.id))
     case 'question': {
       if (!validId(input.roundId) || !isMeetupSection(input.section)) return invalid
-      const row = await db.prepare(`
+      const [inserted, version] = await db.batch([db.prepare(`
         INSERT INTO meetup15_discussion (kind, author_id, section, body, round_id)
         SELECT 'question', ?, section, ?, id FROM meetup15_qa_rounds
         WHERE id = ? AND section = ? AND closed_at IS NULL
-        RETURNING id, created_at AS createdAt`).bind(member.id, body, input.roundId, input.section)
-        .first<{ id: number; createdAt: number }>()
-      return row ? { changed: true, question: {
-        ...row, kind: 'question', author: member.display_name, authorId: member.id, authorRole: member.role,
-        body, tags: [], postId: null, parentId: null, answered: false, likes: 0, mine: true, liked: false,
+        RETURNING id, created_at AS createdAt`).bind(member.id, body, input.roundId, input.section),
+        db.prepare(qaRevision),
+      ])
+      const row = inserted.results[0] as { id: number; createdAt: number } | undefined
+      const state = version.results[0] as { revision: number }
+      return row ? { changed: true, qa: true, ack: {
+        roundId: input.roundId, revision: state.revision, question: {
+          ...row, kind: 'question', author: member.display_name, authorId: member.id, authorRole: member.role,
+          body, tags: [], postId: null, parentId: null, answered: false, likes: 0, mine: true, liked: false,
+        },
       } } : unavailable
     }
     default:
@@ -134,10 +147,11 @@ export async function writeStaff(db: D1Database, input: Input, now: number): Pro
         WHERE id = ? AND closed_at IS NULL`).bind(input.roundId))
     case 'answer':
       if (!validId(input.id) || typeof input.answered !== 'boolean') return invalid
-      return write(db.prepare(`UPDATE meetup15_discussion SET answered = ?
+      const result = await write(db.prepare(`UPDATE meetup15_discussion SET answered = ?
         WHERE id = ? AND kind = 'question' AND EXISTS (
           SELECT 1 FROM meetup15_qa_rounds r WHERE r.id = round_id AND r.closed_at IS NULL
         )`).bind(Number(input.answered), input.id))
+      return 'error' in result ? result : { ...result, qa: true }
     default:
       return invalid
   }

@@ -19,7 +19,7 @@ export type ProjectionView = { refreshAt: number | null } & (
   | { mode: 'hidden' }
   | { mode: 'opening' }
   | { mode: 'agenda'; currentStart: string | null }
-  | { mode: 'qa'; round: QuestionRound; questions: DiscussionItem[] }
+  | { mode: 'qa'; round: QuestionRound; questions: DiscussionItem[]; qaRevision?: number }
   | { mode: 'raffle'; lottery: LotteryScreen | null; raffleId: number | null; candidates: RaffleCandidateView[]; rules: RaffleRules | null }
 )
 

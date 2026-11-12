@@ -1,5 +1,4 @@
-import app from './worker.js'
-export { ActivityUpdates } from './worker.js'
+import app, { ActivityUpdates as AppActivityUpdates } from './worker.js'
 
 const totals = Object.create(null)
 async function timed(samples, operation) {
@@ -39,6 +38,18 @@ function trackedDb(db, counts) {
   }
 }
 
+export class ActivityUpdates extends AppActivityUpdates {
+  constructor(ctx, env) {
+    const counts = { statements: 0, rowsRead: 0, rowsWritten: 0, d1Ms: [] }
+    super(ctx, { ...env, ACTIVITY_DB: trackedDb(env.ACTIVITY_DB, counts) })
+    this.counts = counts
+  }
+
+  benchmarkD1Stats() {
+    return this.counts
+  }
+}
+
 const observer = {
   async fetch(request, env, context) {
     const { hostname, pathname } = new URL(request.url)
@@ -56,7 +67,10 @@ const observer = {
       `).first('fixtureCount')
       return Response.json({ fresh: count === 0 })
     }
-    if (pathname === '/__m6_d1_stats') return Response.json(totals)
+    if (pathname === '/__m6_d1_stats') return Response.json({
+      ...totals,
+      discussionDurableObject: await env.ACTIVITY_UPDATES.getByName('meetup-15-discussion').benchmarkD1Stats(),
+    })
     if (pathname === '/__m6_d1_reconcile') {
       const row = await env.ACTIVITY_DB.prepare(`
         SELECT
@@ -78,7 +92,7 @@ const observer = {
         const stub = namespace.getByName(name)
         return new Proxy(stub, {
           get(target, key) {
-            if (key === 'queueDiscussionUpdate') return () => timed(counts.notificationMs, () => target.queueDiscussionUpdate())
+            if (key === 'queueDiscussionUpdate') return (...args) => timed(counts.notificationMs, () => target.queueDiscussionUpdate(...args))
             const value = Reflect.get(target, key, target)
             return typeof value === 'function' ? (...args) => target[key](...args) : value
           },

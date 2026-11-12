@@ -1,7 +1,7 @@
 import { FEED_VERSIONS_HEADER } from '../src/lib/meetup15/discussion'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
-import { getMember, MEMBER_COOKIE, memberSessionId, requestCookie } from '../src/lib/meetup15/identity'
-import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
+import { findMember, getMember, MEMBER_COOKIE, memberSessionId, requestCookie } from '../src/lib/meetup15/identity'
+import { ACTIVITY_ADMIN_COOKIE, readSessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
 import { readFeed, readDiscussionAdmin, readModerationPosts, readReplies } from './discussion-read'
 import { deleteStaffPost, writeMember, writeStaff } from './discussion-write'
@@ -13,18 +13,30 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   const url = new URL(request.url)
   const path = url.pathname
   const now = clock()
-  const admin = verifySessionCookie(ACTIVITY_ADMIN_COOKIE,
-    requestCookie(request, ACTIVITY_ADMIN_COOKIE), env.SESSION_SECRET) === '1'
+  const adminSession = readSessionCookie(ACTIVITY_ADMIN_COOKIE,
+    requestCookie(request, ACTIVITY_ADMIN_COOKIE), env.SESSION_SECRET)
+  const admin = adminSession?.value === '1'
   const db = env.ACTIVITY_DB
   const updates = () => env.ACTIVITY_UPDATES.getByName('meetup-15-discussion')
 
   if (path === '/api/discussion/updates') {
     if (request.method !== 'GET') return new Response(null, { status: 405, headers })
     if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403, headers })
-    if (!admin && !await getMember(env, requestCookie(request, MEMBER_COOKIE), now)) {
-      return new Response(null, { status: 401, headers })
+    const mode = url.searchParams.get('qa')
+    if (mode === 'projection' && !admin) return new Response(null, { status: 401, headers })
+    const needsMember = mode === 'member' || !admin
+    const session = !needsMember ? null : readSessionCookie(MEMBER_COOKIE,
+      requestCookie(request, MEMBER_COOKIE), env.SESSION_SECRET, now)
+    const member = session && now < INTERACTION_END ? await findMember(env, session.value) : null
+    if (needsMember && !member) return new Response(null, { status: 401, headers })
+    const forwarded = new Headers(request.headers)
+    forwarded.delete('X-DAMS-QA-Session')
+    if (mode === 'member' || mode === 'projection') {
+      forwarded.set('X-DAMS-QA-Session', JSON.stringify({
+        viewer: member?.id ?? '', expiresAt: session ? Math.min(session.expiresAt, INTERACTION_END) : adminSession!.expiresAt,
+      }))
     }
-    return updates().fetch(request)
+    return updates().fetch(new Request(request, { headers: forwarded }))
   }
 
   const view = path === '/api/discussion/admin' ? 'admin'
@@ -81,13 +93,13 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   if ('error' in result) return Response.json({ error: result.error }, { status: result.status, headers })
 
   if (result.changed) {
-    const notify = Promise.resolve().then(() => updates().queueDiscussionUpdate())
+    const notify = Promise.resolve().then(() => updates().queueDiscussionUpdate(result.qa ? 'qa' : 'all'))
       .catch(error => console.error('Discussion update notification failed', error))
     if (execution) execution.waitUntil(notify)
     else await notify
   }
-  if (result.question && request.headers.has(FEED_VERSIONS_HEADER)) {
-    return Response.json({ roundId: input.roundId, question: result.question }, { headers })
+  if (result.ack && request.headers.has(FEED_VERSIONS_HEADER)) {
+    return Response.json(result.ack, { headers })
   }
   return new Response(null, { status: 204, headers })
 }
