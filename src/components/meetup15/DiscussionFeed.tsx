@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Heart, MessageCircle } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
-import { isBreakoutGroup, MEETUP_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
+import { isBreakoutGroup, isMeetupSection, MEETUP_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
 import { DiscussionReactions } from './DiscussionReactions'
@@ -231,9 +232,15 @@ const feedTransport: DiscussionTransport<FeedView> = {
   },
 }
 
-export function DiscussionFeed({ free, initialSection }: { free: boolean; initialSection: MeetupSection | null }) {
-  const [selection, setSelected] = useState(initialSection)
-  const selected = free ? 'lounge' : selection
+export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk: boolean }) {
+  const requestedSection = useSearchParams().get('section')
+  const [pinnedSection, setPinnedSection] = useState<MeetupSection | null>(null)
+  const [questionJump, setQuestionJump] = useState(initialAsk ? 1 : 0)
+  const completedJump = useRef(0)
+  const nicknameForm = useRef<HTMLFormElement>(null)
+  const questionForm = useRef<HTMLDivElement>(null)
+  const selected = free ? 'lounge' : isMeetupSection(requestedSection) && requestedSection !== 'lounge'
+    ? requestedSection : pinnedSection
   const [round, setRound] = useState<number | null>(null)
   const [pageStack, setPageStack] = useState<number[]>([])
   const before = pageStack.at(-1)
@@ -243,11 +250,34 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
   if (before) params.set('before', String(before))
   const { data, error, pending, submit, retry, unauthorized } = useDiscussion<FeedView>(`/api/discussion?${params}`, 'discussion', feedTransport)
   const named = Boolean(data?.nickname)
+  const active = data?.activeRound
+  const viewed = data?.viewedRound
+  const liveRound = Boolean(viewed && viewed.id === active?.id)
 
-  function choose(section: MeetupSection | null) {
-    setSelected(section)
+  useEffect(() => {
+    if (questionJump === completedJump.current || !liveRound) return
+    if (!named) {
+      nicknameForm.current?.scrollIntoView({ block: 'start' })
+      return
+    }
+    if (!questionForm.current) return
+    completedJump.current = questionJump
+    questionForm.current.scrollIntoView({ block: 'start' })
+    // A cross-page jump is consumed once, so a refresh does not pull the user back here.
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('ask')) {
+      url.searchParams.delete('ask')
+      window.history.replaceState(null, '', url)
+    }
+  }, [questionJump, liveRound, named])
+
+  function choose(section: MeetupSection | null, ask = false) {
+    if (!free) window.history.replaceState(null, '', meetupDiscussionPath(section ?? undefined))
+    setPinnedSection(null)
     setRound(null)
     setPageStack([])
+    if (ask) setQuestionJump(jump => jump + 1)
+    else completedJump.current = questionJump
   }
 
   async function setNickname(event: FormEvent<HTMLFormElement>) {
@@ -256,7 +286,6 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
     await submit({ action: 'nickname', name })
   }
 
-  const active = data?.activeRound
   const section = selected ?? data?.section
   const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
   const navigation = !free && (
@@ -312,10 +341,8 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
     </div>
   )
 
-  const viewed = data.viewedRound
-  const liveRound = viewed !== null && viewed.id === active?.id
   const qaSection = active ? MEETUP_SECTIONS[active.section] : null
-  const qaLink = active && (active.section === 'lounge') !== free ? meetupDiscussionPath(active.section) : null
+  const qaLink = active && (active.section === 'lounge') !== free ? `${meetupDiscussionPath(active.section)}&ask=1` : null
   const posts = data.items.filter((entry) => entry.kind === 'post')
   return (
     <div>
@@ -326,10 +353,10 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
             <p className="text-sm text-slate-700">{qaSection}</p>
           </div>
           {qaLink ? (
-            <Link href={qaLink} className="inline-flex min-h-11 items-center rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue">前往提问</Link>
+            <Link href={qaLink} scroll={false} className="inline-flex min-h-11 items-center rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue">前往提问</Link>
           ) : (
             <button className="min-h-11 rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue"
-              onClick={() => choose(active.section)}>前往提问</button>
+              onClick={() => choose(active.section, true)}>前往提问</button>
           )}
         </aside>
       )}
@@ -344,7 +371,7 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
         </div>
         {feedback}
         {!named && (
-          <form className="space-y-2 rounded-xl border border-dams-line bg-white p-3" onSubmit={setNickname}>
+          <form ref={nicknameForm} className="scroll-mt-4 space-y-2 rounded-xl border border-dams-line bg-white p-3" onSubmit={setNickname}>
             <label htmlFor="feed-nickname" className="block text-sm text-slate-600">填个昵称，就能发帖、回复和提问</label>
             <div className="flex gap-2">
               <input id="feed-nickname" name="nickname" className={discussionInput} placeholder="昵称" autoComplete="nickname" maxLength={48} required />
@@ -356,7 +383,7 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
           <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-3 sm:p-4">
             <h3 className="font-semibold">嘉宾问答</h3>
             {liveRound && viewed && (
-              <div className="space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
+              <div ref={questionForm} className="scroll-mt-4 space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
                 <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{viewed.guest}</p>
                 {named ? (
                   <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
@@ -368,7 +395,7 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
             <label htmlFor="discussion-round" className="block text-sm">查看本板块问答轮次</label>
               <select id="discussion-round" className={discussionInput} value={round ?? ''}
                 onChange={(event) => {
-                  if (event.target.value) setSelected(data.section)
+                  if (event.target.value) setPinnedSection(data.section)
                   setRound(event.target.value ? Number(event.target.value) : null)
                 }}>
                 <option value="">当前问答</option>
@@ -418,7 +445,7 @@ export function DiscussionFeed({ free, initialSection }: { free: boolean; initia
         {data.nextBefore && <button className={discussionButton} onClick={() => {
           const cursor = data.nextBefore
           if (cursor) {
-            setSelected(data.section)
+            setPinnedSection(data.section)
             setPageStack((stack) => [...stack, cursor])
           }
         }}>较早的帖子</button>}

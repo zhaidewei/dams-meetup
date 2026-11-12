@@ -14,7 +14,7 @@ type MemberPage = (typeof links)[number]['href']
 function MeetupMemberNav({ active, mobile = false }: { active: MemberPage; mobile?: boolean }) {
   return (
     <nav aria-label={mobile ? '手机论坛导航' : '论坛导航'} className={mobile
-      ? 'col-span-full grid grid-cols-4 gap-1 border-b border-dams-line bg-white px-2 py-2 md:hidden'
+      ? 'meetup-mobile-nav sticky top-0 z-20 col-span-full grid grid-cols-4 gap-1 self-start border-b border-dams-line bg-white px-2 py-2 md:hidden'
       : 'grid gap-1'}>
       {links.map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} aria-current={href === active ? 'page' : undefined}
