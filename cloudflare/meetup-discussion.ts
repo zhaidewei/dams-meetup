@@ -1,8 +1,9 @@
-import { FEED_VERSIONS_HEADER } from '../src/lib/meetup15/discussion'
+import { FEED_TIME_HEADER, FEED_VERSIONS_HEADER } from '../src/lib/meetup15/discussion'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { findMember, getMember, MEMBER_COOKIE, memberSessionId, requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, readSessionCookie } from '../src/lib/session-cookie-crypto'
 import type { ActivityEnv } from './activity'
+import { notifyDiscussion } from './discussion-notifications'
 import { readFeed, readDiscussionAdmin, readModerationPosts, readReplies } from './discussion-read'
 import { deleteStaffPost, writeMember, writeStaff } from './discussion-write'
 
@@ -50,7 +51,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
     const feed = await readFeed(db, viewer, url, now, request.headers.get(FEED_VERSIONS_HEADER), execution)
     if (!feed) return denied()
     const timing = Object.entries(feed.cache).flatMap(([name, status]) => status ? [`${name};desc="${status}"`] : [])
-    return Response.json(feed.data, { headers: { ...headers, 'Server-Timing': timing.join(', ') } })
+    return Response.json(feed.data, { headers: { ...headers, 'Server-Timing': timing.join(', '), [FEED_TIME_HEADER]: String(clock()) } })
   }
 
   const staffView = view === 'admin' || view === 'moderation'
@@ -93,8 +94,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   if ('error' in result) return Response.json({ error: result.error }, { status: result.status, headers })
 
   if (result.changed) {
-    const notify = Promise.resolve().then(() => updates().queueDiscussionUpdate(result.qa ? 'qa' : 'all'))
-      .catch(error => console.error('Discussion update notification failed', error))
+    const notify = notifyDiscussion(env, result.qa ? 'qa' : 'all')
     if (execution) execution.waitUntil(notify)
     else await notify
   }

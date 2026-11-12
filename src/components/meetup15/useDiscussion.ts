@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { MemberCommand, QaPush, StaffCommand } from '@/lib/meetup15/discussion'
+import { FEED_TIME_HEADER, type MemberCommand, type QaPush, type StaffCommand } from '@/lib/meetup15/discussion'
 
 export type DiscussionTransport<T> = {
+  skipPollingWhenConnected?: boolean
   headers?(snapshot: T | null): Record<string, string>
   read?(response: Response, snapshot: T | null): Promise<T>
   applyWrite?(response: Response, snapshot: T): Promise<T | null>
@@ -19,11 +20,13 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
   const [actionError, setActionError] = useState('')
   const applyWrite = useRef<(response: Response) => Promise<boolean>>(async () => false)
   const refresh = useRef<() => Promise<void>>(async () => {})
+  const connected = useRef(false)
+  const notify = useRef<(data?: unknown) => void>(() => {})
+  const skipPollingWhenConnected = transport?.skipPollingWhenConnected === true
+  const receiveQuestions = Boolean(transport?.onQaPush)
 
   useEffect(() => {
     const controller = new AbortController()
-    let socket: WebSocket | undefined
-    let retry: ReturnType<typeof setTimeout> | undefined
     let queuedRead: ReturnType<typeof setTimeout> | undefined
     let boundary: ReturnType<typeof setTimeout> | undefined
     let reading: Promise<void> | undefined
@@ -31,6 +34,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     let needsSnapshot = false
     let snapshot: T | null = null
     let writeGeneration = 0
+    let retriedBoundary: number | null = null
 
     function schedule() {
       if (queuedRead || controller.signal.aborted) return
@@ -38,6 +42,11 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
         queuedRead = undefined
         void read()
       }, 40)
+    }
+
+    function resync() {
+      needsSnapshot = true
+      schedule()
     }
 
     async function fetchView() {
@@ -49,20 +58,30 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
         if (controller.signal.aborted) return
         if (response.status === 401) {
           snapshot = null
+          needsSnapshot = false
           setView({ url, data: null, unauthorized: true, error: '登录已失效，请重新进入活动。' })
           return
         }
         if (!response.ok) throw new Error('Discussion read failed')
+        const serverTime = Number(response.headers.get(FEED_TIME_HEADER))
         const data = transport?.read ? await transport.read(response, snapshot) : await response.json<T>()
         if (controller.signal.aborted || generation !== writeGeneration) return
         snapshot = data
         needsSnapshot = false
         setView({ url, data, error: '' })
         clearTimeout(boundary)
-        const delay = data.refreshAt === null ? 0 : data.refreshAt - Date.now()
+        const clock = Number.isSafeInteger(serverTime) && serverTime > 0 ? serverTime : Date.now()
+        const delay = data.refreshAt === null ? 0 : data.refreshAt - clock
         if (delay > 0) boundary = setTimeout(schedule, delay)
+        else if (skipPollingWhenConnected && data.refreshAt !== null && data.refreshAt !== retriedBoundary) {
+          // A read started just before the agenda changed can finish after the boundary.
+          retriedBoundary = data.refreshAt
+          boundary = setTimeout(schedule, 1000)
+        }
       } catch {
-        if (!controller.signal.aborted) setView((previous) => ({
+        if (controller.signal.aborted) return
+        needsSnapshot = true
+        setView((previous) => ({
           url, data: previous?.url === url ? previous.data : null, error: '暂时无法刷新，请检查网络。',
         }))
       }
@@ -83,37 +102,27 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       return reading
     }
 
-    function connect() {
-      const address = new URL(topic === 'personal' ? '/api/personal/updates' : '/api/discussion/updates', window.location.href)
-      address.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      if (transport?.onQaPush) address.searchParams.set('qa', topic === 'projection' ? 'projection' : 'member')
-      socket = new WebSocket(address)
-      socket.onopen = schedule
-      socket.onmessage = ({ data }) => {
-        if (data === 'activity.updated' || (topic === 'projection' && data === 'screen.updated')) {
-          needsSnapshot = true
-          schedule()
-          return
-        }
-        if (!transport?.onQaPush || typeof data !== 'string' || !data.startsWith('{')) return
-        try {
-          const push = JSON.parse(data) as QaPush
-          if (push.type !== 'qa.updated') return
-          if (needsSnapshot) return schedule()
-          const next = snapshot ? transport.onQaPush(push, snapshot) : null
-          if (next === null) schedule()
-          if (next) {
-            snapshot = next
-            writeGeneration++
-            setView({ url, data: next, error: '' })
-            if (reading) readAgain = true
-          }
-        } catch {
-          schedule()
-        }
+    notify.current = (data) => {
+      if (controller.signal.aborted) return
+      if (data === undefined || data === 'activity.updated' || (topic === 'projection' && data === 'screen.updated')) {
+        resync()
+        return
       }
-      socket.onclose = () => {
-        if (!controller.signal.aborted) retry = setTimeout(connect, 3000)
+      if (!transport?.onQaPush || typeof data !== 'string' || !data.startsWith('{')) return
+      try {
+        const push = JSON.parse(data) as QaPush
+        if (push.type !== 'qa.updated') return
+        if (needsSnapshot) return schedule()
+        const next = snapshot ? transport.onQaPush(push, snapshot) : null
+        if (next === null) resync()
+        if (next) {
+          snapshot = next
+          writeGeneration++
+          setView({ url, data: next, error: '' })
+          if (reading) readAgain = true
+        }
+      } catch {
+        resync()
       }
     }
 
@@ -129,27 +138,67 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
       writeGeneration++
       if (reading) readAgain = true
       setView({ url, data: next, error: '' })
-      if (!transport.onQaPush || socket?.readyState !== WebSocket.OPEN) schedule()
+      if (!transport.onQaPush || !connected.current) schedule()
       return true
     }
     refresh.current = async () => {
       await reading
       if (!controller.signal.aborted) await read()
     }
+    function refreshOnForeground() {
+      if (document.visibilityState === 'visible') resync()
+    }
+
     void read()
-    if (topic !== 'stats') connect()
-    const fallback = setInterval(schedule, topic === 'stats' ? 10000 : 15000)
-    window.addEventListener('online', schedule)
+    const fallback = setInterval(() => {
+      if (!skipPollingWhenConnected || !connected.current || needsSnapshot) schedule()
+    }, topic === 'stats' ? 10000 : 15000)
+    window.addEventListener('online', resync)
+    if (skipPollingWhenConnected) document.addEventListener('visibilitychange', refreshOnForeground)
     return () => {
       controller.abort()
-      socket?.close()
-      clearTimeout(retry)
       clearTimeout(queuedRead)
       clearTimeout(boundary)
       clearInterval(fallback)
-      window.removeEventListener('online', schedule)
+      window.removeEventListener('online', resync)
+      if (skipPollingWhenConnected) document.removeEventListener('visibilitychange', refreshOnForeground)
     }
-  }, [url, topic, transport])
+  }, [url, topic, transport, skipPollingWhenConnected])
+
+  useEffect(() => {
+    if (topic === 'stats') return
+    let stopped = false
+    let socket: WebSocket
+    let retry: ReturnType<typeof setTimeout> | undefined
+    const address = new URL(topic === 'personal' ? '/api/personal/updates' : '/api/discussion/updates', window.location.href)
+    address.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    if (receiveQuestions) address.searchParams.set('qa', topic === 'projection' ? 'projection' : 'member')
+
+    function connect() {
+      socket = new WebSocket(address)
+      socket.onopen = () => {
+        if (stopped) return
+        connected.current = true
+        notify.current()
+      }
+      socket.onmessage = ({ data }) => {
+        if (!stopped) notify.current(data)
+      }
+      socket.onclose = () => {
+        if (stopped) return
+        connected.current = false
+        retry = setTimeout(connect, 3000)
+      }
+    }
+
+    connect()
+    return () => {
+      stopped = true
+      connected.current = false
+      clearTimeout(retry)
+      socket.close()
+    }
+  }, [topic, receiveQuestions])
 
   async function submit(command: Command) {
     const apply = applyWrite.current

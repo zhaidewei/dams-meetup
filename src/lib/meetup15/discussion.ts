@@ -64,6 +64,7 @@ export type FeedSnapshot = DiscussionContext & {
 }
 
 export const FEED_VERSIONS_HEADER = 'X-Discussion-Versions'
+export const FEED_TIME_HEADER = 'X-Discussion-Server-Time'
 export type FeedVersions = { questions: string; posts: string }
 export type VersionedFeed = FeedSnapshot & { versions: FeedVersions }
 export type QuestionDelta = { upsert: DiscussionItem[]; remove: number[] }
