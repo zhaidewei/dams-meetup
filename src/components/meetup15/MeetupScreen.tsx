@@ -24,9 +24,11 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
   const [frontQuestion, ...otherQuestions] = liveQuestions ? questions : []
   const nextQuestions = otherQuestions.slice(0, PRIORITY_QUESTION_COUNT - 1)
   const remainingQuestions = otherQuestions.slice(PRIORITY_QUESTION_COUNT - 1)
-  const heading = compact ? 'text-lg' : 'text-3xl md:text-5xl'
+  const heading = compact ? 'text-lg' : data.mode === 'qa'
+    ? 'text-3xl md:text-5xl [@media(max-height:650px)]:md:text-3xl'
+    : 'text-3xl md:text-5xl'
   return (
-    <div className={compact ? 'w-full space-y-3 text-sm' : 'mx-auto w-full max-w-6xl space-y-6 text-lg'}>
+    <div className={compact ? 'w-full space-y-3 text-sm' : `mx-auto w-full max-w-6xl space-y-6 text-lg ${data.mode === 'qa' ? '[@media(max-height:650px)]:space-y-3' : ''}`}>
       <p className={data.mode === 'qa' ? 'text-left text-sm font-semibold text-dams-blue' : 'font-medium text-dams-blue'}>{MEETUP_NAME}</p>
       {data.mode === 'agenda' && (
         <section aria-label="议程展示" className={compact ? 'space-y-3' : 'space-y-5'}>
@@ -47,7 +49,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
         </section>
       )}
       {data.mode === 'qa' && (
-        <section aria-label="嘉宾问答" className={compact ? '@container space-y-3 text-left' : 'space-y-5 text-left'}>
+        <section aria-label="嘉宾问答" className={compact ? '@container space-y-3 text-left' : 'space-y-5 text-left [@media(max-height:650px)]:space-y-3'}>
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-dams-selection pb-4">
             <h1 className={heading}>嘉宾问答 · {data.round.guest}</h1>
             <dl className="flex flex-wrap gap-2 text-center">
@@ -72,7 +74,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
                     <span>当前最高票</span>
                     <span>{frontQuestion.likes} 个赞</span>
                   </div>
-                  <p className={compact ? 'wrap-anywhere font-semibold' : 'wrap-anywhere text-2xl font-semibold leading-snug md:text-3xl'}>
+                  <p className={compact ? 'wrap-anywhere font-semibold' : 'wrap-anywhere text-2xl font-semibold leading-snug md:text-3xl [@media(max-height:650px)]:md:text-2xl'}>
                     {frontQuestion.body}
                   </p>
                 </article>
@@ -141,7 +143,7 @@ export function MeetupScreen() {
   const active = data && data.mode !== 'hidden'
   return (
     <main className={active
-      ? `grid min-h-svh bg-dams-wash px-5 py-10 text-center text-slate-950 ${data.mode === 'qa' ? 'content-start' : 'content-center'}`
+      ? `grid min-h-svh bg-dams-wash px-5 py-10 text-center text-slate-950 ${data.mode === 'qa' ? 'content-start [@media(max-height:650px)]:py-5' : 'content-center'}`
       : 'min-h-svh bg-black'}>
       {active && <ScreenContent data={data} />}
     </main>

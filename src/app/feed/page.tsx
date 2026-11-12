@@ -10,11 +10,11 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: '讨论区 · DAMS 第 15 期 Meetup' }
 
 export default async function FeedPage({ searchParams }: {
-  searchParams: Promise<{ view?: string; section?: string }>
+  searchParams: Promise<{ view?: string; section?: string; ask?: string }>
 }) {
   const now = meetupNow(meetupEnv())
   const member = await currentMember(now)
-  const { view, section } = await searchParams
+  const { view, section, ask } = await searchParams
   const free = view === 'free'
   const initialSection = !free && isMeetupSection(section) && section !== 'lounge' ? section : null
   if (!member) {
@@ -33,7 +33,7 @@ export default async function FeedPage({ searchParams }: {
         </div>
         {member.role === 'guest' && <GuestVipBadge />}
       </header>
-      <DiscussionFeed key={free ? 'free' : initialSection ?? 'follow'} free={free} initialSection={initialSection} />
+      <DiscussionFeed key={free ? 'free' : initialSection ?? 'follow'} free={free} initialAsk={ask === '1'} />
     </MeetupMemberLayout>
   )
 }
