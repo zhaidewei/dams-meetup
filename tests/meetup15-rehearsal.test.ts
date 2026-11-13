@@ -71,7 +71,7 @@ it('clears rehearsal data atomically, preserves guests and the recap, and only f
       db.prepare("INSERT INTO meetup15_members (id, role) VALUES ('old-attendee', 'attendee')"),
       db.prepare("INSERT INTO meetup15_discussion (kind, author_id, section, body) VALUES ('post', 'guest', 'expert', 'Rehearsal guest post')"),
       db.prepare("INSERT INTO meetup15_summary (id, metrics, published_at) VALUES (1, '{\"posts\":123}', 1)"),
-      db.prepare("UPDATE activity_state SET admission_open = 1, section_override = 'expert', projection_mode = 'agenda'"),
+      db.prepare("UPDATE activity_state SET section_override = 'expert', projection_mode = 'agenda'"),
     ])
     const guestBefore = await guests()
     expect((await request('clear', 0, '')).status).toBe(401)
@@ -110,6 +110,15 @@ it('clears rehearsal data atomically, preserves guests and the recap, and only f
     })
     expect((await guests()).results).toEqual(guestBefore.results)
     expect(await db.prepare('SELECT metrics FROM meetup15_summary').first('metrics')).toBe('{"posts":123}')
+
+    expect(REHEARSAL_END).toBe(Date.parse('2026-11-14T12:45:00+01:00'))
+    expect(status(await request('fill', 3))).toBe('filled')
+    await db.prepare('UPDATE activity_state SET admission_open = 1, revision = revision + 1').run()
+    expect(status(await request('clear', 5))).toBe('closed')
+    await db.prepare('UPDATE activity_state SET admission_open = 0, revision = revision + 1').run()
+    expect(status(await request('clear', 6))).toBe('closed')
+    expect(status(await request('fill', 6))).toBe('closed')
+    expect(await counts()).toMatchObject({ attendees: 200, posts: 70, questions: 40 })
   } finally {
     await runtime.dispose()
   }

@@ -58,7 +58,7 @@ export const SUMMARY_HTML = `<!doctype html>
       radial-gradient(900px 480px at 80% 0%, rgba(37,99,235,.10), transparent 60%),
       radial-gradient(700px 420px at 0% 100%, rgba(219,39,119,.08), transparent 60%),
       linear-gradient(rgba(255,255,255,.82), rgba(255,255,255,.82)),
-      url('farewell-bg.jpg') center center / cover no-repeat,
+      url('/farewell-bg.jpg') center center / cover no-repeat,
       var(--bg);
   }
   .farewell .lead, .farewell .channels .row .v { text-shadow: 0 1px 2px rgba(255,255,255,.6); }

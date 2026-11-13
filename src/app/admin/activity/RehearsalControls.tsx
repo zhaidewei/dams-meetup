@@ -16,10 +16,11 @@ export async function RehearsalControls({ status }: { status?: string }) {
   const now = meetupNow(env)
   const [{ counts }, state] = await Promise.all([
     readLiveStats(env.ACTIVITY_DB, now),
-    env.ACTIVITY_DB.prepare('SELECT revision FROM activity_state WHERE id = 1').first<{ revision: number }>(),
+    env.ACTIVITY_DB.prepare('SELECT revision, rehearsal_locked FROM activity_state WHERE id = 1')
+      .first<{ revision: number; rehearsal_locked: number }>(),
   ])
   const notice = status && Object.hasOwn(feedback, status) ? feedback[status] : null
-  const disabled = now >= REHEARSAL_END || !state
+  const disabled = now >= REHEARSAL_END || !state || state.rehearsal_locked === 1
   const hasData = Boolean(counts && (counts.attendees || counts.posts || counts.replies || counts.questions || counts.raffleRounds))
   const canFill = !disabled && Boolean(counts?.guests) && !hasData
 
@@ -27,7 +28,7 @@ export async function RehearsalControls({ status }: { status?: string }) {
     <section className="max-w-3xl space-y-5">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">管理彩排</h1>
-        <p className="text-sm text-zinc-700">请在 11 月 14 日 00:00（荷兰时间）前清空彩排数据。到时停用这两个操作，保护正式活动数据。</p>
+        <p className="text-sm text-zinc-700">请在 11 月 14 日 12:45（荷兰时间）前、首次开放观众入口之前清空彩排数据。任一条件达到后，清空和填充都会停用。</p>
         {counts && <p className="text-sm text-zinc-700">
           当前数据 · {counts.attendees} 位观众 · {counts.guests} 位嘉宾 · {counts.posts} 篇帖子 · {counts.questions} 条问题
         </p>}
