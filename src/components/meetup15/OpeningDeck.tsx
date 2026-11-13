@@ -1,38 +1,17 @@
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { AdmissionScreen } from './AdmissionScreen'
 
 const slides = [
-  {
-    title: 'DAMS 现场互动工具',
-    body: <><p>想找同行交流，或把问题交给台上的嘉宾？</p><p>用手机打开网页，就能参与全场讨论和问答。</p></>,
-  },
-  {
-    title: '发帖、找同好、聊下去',
-    body: (
-      <ol className="mx-auto grid w-fit list-decimal gap-3 pl-6 text-left marker:text-dams-blue">
-        <li>在「我的 → 资料」填写昵称。</li>
-        <li>在「自由讨论区」发帖交流，或到「议程讨论区」加入对应环节的讨论。</li>
-        <li>想继续聊？点对方头像发私信，在「我的 → 私信」查看回复。</li>
-      </ol>
-    ),
-  },
-  {
-    title: '嘉宾问答和现场抽奖',
-    body: (
-      <dl className="grid gap-3 sm:grid-cols-2">
-        {[
-          ['嘉宾问答', '主持人开启问答后，到标有「问答中」的板块提问，也可以给别人的问题点赞。大屏优先展示点赞最多的待答问题。'],
-          ['现场抽奖', '抽奖结果在大屏公布，中奖者会收到站内私信。'],
-        ].map(([label, description]) => (
-          <div key={label} className="rounded-xl bg-dams-wash p-3 text-left md:p-5">
-            <dt className="mb-1 font-bold text-dams-blue">{label}</dt>
-            <dd>{description}</dd>
-          </div>
-        ))}
-      </dl>
-    ),
-  },
-  { title: '扫码入场，开始互动', body: null },
+  { title: '扫码入场', image: 'admission', alt: '手机首页的现场入场密码输入框', body: '扫左下角的码即可入场，也可以在活动首页输入现场密码。' },
+  { title: '查看活动议程', image: 'home', alt: '手机首页的活动议程', body: '在首页查看时间和嘉宾。点一个议程环节，即可进入对应讨论区。' },
+  { title: '设置昵称', image: 'profile', alt: '资料表单中的示例昵称', body: '可以先浏览。在「我的 → 资料」填写昵称后，就能发帖、回复和提问。' },
+  { title: '在讨论区发帖', image: 'discussion', alt: '自由讨论区里填好的示例帖子和标签', body: '在自由讨论区发帖，或到议程讨论区加入对应环节的讨论。标签选填。' },
+  { title: '回复帖子', image: 'reply', alt: '手机上展开的帖子和示例回复', body: '点「回复帖子」参与讨论，也可以展开回复，看其他人说了什么。' },
+  { title: '给同行发私信', image: 'messages', alt: '手机上的示例私信对话', body: '点对方头像发私信。在「我的 → 私信」打开对应联系人查看对话。' },
+  { title: '向嘉宾提问', image: 'qa', alt: '嘉宾问答中已填写的示例问题', body: '点「前往提问」提交最多 100 字的问题。也可以给想听嘉宾回答的问题点赞。' },
+  { title: '查看中奖通知', image: 'raffle', alt: '手机上收到的示例中奖私信', body: '抽奖结果在大屏揭晓。中奖后，到「我的 → 私信」查看官方通知。' },
+  { title: '换手机后恢复身份', image: 'recovery', alt: '我的页面中的复制恢复链接按钮', body: '在「我的 → 恢复链接」复制并保存链接，换手机或浏览器后打开它即可恢复身份。' },
 ]
 
 export function OpeningDeck({ compact = false }: { compact?: boolean }) {
@@ -59,27 +38,40 @@ export function OpeningDeck({ compact = false }: { compact?: boolean }) {
   const button = 'min-h-11 rounded-lg border border-dams-line px-3 text-dams-blue hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue disabled:opacity-50'
 
   return (
-    <section aria-label="开场介绍" className={compact
-      ? 'grid min-h-56 grid-rows-[1fr_auto] gap-4 rounded-lg bg-white p-4 text-dams-ink'
-      : 'grid min-h-svh grid-rows-[1fr_auto] gap-5 bg-white px-6 py-5 text-center text-dams-ink sm:px-12'}>
-      <div className="mx-auto grid w-full max-w-6xl content-center gap-4" aria-live="polite">
-        <h1 className={compact
-          ? 'text-xl font-bold text-dams-blue'
-          : 'text-[clamp(2rem,5vw,5rem)] leading-tight font-bold text-dams-blue'}>
-          {slide.title}
-        </h1>
-        <div className={compact ? 'space-y-2 text-sm' : 'space-y-3 text-[clamp(1rem,2vw,2rem)]'}>
-          {slide.body ?? <AdmissionScreen compact={compact} />}
-          {slide.body === null && <p>从「我的 → 恢复链接」保存链接，换手机时可找回同一个身份。</p>}
+    <div className={compact ? 'space-y-2' : 'grid min-h-svh place-items-center bg-white'}>
+      <section aria-label={compact ? '仅管理员可见的画面预览' : '开场介绍'}
+        className={compact ? 'w-full rounded-lg ring-1 ring-dams-line' : 'w-[min(100%,133.333svh)]'}>
+        <div className="@container aspect-[4/3] rounded-[inherit] bg-white text-dams-ink">
+          <div className="grid h-full grid-rows-[minmax(0,1fr)_auto] gap-[2cqw] px-[5cqw] pt-[4cqw] pb-[3cqw]">
+            <div className="grid grid-cols-[minmax(0,1.13fr)_minmax(0,1fr)] items-center gap-[5cqw]" aria-live="polite">
+              <div className="grid min-w-0 grid-rows-[20cqw_26cqw] gap-[2.5cqw]">
+                <div className="space-y-[1.4cqw]">
+                  <h1 className="text-[4.7cqw] leading-tight font-bold text-dams-blue">{slide.title}</h1>
+                  <p className="text-[2.5cqw] leading-relaxed">{slide.body}</p>
+                </div>
+                <div className="w-[22cqw] self-start space-y-[0.5cqw] rounded-[1.5cqw] border border-dams-line p-[1cqw] text-center [&_img]:max-w-none [&_p]:text-[1.75cqw] [&_p]:leading-snug">
+                  <AdmissionScreen agenda />
+                </div>
+              </div>
+              <figure className="min-w-0">
+                <Image src={`/meetup15-opening/${slide.image}.webp`} alt={slide.alt} width={780} height={1220}
+                  unoptimized loading="eager"
+                  className="mx-auto h-auto w-[38cqw] max-w-full rounded-[1.5cqw] border border-dams-line shadow-sm" />
+              </figure>
+            </div>
+            <div className="flex items-center justify-between text-[1.65cqw] text-slate-600">
+              <span>← → 翻页</span>
+              <span role="status" className="tabular-nums">{index + 1} / {slides.length}</span>
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="flex items-center justify-between gap-2 text-sm text-slate-600">
-        {compact
-          ? <button type="button" className={button} disabled={index === 0} onClick={() => setIndex(index - 1)}>上一页</button>
-          : <span>← → 翻页</span>}
-        <span role="status" className="tabular-nums">{index + 1} / {slides.length}</span>
-        {compact && <button type="button" className={button} disabled={index === last} onClick={() => setIndex(index + 1)}>下一页</button>}
-      </div>
-    </section>
+      </section>
+      {compact && (
+        <div className="flex justify-between gap-2 text-sm">
+          <button type="button" className={button} disabled={index === 0} onClick={() => setIndex(index - 1)}>上一页</button>
+          <button type="button" className={button} disabled={index === last} onClick={() => setIndex(index + 1)}>下一页</button>
+        </div>
+      )}
+    </div>
   )
 }
