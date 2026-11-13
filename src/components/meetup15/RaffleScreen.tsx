@@ -9,22 +9,22 @@ const CELL_HEIGHT = 80
 const MAX_RADIUS = 26
 const probability = new Intl.NumberFormat('zh-CN', { style: 'percent', maximumFractionDigits: 2 })
 
-function RafflePool({ candidates, compact, showCount, activeIndex }: {
-  candidates: RaffleCandidateView[]; compact: boolean; showCount: boolean; activeIndex?: number | null
+function RafflePool({ candidates, showCount, activeIndex }: {
+  candidates: RaffleCandidateView[]; showCount: boolean; activeIndex?: number | null
 }) {
   const totalWeight = candidates.reduce((sum, candidate) => sum + candidate.weight, 0)
   const maxWeight = Math.max(...candidates.map(candidate => candidate.weight))
-  const columns = Math.min(candidates.length, Math.ceil(Math.sqrt(candidates.length * (compact ? 2 : 1.4))))
+  const columns = Math.min(candidates.length, Math.ceil(Math.sqrt(candidates.length * 1.4)))
   const rows = Math.ceil(candidates.length / columns)
   const width = columns * CELL_WIDTH
   return (
-    <figure className={compact ? 'space-y-2' : 'flex min-h-0 flex-col gap-4'}>
-      <figcaption className={compact ? 'text-xs text-slate-600' : 'flex flex-wrap items-baseline justify-between gap-2 text-sm text-slate-600'}>
-        <span className={compact ? 'mr-2 font-semibold text-slate-900' : 'text-lg font-semibold text-slate-900'}>奖池{showCount && ` · ${candidates.length} 位候选人`}</span>
+    <figure className="flex min-h-0 flex-col gap-4">
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-slate-600">
+        <span className="text-lg font-semibold text-slate-900">奖池{showCount && ` · ${candidates.length} 位候选人`}</span>
         <span>圆圈面积代表中奖概率</span>
       </figcaption>
-      <svg viewBox={`0 0 ${width} ${rows * CELL_HEIGHT}`} className={`mx-auto block w-full ${compact ? 'max-h-56' : 'md:max-h-[70svh]'}`}
-        style={{ maxWidth: compact ? width : width * 2.2 }} role="group" aria-label="本轮完整奖池">
+      <svg viewBox={`0 0 ${width} ${rows * CELL_HEIGHT}`} className="mx-auto block w-full md:max-h-[70svh]"
+        style={{ maxWidth: width * 2.2 }} role="group" aria-label="本轮完整奖池">
         {candidates.map(({ name, weight, won }, index) => {
           const percent = probability.format(weight / totalWeight)
           const characters = Array.from(name)
@@ -63,21 +63,21 @@ function RafflePool({ candidates, compact, showCount, activeIndex }: {
   )
 }
 
-export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, { mode: 'raffle' }>; compact: boolean }) {
+export function RaffleScreen({ data, muted }: { data: Extract<ProjectionView, { mode: 'raffle' }>; muted: boolean }) {
   const { lottery, candidates, raffleId, rules } = data
   const { drawingFrame, soundEnabled, soundError, toggleSound } = useRaffleAnimation(raffleId, lottery, candidates.length)
   return (
-    <section aria-label="现场抽奖" className={`bg-white text-left text-dams-ink ${compact ? 'rounded-xl p-3' : 'min-h-svh px-[clamp(1rem,4vw,4.5rem)] py-[clamp(1.25rem,5vh,4rem)]'}`}>
-      <div className={compact ? 'space-y-4' : 'mx-auto grid min-h-[88svh] max-w-[100rem] items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)] xl:gap-14'}>
-        <div className={compact ? 'space-y-3' : 'space-y-7'}>
-          <header className={compact ? 'space-y-1' : 'space-y-3'}>
+    <section aria-label="现场抽奖" className="bg-white text-left text-dams-ink min-h-svh px-[clamp(1rem,4vw,4.5rem)] py-[clamp(1.25rem,5vh,4rem)]">
+      <div className="mx-auto grid min-h-[88svh] max-w-[100rem] items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)] xl:gap-14">
+        <div className="space-y-7">
+          <header className="space-y-3">
             <p className="text-sm font-medium text-dams-blue">{MEETUP_NAME}</p>
-            <h1 className={compact ? 'text-lg font-semibold text-dams-blue' : 'text-[clamp(2.25rem,5vw,5.25rem)] leading-tight font-bold tracking-tight text-dams-blue'}>现场抽奖</h1>
+            <h1 className="text-[clamp(2.25rem,5vw,5.25rem)] leading-tight font-bold tracking-tight text-dams-blue">现场抽奖</h1>
             {raffleId !== null && <p className="text-sm font-medium text-slate-600">第 {raffleId} 轮</p>}
-            <div role="status" className={compact ? 'text-sm' : 'pt-1 text-lg'}>
+            <div role="status" className="pt-1 text-lg">
               {lottery?.phase === 'winner' && (
-                <p className={`font-bold wrap-anywhere text-dams-orange-strong ${compact ? 'text-lg' : 'text-[clamp(1.75rem,3.5vw,3.75rem)] leading-tight'}`}>
-                  <span className={compact ? 'text-sm' : 'block text-base'}>{'恭喜 '}</span>{lottery.winner}！
+                <p className="font-bold wrap-anywhere text-dams-orange-strong text-[clamp(1.75rem,3.5vw,3.75rem)] leading-tight">
+                  <span className="block text-base">{'恭喜 '}</span>{lottery.winner}！
                 </p>
               )}
               {lottery?.phase === 'drawing' && <p>抽奖进行中 · {lottery.candidateCount} 位候选人</p>}
@@ -90,16 +90,16 @@ export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, 
                   style={{ width: `${(drawingFrame?.progress ?? 0) * 100}%` }} />
               </div>
             )}
-            {!compact && (
+            {!muted && (
               <button type="button" onClick={() => void toggleSound()}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full border border-dams-line bg-white px-3 text-sm font-medium text-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue">
                 {soundEnabled ? <Volume2 aria-hidden size={16} /> : <VolumeX aria-hidden size={16} />}
                 {soundEnabled ? '关闭声音' : '开启声音'}
               </button>
             )}
-            {!compact && soundError && <p role="status" className="text-sm text-slate-600">暂时无法开启声音，请重试。</p>}
+            {!muted && soundError && <p role="status" className="text-sm text-slate-600">暂时无法开启声音，请重试。</p>}
           </header>
-          <section aria-labelledby="raffle-rules-title" className={`space-y-2 border-t border-dams-line pt-3 leading-relaxed text-slate-600 ${compact ? 'text-xs' : 'text-base'}`}>
+          <section aria-labelledby="raffle-rules-title" className="space-y-2 border-t border-dams-line pt-3 leading-relaxed text-slate-600 text-base">
             <h2 id="raffle-rules-title" className="font-semibold text-slate-900">抽奖规则</h2>
             <p>最近 {RAFFLE_ACTIVE_HOURS} 小时内活跃的观众可参加。嘉宾和本场已中奖者除外，每轮最多抽出 1 人。</p>
             {rules ? (
@@ -113,11 +113,11 @@ export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, 
           </section>
         </div>
         {candidates.length > 0 ? (
-          <div className={`min-w-0 rounded-2xl border border-dams-line bg-white ${compact ? 'p-3' : 'p-[clamp(1rem,2.5vw,2rem)]'}`}>
-            <RafflePool candidates={candidates} compact={compact} showCount={lottery?.phase !== 'drawing'} activeIndex={drawingFrame?.index} />
+          <div className="min-w-0 rounded-2xl border border-dams-line bg-white p-[clamp(1rem,2.5vw,2rem)]">
+            <RafflePool candidates={candidates} showCount={lottery?.phase !== 'drawing'} activeIndex={drawingFrame?.index} />
           </div>
         ) : lottery?.phase !== 'drawing' && (
-          <p className={compact ? 'text-sm text-slate-600' : 'rounded-2xl border border-dams-line bg-white p-8 text-center text-lg text-slate-600'}>
+          <p className="rounded-2xl border border-dams-line bg-white p-8 text-center text-lg text-slate-600">
             暂无候选人
           </p>
         )}

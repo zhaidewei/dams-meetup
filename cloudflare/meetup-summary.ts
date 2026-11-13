@@ -30,8 +30,8 @@ async function cleanActivity(db: D1Database, revision: number, now: number) {
     db.prepare(`
       INSERT INTO activity_state (id) SELECT 1 WHERE ${approved}
       ON CONFLICT(id) DO UPDATE SET
-        admission_open = 0, revision = revision + (admission_open <> 0), section_override = NULL,
-        projection_mode = 'hidden', projection_round_id = NULL, projection_raffle_id = NULL,
+        admission_open = 0, revision = revision + (admission_open <> 0), section_override = NULL, agenda_start_override = NULL,
+        projection_mode = 'hidden', projection_round_id = NULL, projection_raffle_id = NULL, projection_slide = 0,
         projection_revision = projection_revision + 1,
         screen_mode = 'live', screen_poll_section = NULL, reveal_poll_id = NULL, screen_lottery = NULL
     `).bind(revision),

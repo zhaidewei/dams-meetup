@@ -1,8 +1,8 @@
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { OPENING_SLIDE_COUNT } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
 
-const slides = [
+const slides: { title: string; image: string; alt: string; body: string }[] & { length: typeof OPENING_SLIDE_COUNT } = [
   { title: '扫码入场', image: 'admission', alt: '手机首页的现场入场密码输入框', body: '扫左下角的码即可入场，也可以在活动首页输入现场密码。' },
   { title: '查看活动议程', image: 'home', alt: '手机首页的活动议程', body: '在首页查看时间和嘉宾。点一个议程环节，即可进入对应讨论区。' },
   { title: '设置昵称', image: 'profile', alt: '资料表单中的示例昵称', body: '可以先浏览。在「我的 → 资料」填写昵称后，就能发帖、回复和提问。' },
@@ -14,33 +14,12 @@ const slides = [
   { title: '换手机后恢复身份', image: 'recovery', alt: '我的页面中的复制恢复链接按钮', body: '在「我的 → 恢复链接」复制并保存链接，换手机或浏览器后打开它即可恢复身份。' },
 ]
 
-export function OpeningDeck({ compact = false }: { compact?: boolean }) {
-  const [index, setIndex] = useState(0)
-  const slide = slides[index]
-  const last = slides.length - 1
-
-  useEffect(() => {
-    if (compact) return
-
-    function onKey(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-
-      event.preventDefault()
-      const step = event.key === 'ArrowLeft' ? -1 : 1
-      setIndex((current) => Math.max(0, Math.min(current + step, last)))
-    }
-
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [compact, last])
-
-  const button = 'min-h-11 rounded-lg border border-dams-line px-3 text-dams-blue hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue disabled:opacity-50'
+export function OpeningDeck({ index }: { index: number }) {
+  const slide = slides[index] ?? slides[0]
 
   return (
-    <div className={compact ? 'space-y-2' : 'grid min-h-svh place-items-center bg-white'}>
-      <section aria-label={compact ? '仅管理员可见的画面预览' : '开场介绍'}
-        className={compact ? 'w-full rounded-lg ring-1 ring-dams-line' : 'w-[min(100%,133.333svh)]'}>
+    <div className="grid min-h-svh place-items-center bg-white">
+      <section aria-label="开场介绍" className="w-[min(100%,133.333svh)]">
         <div className="@container aspect-[4/3] rounded-[inherit] bg-white text-dams-ink">
           <div className="grid h-full grid-rows-[minmax(0,1fr)_auto] gap-[2cqw] px-[5cqw] pt-[4cqw] pb-[3cqw]">
             <div className="grid grid-cols-[minmax(0,1.13fr)_minmax(0,1fr)] items-center gap-[5cqw]" aria-live="polite">
@@ -66,12 +45,6 @@ export function OpeningDeck({ compact = false }: { compact?: boolean }) {
           </div>
         </div>
       </section>
-      {compact && (
-        <div className="flex justify-between gap-2 text-sm">
-          <button type="button" className={button} disabled={index === 0} onClick={() => setIndex(index - 1)}>上一页</button>
-          <button type="button" className={button} disabled={index === last} onClick={() => setIndex(index + 1)}>下一页</button>
-        </div>
-      )}
     </div>
   )
 }

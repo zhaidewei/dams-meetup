@@ -56,7 +56,8 @@ export function useRaffleAnimation(roundId: number | null, lottery: LotteryScree
   useEffect(() => {
     if (readyAt === null || roundId === null) return
     observedDraw.current = roundId
-    let index = -1
+    let step = 0
+    let nextTick = 0
     let timer: ReturnType<typeof setTimeout>
 
     function advance(end: number, round: number) {
@@ -66,14 +67,17 @@ export function useRaffleAnimation(roundId: number | null, lottery: LotteryScree
         return
       }
       const progress = Math.max(0, 1 - remaining / RAFFLE_ANIMATION_MS)
-      if (candidateCount > 0) {
-        const step = candidateCount > 1 ? 1 + Math.floor(Math.random() * (candidateCount - 1)) : 1
-        index = (index + step) % candidateCount
+      const elapsed = progress * RAFFLE_ANIMATION_MS
+      // Both screens derive the highlight from the same round and time, even after reconnecting.
+      while (nextTick <= elapsed) {
+        step++
+        nextTick += 75 + 420 * (nextTick / RAFFLE_ANIMATION_MS) ** 3
       }
-      setFrame({ roundId: round, index: index >= 0 ? index : null, progress })
+      const offset = (Math.imul(step, 0x9e3779b9) ^ Math.imul(round, 0x85ebca6b)) >>> 0
+      setFrame({ roundId: round, index: candidateCount ? offset % candidateCount : null, progress })
       const context = audio.current
       if (soundOn.current && context?.state === 'running') playTone(context, 640 - 180 * progress, 0, 0.04)
-      timer = setTimeout(() => advance(end, round), Math.min(remaining, 75 + 420 * progress ** 3))
+      timer = setTimeout(() => advance(end, round), Math.min(remaining, Math.max(1, nextTick - elapsed)))
     }
 
     timer = setTimeout(() => advance(readyAt, roundId), 0)

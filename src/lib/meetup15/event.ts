@@ -142,7 +142,17 @@ export function meetupAgendaAt(now: number) {
   return MEETUP_AGENDA.find(({ start, end }) => agendaTime(start) <= now && now < agendaTime(end))
 }
 
-export function nextMeetupAgendaChange(now: number) {
+export function currentMeetupAgenda(now: number, sectionOverride: unknown, startOverride?: string | null) {
+  if (startOverride) return MEETUP_AGENDA.find(slot => slot.start === startOverride)
+  if (isMeetupAgendaSection(sectionOverride) && sectionOverride !== 'lounge') {
+    return MEETUP_AGENDA.find(slot => slot.section === sectionOverride)
+  }
+  const scheduled = meetupAgendaAt(now)
+  return sectionOverride === 'lounge' && scheduled?.section !== 'lounge' ? undefined : scheduled
+}
+
+export function nextMeetupAgendaChange(now: number, sectionOverride?: unknown, startOverride?: string | null) {
+  if (startOverride || (isMeetupAgendaSection(sectionOverride) && sectionOverride !== 'lounge')) return null
   const boundaries = MEETUP_AGENDA.flatMap(({ start, end }) => [agendaTime(start), agendaTime(end)])
   return boundaries.find((boundary) => boundary > now) ?? null
 }

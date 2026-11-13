@@ -1,5 +1,5 @@
 import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS, type QaWriteAck } from '../src/lib/meetup15/discussion'
-import { isMeetupAgendaSection, isMeetupSection, meetupSectionAt } from '../src/lib/meetup15/event'
+import { isMeetupAgendaSection, isMeetupSection, MEETUP_AGENDA, meetupSectionAt } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
 
@@ -125,7 +125,13 @@ export async function writeStaff(db: D1Database, input: Input, now: number): Pro
   switch (input.action) {
     case 'section':
       if (input.section !== null && !isMeetupAgendaSection(input.section)) return invalid
-      return write(db.prepare('UPDATE activity_state SET section_override = ? WHERE id = 1').bind(input.section))
+      return write(db.prepare('UPDATE activity_state SET section_override = ?, agenda_start_override = NULL WHERE id = 1').bind(input.section))
+    case 'agenda': {
+      const slot = MEETUP_AGENDA.find(slot => slot.start === input.start)
+      if (input.start !== null && !slot) return invalid
+      return write(db.prepare(`UPDATE activity_state SET section_override = ?, agenda_start_override = ? WHERE id = 1`)
+        .bind(slot?.section ?? null, slot?.start ?? null))
+    }
     case 'start': {
       const { guestId, activeRoundId, latestRoundId } = input
       if (typeof guestId !== 'string' || guestId.length > 36 ||

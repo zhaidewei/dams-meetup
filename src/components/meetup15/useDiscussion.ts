@@ -14,6 +14,7 @@ export type DiscussionTransport<T> = {
 export function useDiscussion<T extends { refreshAt: number | null }, Command = MemberCommand | StaffCommand>(
   url: string, topic: 'discussion' | 'projection' | 'personal' | 'stats' = 'discussion',
   transport?: DiscussionTransport<T>,
+  writeUrl = url.split('?')[0],
 ) {
   const [view, setView] = useState<{ url: string; data: T | null; error: string; unauthorized?: boolean } | null>(null)
   const [pending, setPending] = useState(false)
@@ -205,7 +206,7 @@ export function useDiscussion<T extends { refreshAt: number | null }, Command = 
     setPending(true)
     setActionError('')
     try {
-      const response = await fetch(topic === 'personal' ? url : url.split('?')[0], {
+      const response = await fetch(topic === 'personal' ? url : writeUrl, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...transport?.headers?.(null) },
         body: JSON.stringify(command), signal: AbortSignal.timeout(8000),
       })

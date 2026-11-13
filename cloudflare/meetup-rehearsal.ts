@@ -11,8 +11,8 @@ const dataTables = [
 
 const resetActivity = `
   UPDATE activity_state SET admission_open = 0, revision = revision + 1,
-    section_override = ?, projection_mode = 'hidden', projection_round_id = NULL,
-    projection_raffle_id = NULL, projection_revision = projection_revision + 1,
+    section_override = ?, agenda_start_override = NULL, projection_mode = 'hidden', projection_round_id = NULL,
+    projection_raffle_id = NULL, projection_slide = 0, projection_revision = projection_revision + 1,
     screen_mode = 'live', screen_poll_section = NULL, reveal_poll_id = NULL, screen_lottery = NULL
   WHERE id = 1`
 

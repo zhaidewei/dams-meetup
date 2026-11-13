@@ -1,95 +1,64 @@
 'use client'
 
-import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
-import { PROJECTION_MODES, type ProjectionAdminSnapshot, type ProjectionCommand, type ProjectionMode,
-  type ProjectionSelection, type ProjectionView } from '@/lib/meetup15/projection'
+import { OPENING_SLIDE_COUNT, PROJECTION_MODES, type ProjectionAdminSnapshot, type ProjectionCommand, type ProjectionMode,
+  type ProjectionSelection } from '@/lib/meetup15/projection'
 import { discussionButton, discussionInput } from './DiscussionComposer'
-import { ScreenContent } from './MeetupScreen'
 import { RaffleControls } from './RaffleControls'
 import { useDiscussion } from './useDiscussion'
-
-type Draft = { mode: ProjectionMode; roundId?: number; raffleId?: number }
-export type VersionedDraft = Draft & { baseRevision: number }
 
 const roundTime = new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Europe/Amsterdam', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 })
 
-function DraftPreview({ draft, changed, stale, pending, onConfirm }: {
-  draft: Draft
-  changed: boolean
-  stale: boolean
-  pending: boolean
-  onConfirm: (selection: ProjectionSelection) => void
-}) {
-  const selection: ProjectionSelection | null = draft.mode === 'qa'
-    ? draft.roundId ? { mode: 'qa', roundId: draft.roundId } : null
-    : draft.mode === 'raffle' ? { mode: 'raffle', raffleId: draft.raffleId } : { mode: draft.mode }
-  const query = new URLSearchParams({ mode: selection?.mode ?? 'hidden' })
-  if (selection?.mode === 'qa') query.set('roundId', String(selection.roundId))
-  if (selection?.mode === 'raffle' && selection.raffleId !== undefined) query.set('raffleId', String(selection.raffleId))
-  const { data, error } = useDiscussion<ProjectionView>(`/api/screen/preview?${query}`, 'projection')
+const SCREEN_WIDTH = 1024
+const SCREEN_HEIGHT = 768
+
+function ScreenMirror() {
+  const frame = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0)
+
+  useEffect(() => {
+    const element = frame.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => setScale(entry.contentRect.width / SCREEN_WIDTH))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-dams-line p-4" aria-label="画面预览">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">画面预览</h2>
-        <p role="status" className="text-sm text-zinc-600">
-          {stale ? '大屏状态已变化，请重新选择画面或轮次。'
-            : !selection ? '待选择问答轮次' : changed ? `待切换 · ${PROJECTION_MODES[draft.mode]}` : '与当前画面一致'}
-        </p>
-      </div>
-      {selection?.mode === 'opening' && data?.mode === 'opening' && !error ? (
-        <ScreenContent data={data} compact />
-      ) : (
-        <div className="relative aspect-[4/3] w-full">
-          <section key={query.toString()} aria-label="仅管理员可见的画面预览" tabIndex={0}
-            className={'absolute inset-0 flex flex-col overflow-auto rounded-lg p-4 text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue ' +
-              (data && data.mode !== 'hidden' ? 'bg-white text-dams-ink' : 'bg-black text-zinc-100')}>
-            <div className="my-auto w-full shrink-0">
-              {!selection ? <p>请选择要投屏的问答轮次</p> : error
-                ? <p role="alert">{error}</p> : data
-                  ? <ScreenContent data={data} compact /> : <p>正在加载预览…</p>}
-            </div>
-          </section>
-        </div>
-      )}
-      <div className="flex justify-end">
-        <button type="button" className="min-h-11 rounded-md bg-dams-hover px-4 py-2 text-white disabled:opacity-50"
-          disabled={pending || stale || !changed || !selection || !data || Boolean(error)}
-          onClick={() => selection && onConfirm(selection)}>确认切换</button>
-      </div>
-    </section>
+    <div ref={frame} className="relative aspect-[4/3] overflow-hidden rounded-lg bg-black ring-1 ring-dams-line">
+      <iframe title="现场大屏实时镜像" src="/screen?mirror=1" tabIndex={-1}
+        width={SCREEN_WIDTH} height={SCREEN_HEIGHT} className="pointer-events-none absolute left-0 top-0 origin-top-left border-0"
+        style={{ transform: `scale(${scale})` }} />
+    </div>
   )
 }
 
-export function ProjectionAdmin({ draft, setDraft }: {
-  draft: VersionedDraft | null
-  setDraft: Dispatch<SetStateAction<VersionedDraft | null>>
-}) {
+export function ProjectionAdmin() {
   const { data, error, pending, submit } = useDiscussion<ProjectionAdminSnapshot, ProjectionCommand>('/api/screen/admin', 'projection')
   if (!data) return <p role={error ? 'alert' : 'status'}>{error || '正在加载大屏控制…'}</p>
 
-  const current = data.selection
+  const { revision, rounds, selection: current } = data
   const currentRoundId = current.mode === 'qa' ? current.roundId : undefined
   const currentRound = data.rounds.find((round) => round.id === currentRoundId)
-  const activeRound = data.rounds.find((round) => round.closedAt === null)
-  const selected = draft ?? current
-  const selectedRoundId = selected.mode === 'qa' ? selected.roundId : undefined
   const currentRaffleId = current.mode === 'raffle' ? current.raffleId : undefined
-  const selectedRaffleId = selected.mode === 'raffle' ? selected.raffleId : undefined
-  const changed = selected.mode !== current.mode || selectedRoundId !== currentRoundId || selectedRaffleId !== currentRaffleId
-  const revision = data.revision
-  const stale = draft !== null && draft.baseRevision !== revision
+
+  function show(selection: ProjectionSelection) {
+    void submit({ ...selection, revision })
+  }
 
   function choose(mode: ProjectionMode) {
-    if (mode === selected.mode && !stale) return
-    setDraft({
-      mode,
-      roundId: mode === 'qa' ? selectedRoundId ?? currentRoundId ?? activeRound?.id : undefined,
-      raffleId: mode === 'raffle' ? selectedRaffleId : undefined,
-      baseRevision: revision,
-    })
+    if (mode === current.mode) return
+    if (mode === 'qa') {
+      const round = rounds[0]
+      if (round) show({ mode, roundId: round.id })
+    } else if (mode === 'opening') {
+      show({ mode, slide: 0 })
+    } else {
+      show({ mode })
+    }
   }
 
   return (
@@ -108,19 +77,17 @@ export function ProjectionAdmin({ draft, setDraft }: {
           <h2 className="font-semibold">选择画面</h2>
           <div role="group" aria-label="大屏画面" className="flex flex-wrap gap-2">
             {(Object.keys(PROJECTION_MODES) as ProjectionMode[]).map((mode) => (
-              <button key={mode} type="button" disabled={pending}
+              <button key={mode} type="button" disabled={pending || (mode === 'qa' && !data.rounds.length)}
                 className={`${discussionButton} aria-pressed:border-dams-blue aria-pressed:bg-dams-wash aria-pressed:text-dams-hover`}
-                aria-pressed={selected.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
+                aria-pressed={current.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
             ))}
           </div>
-          {selected.mode === 'raffle' && (
+          {current.mode === 'raffle' && (
             <div className="space-y-3 border-t border-dams-line pt-3">
               <div className="space-y-1">
                 <label htmlFor="raffle-round" className="block text-sm">选择抽奖轮次</label>
-                <select id="raffle-round" className={discussionInput} value={selectedRaffleId ?? ''}
-                  disabled={pending} onChange={(event) => setDraft({
-                    mode: 'raffle', raffleId: event.target.value ? Number(event.target.value) : undefined, baseRevision: revision,
-                  })}>
+                <select id="raffle-round" className={discussionInput} value={currentRaffleId ?? ''}
+                  disabled={pending} onChange={(event) => show({ mode: 'raffle', raffleId: event.target.value ? Number(event.target.value) : undefined })}>
                   <option value="">跟随最新一轮</option>
                   {data.raffleRounds.map(round => (
                     <option key={round.id} value={round.id}>
@@ -129,18 +96,15 @@ export function ProjectionAdmin({ draft, setDraft }: {
                   ))}
                 </select>
               </div>
-              {selectedRaffleId === undefined && current.mode === 'raffle' && currentRaffleId === undefined && <RaffleControls />}
-              {selectedRaffleId === undefined && currentRaffleId !== undefined &&
-                <p className="text-sm text-zinc-600">确认切回最新一轮后即可开始抽奖。</p>}
+              {currentRaffleId === undefined && <RaffleControls />}
             </div>
           )}
-          {selected.mode === 'qa' && (
+          {current.mode === 'qa' && (
             <div className="space-y-1 border-t border-dams-line pt-3">
               <label htmlFor="projection-round" className="block text-sm">选择问答轮次</label>
-              <select id="projection-round" className={discussionInput} value={selected.roundId ?? ''}
+              <select id="projection-round" className={discussionInput} value={current.roundId}
                 disabled={pending || !data.rounds.length} onChange={(event) =>
-                  setDraft({ mode: 'qa', roundId: Number(event.target.value), baseRevision: revision })}>
-                <option value="" disabled>{data.rounds.length ? '请选择一轮' : '暂无问答轮次'}</option>
+                  show({ mode: 'qa', roundId: Number(event.target.value) })}>
                 {data.rounds.map((round) => (
                   <option key={round.id} value={round.id}>
                     {round.closedAt === null ? '进行中' : '已结束'} · {round.guest} · {MEETUP_SECTIONS[round.section]} · {roundTime.format(round.openedAt * 1000)}
@@ -150,12 +114,19 @@ export function ProjectionAdmin({ draft, setDraft }: {
             </div>
           )}
         </section>
-        <DraftPreview key={draft?.baseRevision ?? revision} draft={selected} changed={changed} stale={stale} pending={pending}
-          onConfirm={async (selection) => {
-            if (draft && !stale && await submit({ ...selection, revision: draft.baseRevision })) {
-              setDraft((latest) => latest === draft ? null : latest)
-            }
-          }} />
+        <section className="min-w-0 space-y-3 rounded-xl border border-dams-line p-4" aria-label="现场大屏镜像">
+          <h2 className="font-semibold">现场大屏镜像</h2>
+          <ScreenMirror />
+          {current.mode === 'opening' && (
+            <div className="flex items-center justify-between gap-2">
+              <button type="button" className={discussionButton} disabled={pending || current.slide === 0}
+                onClick={() => show({ mode: 'opening', slide: current.slide - 1 })}>上一页</button>
+              <span role="status" className="text-sm tabular-nums">{current.slide + 1} / {OPENING_SLIDE_COUNT}</span>
+              <button type="button" className={discussionButton} disabled={pending || current.slide >= OPENING_SLIDE_COUNT - 1}
+                onClick={() => show({ mode: 'opening', slide: current.slide + 1 })}>下一页</button>
+            </div>
+          )}
+        </section>
       </div>
     </section>
   )
