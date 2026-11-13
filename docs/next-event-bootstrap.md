@@ -44,7 +44,6 @@ J. 活动结束             §10 （生成 summary、再次进入再见态）
 | 文件 | 改什么 |
 |---|---|
 | `scripts/deploy.sh` | `NEXT_PUBLIC_EVENT_NAME` / `START` / `END`（仅本地手动 deploy 用） |
-| `scripts/seed.sh` | 同上（loadtest 用） |
 | `.env.local`（本地） | `EVENT_PASSWORD`、`NEXT_PUBLIC_EVENT_*` |
 | `.env.local.example` | 把示例值改成下一届的，方便协作者参考 |
 | `src/lib/constants.ts` | 兜底值（`?? '...'`）——和 env 保持一致即可 |
@@ -88,7 +87,6 @@ psql "host=db.<project>.supabase.co user=postgres dbname=postgres sslmode=requir
 
 # 3) 设置新活动密码
 secret update dams-event-password   # 交互式输入新密码
-./scripts/cf-secrets-push.sh        # 把 Keychain 同步到 Worker runtime
 ```
 
 校验：reset 脚本最后会 `raise notice 'reset done: users=0 posts=0 ...'`，
@@ -139,8 +137,7 @@ grep -rn "14期\|刘爵铭\|杨杰\|McCain\|Delft" src/ public/ docs/ | grep -v 
 | `supabase-dams-db-password` | Keychain | 一般不改 |
 | `deepseek-dams-key` | Keychain → Worker | 一般不改，过期就转 |
 
-Worker runtime secret 改了之后必须跑 `./scripts/cf-secrets-push.sh`，
-不会自动同步。
+本届生产配置见 [第 15 期开发与发布](./dev-setup.md#生产发布)。
 
 ---
 
@@ -172,7 +169,6 @@ gh pr create --title "Bootstrap meetup #15"
 如果 CF 自动 build 没触发或挂了，本地兜底：
 
 ```bash
-./scripts/cf-secrets-push.sh   # 一次性
 ./scripts/deploy.sh            # 兜底手动 deploy
 ```
 

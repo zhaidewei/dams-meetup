@@ -113,7 +113,7 @@ const eventDate = new Intl.DateTimeFormat('zh-CN', {
 
 export const MEETUP_DATE = `${eventDate} ${firstSlot.start}–${lastSlot.end} CET`
 export const ADMISSION_END = agendaTime(lastSlot.end)
-export const REHEARSAL_END = agendaTime('00:00')
+export const REHEARSAL_END = agendaTime(firstSlot.start)
 
 export function meetupSectionAt(now = Date.now()): MeetupAgendaSection {
   return meetupAgendaAt(now)?.section ?? 'lounge'

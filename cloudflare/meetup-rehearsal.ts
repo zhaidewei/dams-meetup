@@ -17,11 +17,11 @@ const resetActivity = `
   WHERE id = 1`
 
 async function clearRehearsal(db: D1Database, revision: number) {
-  const current = 'EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND revision = ?)'
+  const current = 'EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND revision = ? AND rehearsal_locked = 0)'
   const results = await db.batch([
     ...dataTables.map(table => db.prepare(`DELETE FROM ${table} WHERE ${current}`).bind(revision)),
     db.prepare(`DELETE FROM meetup15_members WHERE role = 'attendee' AND ${current}`).bind(revision),
-    db.prepare(`${resetActivity} AND revision = ?`).bind(null, revision),
+    db.prepare(`${resetActivity} AND revision = ? AND rehearsal_locked = 0`).bind(null, revision),
   ])
   return results.at(-1)?.meta.changes === 1
 }
@@ -36,7 +36,7 @@ async function fillRehearsal(db: D1Database, revision: number, now: number) {
     db.prepare(`
       INSERT INTO meetup15_members (id, role, display_name, last_seen_at)
       SELECT ?, 'attendee', ?, ?
-      WHERE EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND revision = ?)
+      WHERE EXISTS (SELECT 1 FROM activity_state WHERE id = 1 AND revision = ? AND rehearsal_locked = 0)
         AND NOT EXISTS (SELECT 1 FROM meetup15_members WHERE role = 'attendee')
         AND EXISTS (SELECT 1 FROM meetup15_members WHERE role = 'guest')
         ${dataTables.map(table => `AND NOT EXISTS (SELECT 1 FROM ${table})`).join(' ')}
@@ -115,7 +115,10 @@ export async function handleMeetupRehearsal(request: Request, env: ActivityEnv, 
 
   const db = env.ACTIVITY_DB
   const changed = action === 'clear' ? await clearRehearsal(db, revision) : await fillRehearsal(db, revision, now)
-  if (!changed) return result(action === 'clear' ? 'changed' : 'blocked')
+  if (!changed) {
+    const locked = await db.prepare('SELECT rehearsal_locked FROM activity_state WHERE id = 1').first<number>('rehearsal_locked')
+    return result(locked ? 'closed' : action === 'clear' ? 'changed' : 'blocked')
+  }
 
   const discussion = env.ACTIVITY_UPDATES.getByName('meetup-15-discussion')
   const notifications = await Promise.allSettled([

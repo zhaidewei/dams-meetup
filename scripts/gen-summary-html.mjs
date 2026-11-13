@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const SRC = resolve(here, '../docs/summary-2026-05-09/index-light.html')
 const OUT = resolve(here, '../src/app/summary/summary-html.ts')
 
-const src = readFileSync(SRC, 'utf8')
+const src = readFileSync(SRC, 'utf8').replace("url('farewell-bg.jpg')", "url('/farewell-bg.jpg')")
 const escaped = src
   .replaceAll('\\', '\\\\')
   .replaceAll('`', '\\`')

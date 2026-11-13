@@ -63,15 +63,7 @@ create schema public;
    ```bash
    supabase functions deploy match --project-ref <NEW-REF>
    ```
-6. **轮换 4 个 secret**（Keychain → CF Worker）：
-   ```bash
-   secret update supabase-dams-url           # 新项目 URL
-   secret update supabase-dams-anon          # 新 anon key
-   secret update supabase-dams-srv           # 新 service_role key
-   secret update supabase-dams-db-password   # 新 DB password
-   ./scripts/cf-secrets-push.sh              # 同步 runtime secrets 到 Worker
-   ```
-7. CF Dashboard → Workers & Pages → dams-meetup → Settings → **Build environment variables**：更新 `NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY`，然后手动 trigger 一次 rebuild
+6. 历史数据库凭据通过本机 `secret` 管理。第 15 期 Worker 的配置见[开发与发布](./docs/dev-setup.md#生产发布)。
 
 ### 重新导出最新 schema 快照
 

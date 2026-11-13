@@ -89,6 +89,9 @@ export function ActivityControls() {
       </p>
       <p>{connected ? '实时已连接' : '正在连接实时更新…'}</p>
       {error && <p role="alert">{error}</p>}
+      {state && !state.admissionOpen && (
+        <p className="text-sm text-slate-600">首次开放前，请先在「管理彩排」清理测试数据。开放后，彩排清空和填充将停用。</p>
+      )}
       <div className="flex flex-wrap gap-3">
         <button disabled={!state || saving || state.admissionOpen}
           onClick={() => void changeAdmission(true)}
