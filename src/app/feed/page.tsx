@@ -33,7 +33,7 @@ export default async function FeedPage({ searchParams }: {
         </div>
         {member.role === 'guest' && <GuestVipBadge />}
       </header>
-      <DiscussionFeed key={free ? 'free' : initialSection ?? 'follow'} free={free} initialAsk={ask === '1'} />
+      <DiscussionFeed key={free ? 'free' : initialSection ?? 'follow'} free={free} initialAsk={ask === '1'} memberId={member.id} />
     </MeetupMemberLayout>
   )
 }

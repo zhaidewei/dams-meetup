@@ -26,9 +26,14 @@ function PostCard({ post, snapshot, named, pending, submit }: {
   submit: Submit
 }) {
   const [editor, setEditor] = useState<{ kind: 'edit' | 'reply'; id: number } | null>(null)
+  const restoreEditFocus = useRef<number | null>(null)
   const [threadOpen, setThreadOpen] = useState(false)
   const [children, setChildren] = useState<Set<number>>(() => new Set())
   const cancel = () => setEditor(null)
+  const closeEdit = (id: number) => {
+    restoreEditFocus.current = id
+    cancel()
+  }
   const send = async (command: MemberCommand) => {
     const ok = await submit(command)
     if (ok) {
@@ -37,7 +42,8 @@ function PostCard({ post, snapshot, named, pending, submit }: {
         const parent = command.parentId
         if (parent !== null) setChildren(previous => new Set(previous).add(parent))
       }
-      cancel()
+      if (command.action === 'edit') closeEdit(command.id)
+      else cancel()
     }
     return ok
   }
@@ -47,21 +53,22 @@ function PostCard({ post, snapshot, named, pending, submit }: {
     const replyLabel = isPost ? '回复' : '子回复'
     const canReply = named && item.parentId === null
     const expanded = isPost ? threadOpen : children.has(item.id)
+    const entryClass = 'relative min-h-11 min-w-0 space-y-1.5 pl-10 sm:pl-11'
+    const authorBadge = <MemberBadge id={item.authorId} name={item.author} mine={item.mine} vip={item.authorRole === 'guest'} timeline />
+    if (editor?.kind === 'edit' && editor.id === item.id) {
+      return (
+        <div className={entryClass}>
+          {authorBadge}
+          <DiscussionComposer key={item.id} label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
+            pending={pending} initialBody={item.body} compact autoFocus onCancel={() => closeEdit(item.id)}
+            onSubmit={(body) => send({ action: 'edit', id: item.id, body })} />
+        </div>
+      )
+    }
     return (
-      <div className="relative min-h-11 min-w-0 space-y-1.5 pl-10 sm:pl-11">
-        <MemberBadge id={item.authorId} name={item.author} mine={item.mine} vip={item.authorRole === 'guest'} timeline />
-        {editor?.kind === 'edit' && editor.id === item.id ? (
-          <DiscussionComposer label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
-            pending={pending} initialBody={item.body} initialTags={isPost ? item.tags : undefined} onCancel={cancel}
-            onSubmit={(body, tags) => send({ action: 'edit', id: item.id, body, tags })} />
-        ) : (
-          <p className="leading-relaxed whitespace-pre-wrap wrap-anywhere">{item.body}</p>
-        )}
-        {isPost && item.tags.length > 0 && (
-          <ul aria-label="帖子标签" className="flex flex-wrap gap-2 text-xs text-dams-blue">
-            {item.tags.map((tag) => <li key={tag} className="min-w-0 wrap-anywhere">#{tag}</li>)}
-          </ul>
-        )}
+      <div className={entryClass}>
+        {authorBadge}
+        <p className="leading-relaxed whitespace-pre-wrap wrap-anywhere">{item.body}</p>
         <div className="flex flex-wrap gap-1">
           <DiscussionReactions item={item} pending={pending} submit={submit}>
             {isPost && (
@@ -94,10 +101,15 @@ function PostCard({ post, snapshot, named, pending, submit }: {
           )}
           {item.mine && (
             <>
-              <button className={feedButton} disabled={pending} onClick={() => setEditor({ kind: 'edit', id: item.id })}>
+              <button className={feedButton} disabled={pending} ref={(button) => {
+                if (button && !pending && restoreEditFocus.current === item.id) {
+                  restoreEditFocus.current = null
+                  button.focus()
+                }
+              }} onClick={() => setEditor({ kind: 'edit', id: item.id })}>
                 {isPost ? '编辑帖子' : '编辑回复'}
               </button>
-              <button className={discussionButton} disabled={pending} onClick={() => {
+              <button className={`${feedButton} focus-visible:outline-2 focus-visible:outline-dams-blue`} disabled={pending} onClick={() => {
                 if (window.confirm(isPost ? '删除这条帖子及其回复？' : '删除这条回复及其子回复？')) {
                   void send({ action: 'delete', id: item.id })
                 }
@@ -236,7 +248,7 @@ const feedTransport: DiscussionTransport<FeedView> = {
   },
 }
 
-export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk: boolean }) {
+export function DiscussionFeed({ free, initialAsk, memberId }: { free: boolean; initialAsk: boolean; memberId: string }) {
   const requestedSection = useSearchParams().get('section')
   const [pinnedSection, setPinnedSection] = useState<MeetupSection | null>(null)
   const [questionJump, setQuestionJump] = useState(initialAsk ? 1 : 0)
@@ -245,22 +257,22 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
   const questionForm = useRef<HTMLDivElement>(null)
   const selected = free ? 'lounge' : isMeetupSection(requestedSection) && requestedSection !== 'lounge'
     ? requestedSection : pinnedSection
-  const [round, setRound] = useState<number | null>(null)
   const [pageStack, setPageStack] = useState<number[]>([])
   const before = pageStack.at(-1)
   const params = new URLSearchParams()
   if (selected) params.set('section', selected)
-  if (round) params.set('round', String(round))
   if (before) params.set('before', String(before))
   const { data, error, pending, submit, retry, unauthorized } = useDiscussion<FeedView>(`/api/discussion?${params}`, 'discussion', feedTransport)
   const named = Boolean(data?.nickname)
   const active = data?.activeRound
   const viewed = data?.viewedRound
-  const showQuestions = free || data?.section !== 'lounge'
-  const liveRound = Boolean(showQuestions && viewed && viewed.id === active?.id)
+  const liveRound = viewed && viewed.closedAt === null && viewed.id === active?.id &&
+    viewed.section === data?.section && (free || viewed.section !== 'lounge') ? viewed : null
+
+  const liveRoundId = liveRound?.id
 
   useEffect(() => {
-    if (questionJump === completedJump.current || !liveRound) return
+    if (questionJump === completedJump.current || liveRoundId === undefined) return
     if (!named) {
       nicknameForm.current?.scrollIntoView({ block: 'start' })
       return
@@ -274,12 +286,11 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
       url.searchParams.delete('ask')
       window.history.replaceState(null, '', url)
     }
-  }, [questionJump, liveRound, named])
+  }, [questionJump, liveRoundId, named])
 
   function choose(section: MeetupSection | null, ask = false) {
     if (!free) window.history.replaceState(null, '', meetupDiscussionPath(section ?? undefined))
     setPinnedSection(null)
-    setRound(null)
     setPageStack([])
     if (ask) setQuestionJump(jump => jump + 1)
     else completedJump.current = questionJump
@@ -292,14 +303,15 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
   }
 
   const section = selected ?? data?.section
-  const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
+  const showBreakoutGroups = !free && (requestedSection === 'breakout' ||
+    (isMeetupSection(requestedSection) && isBreakoutGroup(requestedSection)))
   const navigation = !free && (
     <nav key="discussion-sections" aria-label="议程板块" className="border-b border-dams-line px-4 pb-3 sm:px-6">
-      <ul className="divide-y divide-dams-line overflow-hidden rounded-xl border border-dams-line bg-white md:grid md:grid-cols-4 md:divide-x md:divide-y-0">
+      <ul className="grid grid-cols-2 gap-1.5 md:grid-cols-4">
         {MEETUP_DISCUSSION_AGENDA.map(({ section: key, start, end }) => (
           <li key={key} className="min-w-0">
             <button type="button" aria-pressed={section === key || (key === 'breakout' && section !== undefined && isBreakoutGroup(section))}
-              className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-dams-wash focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:h-full md:flex-col md:items-start md:justify-center md:gap-1"
+              className="flex h-full min-h-14 w-full flex-col items-start justify-center gap-0.5 rounded-lg border border-transparent bg-slate-50 px-2.5 py-1.5 text-left text-sm font-medium hover:bg-dams-wash focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover"
               onClick={() => choose(key)}>
               <span className="min-w-0 wrap-anywhere">
                 {MEETUP_SECTIONS[key]}
@@ -313,13 +325,13 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
       {selected !== null ? (
         <button type="button" className="mt-1 min-h-11 px-2 text-sm font-medium text-dams-hover hover:underline"
           onClick={() => choose(null)}>恢复跟随现场</button>
-      ) : section === 'lounge' && <p className="pt-2 text-xs text-slate-600">跟随现场 · 公共讨论区</p>}
+      ) : section === 'lounge' && <p className="pt-2 text-sm font-medium">公共讨论区</p>}
     </nav>
   )
-  const breakoutNavigation = inBreakout && (
-    <div key="breakout-groups" className="flex flex-col gap-1 border-b border-dams-line bg-dams-wash px-4 py-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3 sm:px-6">
-      <label htmlFor="breakout-group" className="shrink-0 text-sm font-semibold">交流分组</label>
-      <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={section}
+  const breakoutNavigation = showBreakoutGroups && (
+    <div key="breakout-groups" className="flex items-center gap-2 border-b border-dams-line px-4 py-2 sm:px-6">
+      <label htmlFor="breakout-group" className="shrink-0 text-sm font-medium">交流小组</label>
+      <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={requestedSection}
         onChange={(event) => choose(event.currentTarget.value as MeetupSection)}>
         <option value="breakout">公共交流</option>
         {Object.entries(MEETUP_BREAKOUT_GROUPS).map(([key, label]) => (
@@ -384,66 +396,41 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
             </div>
           </form>
         )}
-        {showQuestions && data.rounds.some((entry) => entry.section === data.section) && (
+        {liveRound && (
           <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-3 sm:p-4">
             <h3 className="font-semibold">问答</h3>
-            {liveRound && viewed && (
-              <div ref={questionForm} className="scroll-mt-4 space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
-                <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{questionRoundTitle(viewed)}</p>
-                {named ? (
-                  <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
-                    featured accent maxLength={MAX_QUESTION_BODY} placeholder="你想问什么？"
-                    onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: viewed.id, body })} />
-                ) : <p className="text-sm text-slate-700">填写上方昵称后即可提问。</p>}
-              </div>
-            )}
-            <label htmlFor="discussion-round" className="block text-sm">查看本板块问答轮次</label>
-              <select id="discussion-round" className={discussionInput} value={round ?? ''}
-                onChange={(event) => {
-                  if (event.target.value) setPinnedSection(data.section)
-                  setRound(event.target.value ? Number(event.target.value) : null)
-                }}>
-                <option value="">当前问答</option>
-                {data.rounds.filter((entry) => entry.section === data.section && entry.closedAt !== null)
-                  .map((entry) => <option key={entry.id} value={entry.id}>第 {entry.id} 轮 · {questionRoundTitle(entry)}</option>)}
-              </select>
-            {viewed ? (
-              <>
-                {!liveRound && <p className="wrap-anywhere font-medium">第 {viewed.id} 轮 · {questionRoundTitle(viewed)} · 已结束</p>}
-                {data.questions.length ? (
-                  <ol className="space-y-2">
-                    {data.questions.map((question) => (
-                      <li key={question.id} className="rounded border border-dams-line bg-white p-3">
-                        <p className="whitespace-pre-wrap wrap-anywhere">{question.body}</p>
-                        <MemberBadge id={question.authorId} name={question.author} mine={question.mine} />
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>
-                          {liveRound ? (
-                            <button type="button" className={`${qaLike} min-w-11 justify-center px-2 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover focus-visible:outline-2 focus-visible:outline-dams-blue disabled:opacity-50`}
-                              aria-label={`问题点赞，${question.likes} 个赞`} aria-pressed={question.liked} disabled={pending}
-                              onClick={() => void submit({ action: 'like', id: question.id, liked: !question.liked })}>
-                              <span aria-hidden="true">👍</span>{question.likes}
-                            </button>
-                          ) : (
-                            <p className="inline-flex items-center gap-1.5 text-sm tabular-nums text-slate-600">
-                              <span aria-hidden="true">👍</span><span className="sr-only">点赞 </span>{question.likes}
-                            </p>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                ) : <p className="text-sm">本轮还没有问题。</p>}
-              </>
-            ) : <p className="text-sm">本板块当前没有进行中的问答。</p>}
+            <div ref={questionForm} className="scroll-mt-4 space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
+              <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{questionRoundTitle(liveRound)}</p>
+              {named ? (
+                <DiscussionComposer key={liveRound.id} label="你的问题" action="提交问题" pending={pending}
+                  featured accent maxLength={MAX_QUESTION_BODY} placeholder="你想问什么？"
+                  onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: liveRound.id, body })} />
+              ) : <p className="text-sm text-slate-700">填写上方昵称后即可提问。</p>}
+            </div>
+            {data.questions.length ? (
+              <ol className="space-y-2">
+                {data.questions.map((question) => (
+                  <li key={question.id} className="rounded border border-dams-line bg-white p-3">
+                    <p className="whitespace-pre-wrap wrap-anywhere">{question.body}</p>
+                    <MemberBadge id={question.authorId} name={question.author} mine={question.mine} />
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>
+                      <button type="button" className={`${qaLike} min-w-11 justify-center px-2 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover focus-visible:outline-2 focus-visible:outline-dams-blue disabled:opacity-50`}
+                        aria-label={`问题点赞，${question.likes} 个赞`} aria-pressed={question.liked} disabled={pending}
+                        onClick={() => void submit({ action: 'like', id: question.id, liked: !question.liked })}>
+                        <span aria-hidden="true">👍</span>{question.likes}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="text-sm">本轮还没有问题。</p>}
           </section>
         )}
-        {named && (
-          <div className="rounded-xl border border-slate-300 bg-white p-4">
-            <DiscussionComposer label={`发布到${MEETUP_SECTIONS[data.section]}`} action="发布帖子" pending={pending} initialTags={[]}
-              featured placeholder="分享你的想法或现场见闻…"
-              onSubmit={(body, tags) => submit({ action: 'post', section: data.section, body, tags })} />
-          </div>
+        {data.nickname && (
+          <DiscussionComposer label={`发布到${MEETUP_SECTIONS[data.section]}`} action="发帖" pending={pending}
+            author={{ id: memberId, name: data.nickname }} placeholder="分享你的想法或现场见闻…"
+            onSubmit={(body) => submit({ action: 'post', section: data.section, body })} />
         )}
       </div>
       {posts.length ? posts.map((post) => (
