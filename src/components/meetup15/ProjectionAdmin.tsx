@@ -42,7 +42,7 @@ function DraftPreview({ draft, changed, stale, pending, onConfirm }: {
       <div className="relative aspect-[4/3] w-full">
         <section key={query.toString()} aria-label="仅管理员可见的画面预览" tabIndex={0}
           className={'absolute inset-0 flex flex-col overflow-auto rounded-lg p-4 text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue ' +
-            (data && data.mode !== 'hidden' ? 'bg-dams-wash text-slate-950' : 'bg-black text-zinc-100')}>
+            (data && data.mode !== 'hidden' ? 'bg-white text-dams-ink' : 'bg-black text-zinc-100')}>
           <div className="my-auto w-full shrink-0">
             {!selection ? <p>请选择要投屏的问答轮次</p> : error
               ? <p role="alert">{error}</p> : data

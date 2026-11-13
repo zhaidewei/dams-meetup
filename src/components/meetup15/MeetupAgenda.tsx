@@ -4,11 +4,11 @@ import { MEETUP_ADDRESS, MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_THEME, 
 
 export function MeetupHeading() {
   return (
-    <header className="space-y-3 rounded-2xl bg-dams-wash p-4 sm:p-8">
-      <p className="text-sm font-semibold text-dams-blue">{MEETUP_NAME}</p>
+    <header className="space-y-3 rounded-2xl bg-dams-blue p-4 text-white sm:p-8">
+      <p className="text-sm font-semibold">{MEETUP_NAME}</p>
       <h1 className="text-[clamp(1.65rem,6.8vw,2.25rem)] leading-tight font-bold tracking-tight sm:text-5xl">{MEETUP_THEME}</h1>
       <p className="font-medium">{MEETUP_DATE}</p>
-      <p className="wrap-anywhere text-sm leading-relaxed text-slate-600">{MEETUP_VENUE}<br />{MEETUP_ADDRESS}</p>
+      <p className="wrap-anywhere text-sm leading-relaxed">{MEETUP_VENUE}<br />{MEETUP_ADDRESS}</p>
     </header>
   )
 }

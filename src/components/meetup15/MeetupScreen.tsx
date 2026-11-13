@@ -33,7 +33,7 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
       <p className={data.mode === 'qa' ? 'text-left text-sm font-semibold text-dams-blue' : 'font-medium text-dams-blue'}>{MEETUP_NAME}</p>
       {data.mode === 'agenda' && (
         <section aria-label="议程展示" className={compact ? 'space-y-3' : 'space-y-5'}>
-          <h1 className={heading}>活动议程</h1>
+          <h1 className={`${heading} font-bold text-dams-blue`}>活动议程</h1>
           <p className="text-slate-600">{MEETUP_DATE}</p>
           <div className={compact
             ? 'grid grid-cols-2 gap-x-4 gap-y-2'
@@ -49,14 +49,14 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
             </ol>
             <section className={`col-start-1 row-span-3 grid min-w-0 grid-rows-subgrid rounded-xl border border-dams-line bg-white p-2 sm:p-3 ${compact ? '' : 'md:row-start-1'}`}>
               <header className="space-y-1">
-                <h2 className="text-base font-semibold">活动平台入场</h2>
+                <h2 className="text-base font-semibold text-dams-blue">活动平台入场</h2>
                 <p className="wrap-anywhere text-sm text-dams-hover">live.nl-dams.com</p>
               </header>
               <AdmissionScreen compact={compact} agenda />
             </section>
             <section className={`row-span-3 grid min-w-0 grid-rows-subgrid rounded-xl border border-dams-line bg-white p-2 sm:p-3 ${compact ? 'col-start-2' : 'col-start-2 md:col-start-3 md:row-start-1'}`}>
               <header className="space-y-1">
-                <h2 className="text-base font-semibold">微信活动群</h2>
+                <h2 className="text-base font-semibold text-dams-blue">微信活动群</h2>
                 <p className="text-sm text-slate-700">微信扫码加入活动二群</p>
               </header>
               <Image src="/meetup15-wechat-group.png" alt="荷兰数据社群 Meetup 活动二群二维码"
@@ -72,10 +72,10 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
       {data.mode === 'qa' && (
         <section aria-label="嘉宾问答" className={compact ? '@container space-y-3 text-left' : 'space-y-5 text-left [@media(max-height:650px)]:space-y-3'}>
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-dams-selection pb-4">
-            <h1 className={heading}>嘉宾问答 · {data.round.guest}</h1>
+            <h1 className={`${heading} font-bold text-dams-blue`}>嘉宾问答 · {data.round.guest}</h1>
             <dl className="flex flex-wrap gap-2 text-center">
               {[['总问题', total], ['已答', answered], ['待答', total - answered]].map(([label, value]) => (
-                <div key={label} className={label === '待答' ? 'rounded-lg bg-dams-hover px-3 py-2 text-white' : 'rounded-lg bg-white px-3 py-2'}>
+                <div key={label} className={`rounded-lg px-3 py-2 ${label === '待答' ? 'bg-dams-orange text-dams-ink' : 'bg-white text-dams-blue inset-ring inset-ring-dams-line'}`}>
                   <dt className="text-xs font-semibold">{label}</dt>
                   <dd className={compact ? 'text-xl font-bold tabular-nums' : 'text-3xl font-bold tabular-nums'}>{value}</dd>
                 </div>
@@ -90,9 +90,9 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
             <div className={compact ? 'grid gap-3 @lg:grid-cols-[3fr_2fr]' : 'grid items-start gap-5 md:grid-cols-[3fr_2fr]'}>
               <div className="min-w-0 space-y-3">
                 <article key={frontQuestion.id} aria-label="当前最高票问题"
-                  className={compact ? 'rounded-xl bg-dams-hover p-4 text-white' : 'rounded-2xl bg-dams-hover px-6 py-5 text-white'}>
+                  className={`shadow-[inset_4px_0_var(--color-dams-blue)] bg-dams-selection text-dams-ink ${compact ? 'rounded-xl p-4' : 'rounded-2xl px-6 py-5'}`}>
                   <div className="mb-3 flex flex-wrap justify-between gap-2 text-sm font-semibold">
-                    <span>当前最高票</span>
+                    <span className="rounded bg-dams-orange px-2 py-0.5">当前最高票</span>
                     <span>{frontQuestion.likes} 个赞</span>
                   </div>
                   <p className={compact ? 'wrap-anywhere font-semibold' : 'wrap-anywhere text-2xl font-semibold leading-snug md:text-3xl [@media(max-height:650px)]:md:text-2xl'}>
@@ -111,8 +111,8 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
                 )}
               </div>
               {remainingQuestions.length > 0 && (
-                <aside className="min-w-0 rounded-xl bg-white/70 px-4 py-3">
-                  <h2 className={compact ? 'mb-1 font-semibold' : 'mb-1 text-xl font-semibold'}>其余待答（{remainingQuestions.length}）</h2>
+                <aside className="min-w-0 rounded-xl bg-white px-4 py-3 inset-ring inset-ring-dams-line">
+                  <h2 className={`mb-1 font-semibold text-dams-blue ${compact ? '' : 'text-xl'}`}>其余待答（{remainingQuestions.length}）</h2>
                   <ol aria-label="其余待答问题" start={4} tabIndex={0}
                     className={compact ? 'max-h-48 divide-y divide-dams-selection overflow-auto' : 'max-h-[53vh] divide-y divide-dams-selection overflow-auto'}>
                     {remainingQuestions.map(question => (
@@ -164,7 +164,7 @@ export function MeetupScreen() {
   const active = data && data.mode !== 'hidden'
   return (
     <main className={active
-      ? `grid min-h-svh bg-dams-wash px-5 py-10 text-center text-slate-950 ${data.mode === 'qa' ? 'content-start [@media(max-height:650px)]:py-5' : 'content-center'}`
+      ? `grid min-h-svh bg-white px-5 py-10 text-center text-dams-ink ${data.mode === 'qa' ? 'content-start [@media(max-height:650px)]:py-5' : 'content-center'}`
       : 'min-h-svh bg-black'}>
       {active && <ScreenContent data={data} />}
     </main>
