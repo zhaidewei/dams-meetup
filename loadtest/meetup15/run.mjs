@@ -101,7 +101,7 @@ const feedSnapshots = new Map()
 async function getFeed(stage, cookie) {
   const previous = feedSnapshots.get(cookie)
   const versions = previous?.versions
-  const result = await request(stage, '/api/discussion', {
+  const result = await request(stage, '/api/discussion?section=lounge', {
     cookie, versions: versions ? `${versions.questions},${versions.posts}` : ',',
   })
   const data = { ...result.data,
@@ -219,14 +219,12 @@ function disconnect({ socket }) {
     admin = cookieFrom(auth.response)
     assert.ok(admin)
     assert.equal((await get('initial gate', '/api/activity', admin)).data.admissionOpen, false)
-    const guest = await request('configure guest', '/api/meetup/guests', { cookie: admin, method: 'POST',
-      form: { username: 'm6-fixture-guest', displayName: 'M6 测试嘉宾', password: 'm6-local-fixture-only' }, expect: 303 })
-    assert.match(guest.response.headers.get('location'), /guest=saved/)
-    const staff = (await get('qa admin', '/api/discussion/admin', admin)).data
-    const guestId = staff.guests.find(row => row.name === 'M6 测试嘉宾').id
     let members
     let seededRoundId = null
     if (withRehearsal) {
+      const guest = await request('configure rehearsal guest', '/api/meetup/guests', { cookie: admin, method: 'POST',
+        form: { username: 'm6-fixture-guest', displayName: 'M6 测试嘉宾', password: 'm6-local-fixture-only' }, expect: 303 })
+      assert.match(guest.response.headers.get('location'), /guest=saved/)
       const state = (await get('read rehearsal revision', '/api/activity', admin)).data
       const filled = await request('fill rehearsal', '/api/admin/meetup-rehearsal', {
         method: 'POST', cookie: admin, form: { action: 'fill', revision: state.revision }, expect: 303,
@@ -272,7 +270,7 @@ function disconnect({ socket }) {
         { action: 'nickname', name: 'M6 观众 ' + (i + 1) })))
     }
     await measure('presence', members.map(cookie => post('presence', '/api/personal/presence', cookie)))
-    await post('start QA', '/api/discussion/admin', admin, { action: 'start', guestId, activeRoundId: null, latestRoundId: seededRoundId })
+    await post('start QA', '/api/discussion/admin', admin, { action: 'start', agendaStart: null, title: 'M6 测试问答', activeRoundId: null, latestRoundId: seededRoundId })
     const qa = (await get('active QA', '/api/discussion/admin', admin)).data.activeRound
     assert.ok(qa)
     await measure('initialFeed', members.map(cookie => getFeed('initialFeed', cookie)))
@@ -369,12 +367,12 @@ function disconnect({ socket }) {
     page = await context.newPage()
     page.on('response', response => { if (response.status() >= 500) browser5xx++ })
     await page.goto(base + '/screen')
-    await page.getByRole('heading', { name: '嘉宾问答 · M6 测试嘉宾' }).waitFor()
+    await page.getByRole('heading', { name: '问答 · M6 测试问答' }).waitFor()
     await page.evaluate(() => {
       window.m6SeenAt = {}
       const check = () => {
         const at = Date.now()
-        for (const row of document.querySelectorAll('section[aria-label="嘉宾问答"] article[aria-label="当前最高票问题"] > p, ol[aria-label="接下来"] li > p')) {
+        for (const row of document.querySelectorAll('section[aria-label="问答"] article[aria-label="当前最高票问题"] > p, ol[aria-label="接下来"] li > p')) {
           const label = row.textContent
           if (!(label in window.m6SeenAt)) window.m6SeenAt[label] = at
         }
@@ -403,7 +401,7 @@ function disconnect({ socket }) {
     assert.equal(questionView.questions.length, USERS)
     const projectedLabels = questionView.questions.slice(0, 3).map(item => item.body)
     await page.waitForFunction(labels => {
-      const shown = Array.from(document.querySelectorAll('section[aria-label="嘉宾问答"] article[aria-label="当前最高票问题"] > p, ol[aria-label="接下来"] li > p'), row => row.textContent)
+      const shown = Array.from(document.querySelectorAll('section[aria-label="问答"] article[aria-label="当前最高票问题"] > p, ol[aria-label="接下来"] li > p'), row => row.textContent)
       return shown.length === labels.length && labels.every((label, i) => shown[i] === label && window.m6SeenAt[label])
     }, projectedLabels, { timeout: 12000 })
     const seen = await page.evaluate(() => window.m6SeenAt)
@@ -500,10 +498,10 @@ function disconnect({ socket }) {
       clients.push(client)
     }
     await post('start browser feedback QA', '/api/discussion/admin', admin, {
-      action: 'start', guestId, activeRoundId: null, latestRoundId: qa.id,
+      action: 'start', agendaStart: null, title: 'M6 测试问答', activeRoundId: null, latestRoundId: qa.id,
     })
     const feedbackRound = (await get('browser feedback QA', '/api/discussion/admin', admin)).data.activeRound
-    await Promise.all(clients.map(client => client.goto(base + '/feed')))
+    await Promise.all(clients.map(client => client.goto(base + '/feed?view=free')))
     const [author, observer] = clients
     await Promise.all(clients.map(client => client.getByLabel('你的问题', { exact: true }).waitFor()))
     for (const target of [author, observer, page]) {
@@ -545,7 +543,7 @@ function disconnect({ socket }) {
     const raffleReader = raffleAuthor + 1
     const rafflePool = USERS - baseline.winners
     await post('raffle seed post', '/api/discussion', members[raffleAuthor], { action: 'post', section: qa.section, body: 'M6 加权样例' })
-    const seed = (await get('raffle seed read', '/api/discussion', members[raffleReader])).data.items.find(item => item.body === 'M6 加权样例')
+    const seed = (await get('raffle seed read', '/api/discussion?section=lounge', members[raffleReader])).data.items.find(item => item.body === 'M6 加权样例')
     await post('raffle seed reply', '/api/discussion', members[raffleReader], { action: 'reply', postId: seed.id, parentId: null, body: 'M6 加权回复' })
     const current = (await get('projection state', '/api/screen/admin', admin)).data
     await post('switch raffle', '/api/screen/admin', admin, { mode: 'raffle', revision: current.revision })

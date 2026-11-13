@@ -1,8 +1,9 @@
-import type { MeetupAgendaSection, MeetupSection } from './event'
+import { MEETUP_SECTIONS, type MeetupAgendaSection, type MeetupSection } from './event'
 import type { Member } from './identity'
 
 export const MAX_DISCUSSION_BODY = 300
 export const MAX_QUESTION_BODY = 100
+export const MAX_QA_TITLE = 60
 
 export const DISCUSSION_EMOJIS = [
   ['👍', '赞'], ['❤️', '喜欢'], ['😂', '大笑'], ['😮', '惊讶'], ['😢', '难过'], ['🙏', '感谢'],
@@ -43,11 +44,16 @@ export function compareQuestions(a: Omit<DiscussionItem, 'mine' | 'liked'>, b: O
 
 export type QuestionRound = {
   id: number
-  guest: string
+  title: string | null
+  agendaStart: string | null
   section: MeetupSection
   openedAt: number
   closedAt: number | null
   generation: number
+}
+
+export function questionRoundTitle(round: QuestionRound) {
+  return round.title ?? MEETUP_SECTIONS[round.section]
 }
 
 export type DiscussionContext = {
@@ -106,7 +112,6 @@ export type ModerationPage = {
 }
 
 export type StaffSnapshot = DiscussionContext & {
-  guests: { id: string; name: string }[]
   currentAgendaStart: string | null
   agendaStartOverride: string | null
 }
@@ -124,7 +129,7 @@ export type MemberCommand =
 export type StaffCommand =
   | { action: 'section'; section: MeetupAgendaSection | null }
   | { action: 'agenda'; start: string | null }
-  | { action: 'start'; guestId: string; activeRoundId: number | null; latestRoundId: number | null }
+  | { action: 'start'; agendaStart: string | null; title?: string; activeRoundId: number | null; latestRoundId: number | null }
   | { action: 'reopen'; roundId: number; generation: number }
   | { action: 'end'; roundId: number; generation?: number }
   | { action: 'answer'; id: number; answered: boolean }

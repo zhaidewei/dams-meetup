@@ -76,11 +76,14 @@ it('isolates members and gates both first-entry methods without blocking guests 
 
   try {
     const db = await runtime.getD1Database('ACTIVITY_DB')
-    const filenames = ['0001_activity_state.sql', '0002_meetup15_members.sql', '0009_meetup15_summary.sql']
+    const filenames = [
+      '0001_activity_state.sql', '0002_meetup15_members.sql', '0003_meetup15_discussion.sql',
+      '0006_meetup15_personal_raffle.sql', '0009_meetup15_summary.sql', '0013_meetup15_public_profile.sql',
+    ]
     for (const file of filenames) {
       const sql = await readFile(`migrations/${file}`, 'utf8')
-      await db.batch(sql.split(';').map((statement) => statement.trim()).filter(Boolean)
-        .map((statement) => db.prepare(statement)))
+      const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE|DROP)\b)/)
+      await db.batch(statements.map((statement) => db.prepare(statement)))
     }
     const credentials = admissionCredentials(secret)
     const manual = { method: 'password', credential: credentials.password }
@@ -90,7 +93,7 @@ it('isolates members and gates both first-entry methods without blocking guests 
     expect((await post('enter', manual)).headers.get('Location')).toBe('/?entry=closed')
     expect((await post('enter', qr)).headers.get('Location')).toBe('/?entry=closed')
 
-    const guest = { username: 'guest-15', displayName: '嘉宾测试', title: '测试头衔', password: 'fixture-guest-pass' }
+    const guest = { username: 'guest-15', displayName: '方芳', password: 'fixture-guest-pass' }
     expect((await post('guests', guest)).status).toBe(401)
     expect((await post('guests', guest, admin)).headers.get('Location')).toBe('/admin/activity?guest=saved')
     expect((await post('guests', { ...guest, action: 'create', password: 'different-password' }, admin))
@@ -99,6 +102,12 @@ it('isolates members and gates both first-entry methods without blocking guests 
     const guestA = memberId(cookie(await post('guest-login', guest)))
     expect(guestA).toBeTruthy()
     expect(memberId(cookie(await post('guest-login', guest)))).toBe(guestA)
+    const guestProfile = () => db.prepare(`SELECT title, json_extract(public_profile, '$.company') AS company
+      FROM meetup15_members WHERE id = ?`).bind(guestA).first()
+    expect(await guestProfile()).toEqual({ title: 'Founder & Director', company: 'FF Quant Advisory' })
+    expect((await post('guests', { ...guest, action: 'edit', password: '', title: '', company: '' }, admin))
+      .headers.get('Location')).toBe('/admin/activity?guest=saved')
+    expect(await guestProfile()).toEqual({ title: null, company: null })
 
     await db.prepare('UPDATE activity_state SET admission_open = 1').run()
     expect((await screen()).status).toBe(401)

@@ -5,6 +5,8 @@ const REPLY_TO_VIEWER = `r.kind = 'reply' AND EXISTS (
   SELECT 1 FROM meetup15_discussion parent
   WHERE parent.id = COALESCE(r.parent_reply_id, r.post_id) AND parent.author_id = ? AND parent.author_id <> r.author_id
 )`
+const PUBLIC_PROFILE = `CASE WHEN role = 'guest' AND NULLIF(TRIM(title), '') IS NOT NULL
+  THEN json_set(public_profile, '$.title', title) ELSE public_profile END AS profileJson`
 
 export function repliesRead(db: D1Database, memberId: string, through: number) {
   return db.prepare(`
@@ -17,7 +19,7 @@ export function repliesRead(db: D1Database, memberId: string, through: number) {
 export async function personalOverview(db: D1Database, member: Member): Promise<PersonalSnapshot> {
   const [profile, posts, replies, threads] = await db.batch([
     db.prepare(`
-      SELECT display_name AS nickname, contact, contact_public AS contactPublic, public_profile AS profileJson, profile_revision AS profileRevision
+      SELECT display_name AS nickname, contact, contact_public AS contactPublic, ${PUBLIC_PROFILE}, profile_revision AS profileRevision
       FROM meetup15_members WHERE id = ?
     `).bind(member.id),
     db.prepare(`
@@ -48,7 +50,7 @@ export async function personalOverview(db: D1Database, member: Member): Promise<
   const { profileJson, ...own } = profile.results[0] as
     Pick<PersonalSnapshot, 'nickname' | 'contact' | 'contactPublic' | 'profileRevision'> & { profileJson: string }
   return {
-    ...own, contactPublic: Boolean(own.contactPublic), publicProfile: JSON.parse(profileJson) as PublicProfile,
+    ...own, guest: member.role === 'guest', contactPublic: Boolean(own.contactPublic), publicProfile: JSON.parse(profileJson) as PublicProfile,
     posts: posts.results as PersonalItem[], replies: replies.results as PersonalItem[],
     threads: threads.results as ThreadSummary[], refreshAt: null,
   }
@@ -56,7 +58,7 @@ export async function personalOverview(db: D1Database, member: Member): Promise<
 
 export async function memberCard(db: D1Database, member: Member, targetId: string) {
   const row = await db.prepare(`
-    SELECT COALESCE(display_name, '现场观众') AS name, public_profile AS profileJson,
+    SELECT COALESCE(display_name, '现场观众') AS name, ${PUBLIC_PROFILE},
       CASE WHEN contact_public = 1 OR id = ? THEN contact END AS contact
     FROM meetup15_members WHERE id = ?
   `).bind(member.id, targetId).first<Pick<MemberCard, 'name' | 'contact'> & { profileJson: string }>()

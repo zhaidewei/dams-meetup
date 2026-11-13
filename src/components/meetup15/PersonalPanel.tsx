@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import {
-  MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PersonalCommand, type PersonalItem,
+  MAX_NICKNAME_LENGTH, editableProfileFields, type PersonalCommand, type PersonalItem,
   type PersonalSnapshot, type ThreadSnapshot, type ThreadSummary,
 } from '@/lib/meetup15/personal'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
@@ -33,7 +33,7 @@ export function PersonalPanel({ initialView, recovery }: { initialView: View; re
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     await submit({ action: 'profile', name: String(form.get('name') ?? ''),
-      publicProfile: Object.fromEntries(PROFILE_FIELDS.map(({ key }) => [key, String(form.get(key) ?? '')])),
+      publicProfile: Object.fromEntries(editableProfileFields(Boolean(data?.guest)).map(({ key }) => [key, String(form.get(key) ?? '')])),
       removeLegacyContact: form.has('removeLegacyContact'),
       revision: Number(form.get('revision')) })
   }
@@ -64,7 +64,7 @@ export function PersonalPanel({ initialView, recovery }: { initialView: View; re
           <fieldset className="min-w-0 space-y-3 border-t border-dams-line pt-3" aria-describedby="profile-public">
             <legend className="sr-only">可选公开资料</legend>
             <p id="profile-public" className="text-sm text-slate-600">以下资料选填。填写并保存后，已入场的观众可在你的资料卡上查看。</p>
-            {PROFILE_FIELDS.map(({ key, label, type, maxLength, autoComplete }) => (
+            {editableProfileFields(data.guest).map(({ key, label, type, maxLength, autoComplete }) => (
               <label key={key} className={profileRow}>{label}
                 <input name={key} type={type} autoComplete={autoComplete} maxLength={maxLength}
                   defaultValue={data.publicProfile[key] ?? ''} className={discussionInput} />

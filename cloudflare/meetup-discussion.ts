@@ -90,7 +90,7 @@ export async function handleDiscussion(request: Request, env: ActivityEnv, clock
   const writeAt = clock()
   if (writeAt >= INTERACTION_END) return Response.json({ error: '本届互动区已关闭。' }, { status: 409, headers })
   const result = view === 'moderation' ? await deleteStaffPost(db, input)
-    : member ? await writeMember(db, member, input) : await writeStaff(db, input, writeAt)
+    : member ? await writeMember(db, member, input) : await writeStaff(db, input)
   if ('error' in result) return Response.json({ error: result.error }, { status: result.status, headers })
 
   if (result.changed) {

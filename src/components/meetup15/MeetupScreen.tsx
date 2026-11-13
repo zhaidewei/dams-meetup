@@ -1,9 +1,10 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect } from 'react'
+import { Maximize, Minimize } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/meetup15/event'
-import { mergeQuestions } from '@/lib/meetup15/discussion'
+import { mergeQuestions, questionRoundTitle } from '@/lib/meetup15/discussion'
 import { OPENING_SLIDE_COUNT, type ProjectionCommand, type ProjectionView } from '@/lib/meetup15/projection'
 import { AdmissionScreen } from './AdmissionScreen'
 import { OpeningDeck } from './OpeningDeck'
@@ -12,6 +13,43 @@ import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 import { useRaffleResolution } from './useRaffleResolution'
 
 const PRIORITY_QUESTION_COUNT = 3
+
+function ScreenFullscreenControl() {
+  const [fullscreen, setFullscreen] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    function syncFullscreen() {
+      setFullscreen(Boolean(document.fullscreenElement))
+      setFailed(false)
+    }
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen)
+  }, [])
+
+  async function toggleFullscreen() {
+    setFailed(false)
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await document.documentElement.requestFullscreen()
+    } catch {
+      setFailed(true)
+    }
+  }
+
+  const label = fullscreen ? '退出全屏' : '进入全屏'
+  const Icon = fullscreen ? Minimize : Maximize
+  return (
+    <div className={`fixed top-3 right-3 z-50 flex flex-col items-end gap-2 ${fullscreen && !failed ? '[@media(hover:hover)]:opacity-0 hover:opacity-100 has-[:focus-visible]:opacity-100' : ''}`}>
+      <button type="button" aria-label={label} title={fullscreen ? `${label}（Esc）` : label}
+        onClick={() => void toggleFullscreen()}
+        className="grid size-10 place-items-center rounded-lg border border-dams-line bg-white text-dams-blue hover:bg-dams-selection focus-visible:outline-2 focus-visible:outline-dams-blue">
+        <Icon size={18} aria-hidden="true" />
+      </button>
+      {failed && <p role="status" className="rounded-lg border border-dams-line bg-white px-3 py-2 text-sm text-dams-ink">请使用浏览器菜单切换全屏。</p>}
+    </div>
+  )
+}
 
 function ScreenContent({ data, mirror }: { data: ProjectionView; mirror: boolean }) {
   if (data.mode === 'opening') return <OpeningDeck index={data.slide} />
@@ -68,9 +106,9 @@ function ScreenContent({ data, mirror }: { data: ProjectionView; mirror: boolean
         </section>
       )}
       {data.mode === 'qa' && (
-        <section aria-label="嘉宾问答" className="space-y-5 text-left [@media(max-height:650px)]:space-y-3">
+        <section aria-label="问答" className="space-y-5 text-left [@media(max-height:650px)]:space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-dams-selection pb-4">
-            <h1 className={`${heading} font-bold text-dams-blue`}>嘉宾问答 · {data.round.guest}</h1>
+            <h1 className={`${heading} font-bold text-dams-blue`}>问答 · {questionRoundTitle(data.round)}</h1>
             <dl className="flex flex-wrap gap-2 text-center">
               {[['总问题', total], ['已答', answered], ['待答', total - answered]].map(([label, value]) => (
                 <div key={label} className={`rounded-lg px-3 py-2 ${label === '待答' ? 'bg-dams-orange text-dams-ink' : 'bg-white text-dams-blue inset-ring inset-ring-dams-line'}`}>
@@ -172,23 +210,20 @@ export function MeetupScreen({ mirror = false }: { mirror?: boolean }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [data, mirror, pending, submit])
 
-  if (data?.mode === 'opening' || data?.mode === 'raffle') {
-    return (
-      <main>
-        <ScreenContent data={data} mirror={mirror} />
-        {!mirror && data.mode === 'opening' && error && (
+  const fillsScreen = data?.mode === 'opening' || data?.mode === 'raffle'
+  return (
+    <>
+      <main className={fillsScreen ? undefined : data
+        ? `grid min-h-svh bg-white px-5 py-10 text-center text-dams-ink ${data.mode === 'qa' ? 'content-start [@media(max-height:650px)]:py-5' : 'content-center'}`
+        : 'min-h-svh bg-white'}>
+        {data && <ScreenContent data={data} mirror={mirror} />}
+        {!mirror && data?.mode === 'opening' && error && (
           <p role="alert" className="fixed right-4 bottom-4 left-4 mx-auto w-fit rounded-lg bg-white px-3 py-2 text-sm text-red-700 shadow">
             {error}
           </p>
         )}
       </main>
-    )
-  }
-  return (
-    <main className={data
-      ? `grid min-h-svh bg-white px-5 py-10 text-center text-dams-ink ${data.mode === 'qa' ? 'content-start [@media(max-height:650px)]:py-5' : 'content-center'}`
-      : 'min-h-svh bg-white'}>
-      {data && <ScreenContent data={data} mirror={mirror} />}
-    </main>
+      {!mirror && <ScreenFullscreenControl />}
+    </>
   )
 }

@@ -250,9 +250,13 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await replies(bob, target.id)).items).toEqual([])
     expect((await command(admin, { action: 'delete-post', id: target.id }, moderation)).status).toBe(409)
 
-    await ok(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')
+    for (const agendaStart of ['12:45', '13:20', '17:30']) {
+      expect((await command(admin, { action: 'start', agendaStart, activeRoundId: null, latestRoundId: null }, '/admin')).status).toBe(400)
+    }
+    await ok(admin, { action: 'section', section: 'panel' }, '/admin')
+    await ok(admin, { action: 'start', agendaStart: '14:30', activeRoundId: null, latestRoundId: null }, '/admin')
     const first = (await staff()).activeRound!
-    expect(first.section).toBe('expert')
+    expect(first).toMatchObject({ section: 'expert', agendaStart: '14:30', title: expect.stringContaining('专家分享') })
     await ok(admin, { action: 'section', section: null }, '/admin')
     expect((await feed(alice)).section).toBe('lightning')
     expect((await feed(alice)).viewedRound).toBeNull()
@@ -368,10 +372,12 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     await ok(admin, { action: 'answer', id: newer.id, answered: false }, '/admin')
     expect(order(await activeQa())).toEqual([newer.id, older.id])
 
-    await ok(admin, { action: 'start', guestId: 'guest', activeRoundId: first.id, latestRoundId: first.id }, '/admin')
-    expect((await command(admin, { action: 'start', guestId: 'guest', activeRoundId: first.id, latestRoundId: first.id }, '/admin')).status).toBe(409)
+    await ok(admin, { action: 'start', agendaStart: null, title: '临时交流', activeRoundId: first.id, latestRoundId: first.id }, '/admin')
+    expect((await command(admin, { action: 'start', agendaStart: null, title: '临时交流', activeRoundId: first.id, latestRoundId: first.id }, '/admin')).status).toBe(409)
     const second = (await staff()).activeRound!
-    expect(second).toMatchObject({ guest: first.guest, section: 'lightning' })
+    expect(second).toMatchObject({ title: '临时交流', agendaStart: null, section: 'lounge' })
+    expect((await feed(alice, '?section=lounge')).viewedRound?.id).toBe(second.id)
+    expect((await feed(alice, '?section=lightning')).viewedRound).toBeNull()
     expect(second.id).not.toBe(first.id)
     expect(await activeQa()).toMatchObject({ round: { id: second.id }, questions: [] })
     expect(await activeQa()).not.toHaveProperty('rounds')
@@ -379,7 +385,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect(order(await feed(alice, '?section=expert&round=' + first.id))).toEqual([newer.id, older.id])
     await ok(admin, { action: 'end', roundId: second.id }, '/admin')
     expect((await screen()).mode).toBe('agenda')
-    expect((await command(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')).status).toBe(409)
+    expect((await command(admin, { action: 'start', agendaStart: '14:30', activeRoundId: null, latestRoundId: null }, '/admin')).status).toBe(409)
     expect((await staff()).rounds).toHaveLength(2)
 
     const { revision } = await projection()

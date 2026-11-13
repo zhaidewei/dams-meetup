@@ -2,14 +2,21 @@ import type { MeetupSection } from './event'
 
 export const MAX_CONTACT_LENGTH = 200
 export const MAX_NICKNAME_LENGTH = 48
+export const COMPANY_FIELD = { key: 'company', label: '工作单位', type: 'text', maxLength: 100, autoComplete: 'organization' } as const
+const GUEST_TITLE_FIELD = { key: 'title', label: '职位', type: 'text', maxLength: 120, autoComplete: 'organization-title' } as const
 
 export const PROFILE_FIELDS = [
-  { key: 'company', label: '工作单位', type: 'text', maxLength: 100, autoComplete: 'organization' },
+  COMPANY_FIELD,
+  GUEST_TITLE_FIELD,
   { key: 'wechat', label: '微信号', type: 'text', maxLength: 64, autoComplete: 'off' },
   { key: 'linkedin', label: 'LinkedIn', type: 'url', maxLength: 200, autoComplete: 'url' },
   { key: 'phone', label: '手机', type: 'tel', maxLength: 40, autoComplete: 'tel' },
   { key: 'email', label: '邮箱', type: 'email', maxLength: 200, autoComplete: 'email' },
 ] as const
+
+export function editableProfileFields(guest: boolean) {
+  return PROFILE_FIELDS.filter(field => guest || field.key !== 'title')
+}
 
 export type PublicProfile = Partial<Record<(typeof PROFILE_FIELDS)[number]['key'], string>>
 
@@ -35,6 +42,7 @@ export type Message = { id: number; body: string; mine: number; unread: number }
 
 export type PersonalSnapshot = {
   nickname: string | null
+  guest: boolean
   contact: string | null
   contactPublic: boolean
   publicProfile: PublicProfile
