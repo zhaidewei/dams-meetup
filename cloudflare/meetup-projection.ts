@@ -10,7 +10,7 @@ import { readRaffleProjection, readRaffleRounds } from './meetup-raffle'
 const headers = { 'Cache-Control': 'private, no-store' }
 
 type StateRow = {
-  mode: ProjectionMode
+  mode: ProjectionMode | 'hidden'
   roundId: number | null
   raffleId: number | null
   revision: number
@@ -28,10 +28,10 @@ function stateQuery(db: D1Database) {
 }
 
 function selectionFrom(row: StateRow): ProjectionSelection {
-  if (row.mode === 'qa') return row.roundId === null ? { mode: 'hidden' } : { mode: 'qa', roundId: row.roundId }
+  if (row.mode === 'qa') return row.roundId === null ? { mode: 'agenda' } : { mode: 'qa', roundId: row.roundId }
   if (row.mode === 'raffle') return { mode: 'raffle', raffleId: row.raffleId ?? undefined }
   if (row.mode === 'opening') return { mode: 'opening', slide: row.slide }
-  return { mode: row.mode }
+  return { mode: 'agenda' }
 }
 
 function positiveId(value: unknown): value is number {
@@ -48,14 +48,13 @@ function parseSelection(mode: unknown, roundId: unknown, raffleId: unknown, slid
     return typeof slide === 'number' && Number.isInteger(slide) && slide >= 0 && slide < OPENING_SLIDE_COUNT
       ? { mode, slide } : null
   }
-  return { mode: mode as 'hidden' | 'agenda' }
+  return { mode: 'agenda' }
 }
 
 async function readView(
   db: D1Database, selection: ProjectionSelection, now: number, row: StateRow, live = false,
 ): Promise<ProjectionView | null> {
   switch (selection.mode) {
-    case 'hidden': return { mode: 'hidden', refreshAt: null }
     case 'opening': return { mode: 'opening', slide: selection.slide, revision: row.revision, refreshAt: null }
     case 'agenda': {
       const current = currentMeetupAgenda(now, row.sectionOverride, row.agendaStartOverride)

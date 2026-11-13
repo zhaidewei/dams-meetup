@@ -126,8 +126,8 @@ it('enforces both Amsterdam cutoffs and only clears D1 after the published revis
     expect(lateGuest.headers.get('Location')).toBe('/?entry=ended')
     const state = await db.prepare('SELECT * FROM activity_state').all()
     expect(state.results).toEqual([expect.objectContaining({
-      id: 1, admission_open: 0, projection_mode: 'hidden', projection_raffle_id: null,
-      projection_round_id: null, section_override: null, revision: 1, projection_revision: 2,
+      id: 1, admission_open: 0, projection_mode: 'agenda', projection_raffle_id: null,
+      projection_round_id: null, section_override: null, revision: 1, projection_revision: 3,
     })])
     for (const table of ['members', 'dm_threads', 'dm_messages', 'discussion', 'qa_rounds', 'raffles']) {
       expect(await db.prepare(`SELECT COUNT(*) AS count FROM meetup15_${table}`).first('count')).toBe(0)
@@ -143,7 +143,7 @@ it('enforces both Amsterdam cutoffs and only clears D1 after the published revis
     ])
     expect(status(await request(route, INTERACTION_END, admin, cleanup(2)))).toBe('cleaned')
     expect(await db.prepare('SELECT id, admission_open, projection_mode FROM activity_state').all())
-      .toMatchObject({ results: [{ id: 1, admission_open: 0, projection_mode: 'hidden' }] })
+      .toMatchObject({ results: [{ id: 1, admission_open: 0, projection_mode: 'agenda' }] })
   } finally {
     await runtime.dispose()
   }

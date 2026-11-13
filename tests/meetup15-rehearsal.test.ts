@@ -91,7 +91,7 @@ it('clears rehearsal data atomically, preserves guests and the recap, and only f
     expect(await reset).toBe('activity.updated')
     expect((await connect()).status).toBe(401)
     socket.close()
-    expect(await state()).toMatchObject({ admission_open: 0, revision: 1, section_override: null, projection_mode: 'hidden' })
+    expect(await state()).toMatchObject({ admission_open: 0, revision: 1, section_override: null, projection_mode: 'agenda' })
     expect(await counts()).toMatchObject({ attendees: 0, posts: 0 })
 
     const seeded = await Promise.all([request('fill', 1), request('fill', 1)])
@@ -102,7 +102,7 @@ it('clears rehearsal data atomically, preserves guests and the recap, and only f
     const boards = await db.prepare("SELECT DISTINCT section FROM meetup15_discussion WHERE kind = 'post'").all<{section: string}>()
     expect(boards.results.map(row => row.section).sort()).toEqual(Object.keys(MEETUP_SECTIONS).sort())
     expect(await db.prepare('SELECT json_array_length(candidates) AS size FROM meetup15_raffles').first('size')).toBe(200)
-    expect(await state()).toMatchObject({ admission_open: 0, revision: 2, section_override: 'expert', projection_mode: 'hidden', projection_round_id: null })
+    expect(await state()).toMatchObject({ admission_open: 0, revision: 2, section_override: 'expert', projection_mode: 'agenda', projection_round_id: null })
     expect(status(await request('clear', 1))).toBe('changed')
     expect(status(await request('clear', 2))).toBe('cleared')
     expect(await counts()).toEqual({

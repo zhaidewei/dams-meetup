@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { isMeetupAdmin } from '@/lib/meetup15/server'
 import { PostModeration } from '@/components/meetup15/PostModeration'
-import { DiscussionAdmin } from '@/components/meetup15/DiscussionAdmin'
 import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
 import { GuestAccounts } from './GuestAccounts'
@@ -14,8 +13,6 @@ export const metadata = { title: '第 15 期 Meetup · 主办方控制台' }
 const ADMIN_TABS = {
   screen: '控制大屏',
   entry: '管理入场',
-  agenda: '议程切换',
-  qa: '管理问答',
   posts: '管理帖子',
   guests: '配置嘉宾',
   stats: '查看实时统计',
@@ -29,7 +26,7 @@ export default async function ActivityAdminPage({
   searchParams: Promise<{ error?: string; edit?: string; guest?: string; tab?: string; summary?: string; rehearsal?: string }>
 }) {
   const [signedIn, { error, edit, guest, tab, summary, rehearsal }] = await Promise.all([isMeetupAdmin(), searchParams])
-  const selected = tab && Object.hasOwn(ADMIN_TABS, tab) ? tab : guest ? 'guests' : 'screen'
+  const selected = tab === 'qa' ? 'screen' : tab && Object.hasOwn(ADMIN_TABS, tab) ? tab : guest ? 'guests' : 'screen'
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6">
@@ -47,10 +44,8 @@ export default async function ActivityAdminPage({
         )}
       </header>
       {signedIn ? (
-        <ActivityAdminPanels showProjection={selected === 'screen'}>
+        <ActivityAdminPanels showProjection={selected === 'screen'} openQuestions={tab === 'qa'}>
           {selected === 'entry' && <ActivityControls />}
-          {selected === 'agenda' && <DiscussionAdmin view="agenda" />}
-          {selected === 'qa' && <DiscussionAdmin view="qa" />}
           {selected === 'posts' && <PostModeration />}
           {selected === 'stats' && <LiveStatsPanel />}
           {selected === 'rehearsal' && <RehearsalControls status={rehearsal} />}

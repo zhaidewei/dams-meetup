@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { MessageCircle } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
 import { isBreakoutGroup, isMeetupSection, MEETUP_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
@@ -45,6 +45,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
 
   function renderEntry(item: DiscussionItem) {
     const isPost = item.kind === 'post'
+    const replyLabel = isPost ? '回复' : '子回复'
     const canReply = named && item.parentId === null
     const expanded = isPost ? threadOpen : children.has(item.id)
     return (
@@ -72,7 +73,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
             )}
           </DiscussionReactions>
           {Boolean(item.replyCount) && (
-            <button type="button" className={feedButton} aria-expanded={expanded}
+            <button type="button" className={`${feedButton} whitespace-nowrap bg-dams-wash font-semibold text-dams-hover hover:bg-dams-selection aria-expanded:bg-dams-selection focus-visible:outline-2 focus-visible:outline-dams-blue`} aria-expanded={expanded}
               onClick={() => {
                 if (isPost) setThreadOpen(!threadOpen)
                 else setChildren(previous => {
@@ -83,7 +84,8 @@ function PostCard({ post, snapshot, named, pending, submit }: {
                 })
                 cancel()
               }}>
-              <MessageCircle size={17} aria-hidden />{item.replyCount} 条{isPost ? '回复' : '子回复'}
+              <ChevronDown size={16} aria-hidden className={expanded ? 'rotate-180' : undefined} />
+              {expanded ? `收起${replyLabel}` : `展开 ${item.replyCount} 条${replyLabel}`}
             </button>
           )}
           {canReply && (

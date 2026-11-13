@@ -14,7 +14,6 @@ import { useRaffleResolution } from './useRaffleResolution'
 const PRIORITY_QUESTION_COUNT = 3
 
 function ScreenContent({ data, mirror }: { data: ProjectionView; mirror: boolean }) {
-  if (data.mode === 'hidden') return null
   if (data.mode === 'opening') return <OpeningDeck index={data.slide} />
   if (data.mode === 'raffle') return <RaffleScreen data={data} muted={mirror} />
   const liveQuestions = data.mode === 'qa' && data.round.closedAt === null
@@ -185,12 +184,11 @@ export function MeetupScreen({ mirror = false }: { mirror?: boolean }) {
       </main>
     )
   }
-  const active = data && data.mode !== 'hidden'
   return (
-    <main className={active
+    <main className={data
       ? `grid min-h-svh bg-white px-5 py-10 text-center text-dams-ink ${data.mode === 'qa' ? 'content-start [@media(max-height:650px)]:py-5' : 'content-center'}`
-      : 'min-h-svh bg-black'}>
-      {active && <ScreenContent data={data} mirror={mirror} />}
+      : 'min-h-svh bg-white'}>
+      {data && <ScreenContent data={data} mirror={mirror} />}
     </main>
   )
 }

@@ -47,6 +47,7 @@ export type QuestionRound = {
   section: MeetupSection
   openedAt: number
   closedAt: number | null
+  generation: number
 }
 
 export type DiscussionContext = {
@@ -124,5 +125,6 @@ export type StaffCommand =
   | { action: 'section'; section: MeetupAgendaSection | null }
   | { action: 'agenda'; start: string | null }
   | { action: 'start'; guestId: string; activeRoundId: number | null; latestRoundId: number | null }
-  | { action: 'end'; roundId: number }
+  | { action: 'reopen'; roundId: number; generation: number }
+  | { action: 'end'; roundId: number; generation?: number }
   | { action: 'answer'; id: number; answered: boolean }
