@@ -27,7 +27,9 @@ npm run lint
 
 生产 Worker 为 `dams-meetup`，服务 `live.nl-dams.com`。在 Cloudflare 上确认 `ACTIVITY_DB` 绑定到 `dams-meetup-15`。管理员密码和会话签名密钥通过 Worker 的加密运行时变量 `ADMIN_TOKEN`、`SESSION_SECRET` 提供。
 
-1. 在合并前核对目标 D1 的待执行迁移。对本次发布新增的迁移，使用有权限的 Cloudflare 身份应用并回读。命令按数据库名称定位目标。 [Cloudflare D1 迁移](https://developers.cloudflare.com/d1/reference/migrations/)
+1. CI 通过后，从 `main` 手动运行 **Apply production D1 migration**，填入 PR 编号、通过检查的完整提交 SHA 和迁移文件名。工作流只从 PR 读取该 SQL 文件，用 `main` 的 Wrangler 配置连接生产 D1，成功后回读迁移记录。多个文件按顺序逐次运行。首次使用时，在 GitHub 的 `production` 环境中将部署分支限制为 `main`，然后配置环境 Secret `CLOUDFLARE_D1_API_TOKEN`。令牌权限限定为生产 Cloudflare 账号的 D1 Edit。
+
+   也可以用有权限的 Cloudflare 身份从本机应用并回读。 [Cloudflare D1 迁移](https://developers.cloudflare.com/d1/reference/migrations/)
    ```bash
    npx wrangler d1 migrations list dams-meetup-15 --remote
    npx wrangler d1 migrations apply dams-meetup-15 --remote
