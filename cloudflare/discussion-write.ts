@@ -75,12 +75,12 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
   if (!body || [...body].length > maxLength || body.includes('\0')) {
     return { error: isQuestion ? `问题需要 1–${maxLength} 个字（含标点）。` : '正文需要 1–300 个字。', status: 400 }
   }
-  const tags = JSON.stringify(parseTags(typeof input.tags === 'string' ? input.tags.slice(0, 160) : ''))
+  const tags = typeof input.tags === 'string' ? JSON.stringify(parseTags(input.tags.slice(0, 160))) : null
   switch (input.action) {
     case 'post':
       if (!isMeetupSection(input.section)) return invalid
       return write(db.prepare(`INSERT INTO meetup15_discussion (kind, author_id, section, body, tags)
-        VALUES ('post', ?, ?, ?, ?)`).bind(member.id, input.section, body, tags))
+        VALUES ('post', ?, ?, ?, ?)`).bind(member.id, input.section, body, tags ?? '[]'))
     case 'reply': {
       const { postId, parentId } = input
       if (!validId(postId) || (parentId !== null && !validId(parentId))) return invalid
@@ -96,7 +96,7 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
     case 'edit':
       if (!validId(id)) return invalid
       return write(db.prepare(`UPDATE meetup15_discussion SET body = ?,
-        tags = CASE WHEN kind = 'post' THEN ? ELSE tags END
+        tags = CASE WHEN kind = 'post' THEN COALESCE(?, tags) ELSE tags END
         WHERE id = ? AND author_id = ? AND kind IN ('post', 'reply')`).bind(body, tags, id, member.id))
     case 'question': {
       if (!validId(input.roundId) || !isMeetupSection(input.section)) return invalid

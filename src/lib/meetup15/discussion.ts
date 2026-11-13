@@ -118,9 +118,9 @@ export type StaffSnapshot = DiscussionContext & {
 
 export type MemberCommand =
   | { action: 'nickname'; name: string }
-  | { action: 'post'; section: MeetupSection; body: string; tags: string }
+  | { action: 'post'; section: MeetupSection; body: string; tags?: string }
   | { action: 'reply'; postId: number; parentId: number | null; body: string }
-  | { action: 'edit'; id: number; body: string; tags: string }
+  | { action: 'edit'; id: number; body: string; tags?: string }
   | { action: 'delete'; id: number }
   | { action: 'reaction'; id: number; emoji: DiscussionEmoji; reacted: boolean }
   | { action: 'like'; id: number; liked: boolean }
