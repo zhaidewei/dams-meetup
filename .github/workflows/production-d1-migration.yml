@@ -31,6 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,13 +62,19 @@ jobs:
             ' >/dev/null
 
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pr-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=20" |
-            jq -e --arg sha "$HEAD_SHA" '
-              any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")
+            jq -e --arg sha "$HEAD_SHA" --argjson pr "$PR_NUMBER" '
+              [.workflow_runs[] | select(.head_sha == $sha and any(.pull_requests[]; .number == $pr))]
+              | first | .conclusion == "success"
             ' >/dev/null
 
           git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
           [[ "$(git rev-parse FETCH_HEAD)" == "$HEAD_SHA" ]]
-          [[ "$(git diff --name-only --diff-filter=A HEAD "$HEAD_SHA" -- "migrations/$MIGRATION")" == "migrations/$MIGRATION" ]]
+          [[ "$(git diff --name-only --diff-filter=A "HEAD...$HEAD_SHA" -- "migrations/$MIGRATION")" == "migrations/$MIGRATION" ]]
+
+          if git cat-file -e "HEAD:migrations/$MIGRATION" 2>/dev/null; then
+            echo "::error::Migration filename already exists on main."
+            exit 1
+          fi
 
           migration_root="$RUNNER_TEMP/dams-production-d1"
           mkdir -p "$migration_root/migrations"
@@ -94,6 +103,11 @@ jobs:
           "${wrangler[@]}" d1 execute "$database" --remote --json "${config[@]}" \
             --command "SELECT name FROM d1_migrations;" |
             jq -er '.[0] | select(.success == true) | .results[].name' > "$migration_root/applied.txt"
+
+          if grep -Fxq "$MIGRATION" "$migration_root/applied.txt"; then
+            echo "::error::Migration filename already applied. Verify the original run and SQL before merging."
+            exit 1
+          fi
 
           while IFS= read -r previous; do
             [[ "$previous" == "$MIGRATION" ]] && break
