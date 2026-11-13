@@ -8,7 +8,7 @@ export const discussionButton = 'min-h-11 rounded border border-zinc-300 px-3 py
 const textButton = 'min-h-11 rounded-full px-3 text-sm hover:bg-dams-wash focus-visible:outline-2 focus-visible:outline-dams-blue disabled:opacity-50'
 export const discussionInput = 'min-h-11 w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-dams-blue md:text-sm'
 
-export function DiscussionComposer({ label, action, pending, initialBody = '', featured = false, accent = false, compact = false, maxLength = MAX_DISCUSSION_BODY, placeholder, author, onCancel, onSubmit }: {
+export function DiscussionComposer({ label, action, pending, initialBody = '', featured = false, accent = false, compact = false, autoFocus = false, maxLength = MAX_DISCUSSION_BODY, placeholder, author, onCancel, onSubmit }: {
   label: string
   action: string
   pending: boolean
@@ -16,6 +16,7 @@ export function DiscussionComposer({ label, action, pending, initialBody = '', f
   featured?: boolean
   accent?: boolean
   compact?: boolean
+  autoFocus?: boolean
   maxLength?: number
   placeholder?: string
   author?: { id: string; name: string }
@@ -49,7 +50,7 @@ export function DiscussionComposer({ label, action, pending, initialBody = '', f
       {author && <MemberAvatar id={author.id} name={author.name} className="mt-1 size-9 sm:size-10" />}
       <div className="min-w-0 space-y-2">
         <label htmlFor={bodyId} className={inline ? 'sr-only' : featured ? 'block font-semibold text-slate-900' : 'block text-sm'}>{label}</label>
-        <textarea id={bodyId} rows={inline ? 1 : 3} placeholder={placeholder}
+        <textarea id={bodyId} rows={inline ? 1 : 3} placeholder={placeholder} autoFocus={autoFocus}
           className={bodyClass} value={body} maxLength={maxLength * 2} aria-describedby={lengthId}
           aria-invalid={length > maxLength} onChange={(event) => setBody(event.target.value)} enterKeyHint="done" required />
         {!inline && <div>{count}</div>}

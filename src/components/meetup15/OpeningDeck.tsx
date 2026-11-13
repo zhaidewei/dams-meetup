@@ -6,7 +6,7 @@ const slides: { title: string; image: string; alt: string; body: string }[] & { 
   { title: '扫码入场', image: 'admission', alt: '手机首页的现场入场密码输入框', body: '扫左下角的码即可入场，也可以在活动首页输入现场密码。' },
   { title: '查看活动议程', image: 'home', alt: '手机首页的活动议程', body: '在首页查看时间和嘉宾。点一个议程环节，即可进入对应讨论区。' },
   { title: '设置昵称', image: 'profile', alt: '资料表单中的示例昵称', body: '可以先浏览。在「我的 → 资料」填写昵称后，就能发帖、回复和提问。' },
-  { title: '在讨论区发帖', image: 'discussion', alt: '自由讨论区里填好的示例帖子和标签', body: '在自由讨论区发帖，或到议程讨论区加入对应环节的讨论。标签选填。' },
+  { title: '在讨论区发帖', image: 'discussion', alt: '自由讨论区里填好的示例帖子', body: '在自由讨论区发帖，或到议程讨论区加入对应环节的讨论。' },
   { title: '回复帖子', image: 'reply', alt: '手机上展开的帖子和示例回复', body: '点「回复帖子」参与讨论，也可以展开回复，看其他人说了什么。' },
   { title: '给同行发私信', image: 'messages', alt: '手机上的示例私信对话', body: '点对方头像发私信。在「我的 → 私信」打开对应联系人查看对话。' },
   { title: '参与现场问答', image: 'qa', alt: '现场问答中已填写的示例问题', body: '点「前往提问」提交最多 100 字的问题。也可以给想听现场回答的问题点赞。' },

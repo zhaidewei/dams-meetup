@@ -26,9 +26,14 @@ function PostCard({ post, snapshot, named, pending, submit }: {
   submit: Submit
 }) {
   const [editor, setEditor] = useState<{ kind: 'edit' | 'reply'; id: number } | null>(null)
+  const restoreEditFocus = useRef<number | null>(null)
   const [threadOpen, setThreadOpen] = useState(false)
   const [children, setChildren] = useState<Set<number>>(() => new Set())
   const cancel = () => setEditor(null)
+  const closeEdit = (id: number) => {
+    restoreEditFocus.current = id
+    cancel()
+  }
   const send = async (command: MemberCommand) => {
     const ok = await submit(command)
     if (ok) {
@@ -37,7 +42,8 @@ function PostCard({ post, snapshot, named, pending, submit }: {
         const parent = command.parentId
         if (parent !== null) setChildren(previous => new Set(previous).add(parent))
       }
-      cancel()
+      if (command.action === 'edit') closeEdit(command.id)
+      else cancel()
     }
     return ok
   }
@@ -53,8 +59,8 @@ function PostCard({ post, snapshot, named, pending, submit }: {
       return (
         <div className={entryClass}>
           {authorBadge}
-          <DiscussionComposer label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
-            pending={pending} initialBody={item.body} compact onCancel={cancel}
+          <DiscussionComposer key={item.id} label={isPost ? '编辑帖子正文' : '编辑回复正文'} action="保存修改"
+            pending={pending} initialBody={item.body} compact autoFocus onCancel={() => closeEdit(item.id)}
             onSubmit={(body) => send({ action: 'edit', id: item.id, body })} />
         </div>
       )
@@ -95,7 +101,12 @@ function PostCard({ post, snapshot, named, pending, submit }: {
           )}
           {item.mine && (
             <>
-              <button className={feedButton} disabled={pending} onClick={() => setEditor({ kind: 'edit', id: item.id })}>
+              <button className={feedButton} disabled={pending} ref={(button) => {
+                if (button && !pending && restoreEditFocus.current === item.id) {
+                  restoreEditFocus.current = null
+                  button.focus()
+                }
+              }} onClick={() => setEditor({ kind: 'edit', id: item.id })}>
                 {isPost ? '编辑帖子' : '编辑回复'}
               </button>
               <button className={`${feedButton} focus-visible:outline-2 focus-visible:outline-dams-blue`} disabled={pending} onClick={() => {
