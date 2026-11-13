@@ -292,14 +292,15 @@ export function DiscussionFeed({ free, initialAsk, memberId }: { free: boolean; 
   }
 
   const section = selected ?? data?.section
-  const inBreakout = section !== undefined && (section === 'breakout' || isBreakoutGroup(section))
+  const showBreakoutGroups = !free && (requestedSection === 'breakout' ||
+    (isMeetupSection(requestedSection) && isBreakoutGroup(requestedSection)))
   const navigation = !free && (
     <nav key="discussion-sections" aria-label="议程板块" className="border-b border-dams-line px-4 pb-3 sm:px-6">
-      <ul className="divide-y divide-dams-line overflow-hidden rounded-xl border border-dams-line bg-white md:grid md:grid-cols-4 md:divide-x md:divide-y-0">
+      <ul className="grid grid-cols-2 gap-1.5 md:grid-cols-4">
         {MEETUP_DISCUSSION_AGENDA.map(({ section: key, start, end }) => (
           <li key={key} className="min-w-0">
             <button type="button" aria-pressed={section === key || (key === 'breakout' && section !== undefined && isBreakoutGroup(section))}
-              className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-dams-wash focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:h-full md:flex-col md:items-start md:justify-center md:gap-1"
+              className="flex h-full min-h-14 w-full flex-col items-start justify-center gap-0.5 rounded-lg border border-transparent bg-slate-50 px-2.5 py-1.5 text-left text-sm font-medium hover:bg-dams-wash focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue aria-pressed:border-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover"
               onClick={() => choose(key)}>
               <span className="min-w-0 wrap-anywhere">
                 {MEETUP_SECTIONS[key]}
@@ -313,13 +314,13 @@ export function DiscussionFeed({ free, initialAsk, memberId }: { free: boolean; 
       {selected !== null ? (
         <button type="button" className="mt-1 min-h-11 px-2 text-sm font-medium text-dams-hover hover:underline"
           onClick={() => choose(null)}>恢复跟随现场</button>
-      ) : section === 'lounge' && <p className="pt-2 text-xs text-slate-600">跟随现场 · 公共讨论区</p>}
+      ) : section === 'lounge' && <p className="pt-2 text-sm font-medium">公共讨论区</p>}
     </nav>
   )
-  const breakoutNavigation = inBreakout && (
-    <div key="breakout-groups" className="flex flex-col gap-1 border-b border-dams-line bg-dams-wash px-4 py-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3 sm:px-6">
-      <label htmlFor="breakout-group" className="shrink-0 text-sm font-semibold">交流分组</label>
-      <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={section}
+  const breakoutNavigation = showBreakoutGroups && (
+    <div key="breakout-groups" className="flex items-center gap-2 border-b border-dams-line px-4 py-2 sm:px-6">
+      <label htmlFor="breakout-group" className="shrink-0 text-sm font-medium">交流小组</label>
+      <select id="breakout-group" className={`${discussionInput} max-w-sm`} value={requestedSection}
         onChange={(event) => choose(event.currentTarget.value as MeetupSection)}>
         <option value="breakout">公共交流</option>
         {Object.entries(MEETUP_BREAKOUT_GROUPS).map(([key, label]) => (
