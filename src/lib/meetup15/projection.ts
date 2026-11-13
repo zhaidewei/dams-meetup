@@ -2,7 +2,6 @@ import type { DiscussionItem, QuestionRound } from './discussion'
 import type { LotteryScreen, RaffleCandidateView, RaffleRound, RaffleRules } from './raffle'
 
 export const PROJECTION_MODES = {
-  hidden: '隐藏大屏',
   opening: '开场介绍',
   agenda: '议程展示',
   qa: '嘉宾问答',
@@ -13,13 +12,12 @@ export const OPENING_SLIDE_COUNT = 9
 
 export type ProjectionMode = keyof typeof PROJECTION_MODES
 export type ProjectionSelection =
-  | { mode: 'hidden' | 'agenda' }
+  | { mode: 'agenda' }
   | { mode: 'opening'; slide: number }
   | { mode: 'raffle'; raffleId?: number }
   | { mode: 'qa'; roundId: number }
 
 export type ProjectionView = { refreshAt: number | null } & (
-  | { mode: 'hidden' }
   | { mode: 'opening'; slide: number; revision: number }
   | { mode: 'agenda'; currentStart: string | null }
   | { mode: 'qa'; round: QuestionRound; questions: DiscussionItem[]; qaRevision?: number }

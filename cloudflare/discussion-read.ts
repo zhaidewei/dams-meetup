@@ -7,7 +7,7 @@ import { INTERACTION_END, isMeetupAgendaSection, isMeetupSection, currentMeetupA
 
 const PAGE_SIZE = 30
 const ROUNDS = `
-  SELECT r.id, m.display_name AS guest, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt
+  SELECT r.id, m.display_name AS guest, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt, r.generation
   FROM meetup15_qa_rounds r JOIN meetup15_members m ON m.id = r.guest_id`
 const ITEM_CONTENT = `
   d.id, d.kind, d.author_id AS authorId, COALESCE(m.display_name, '现场观众') AS author,

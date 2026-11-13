@@ -8,6 +8,10 @@ export const DISCUSSION_EMOJIS = [
   ['👍', '赞'], ['❤️', '喜欢'], ['😂', '大笑'], ['😮', '惊讶'], ['😢', '难过'], ['🙏', '感谢'],
   ['🎉', '庆祝'], ['👏', '鼓掌'], ['🔥', '精彩'], ['💡', '好点子'], ['🤔', '思考'],
   ['🙌', '赞同'], ['😊', '微笑'], ['👀', '关注'], ['💯', '满分'], ['🚀', '起飞'],
+  ['😀', '开心'], ['🤣', '笑翻'], ['😍', '喜爱'], ['🥰', '暖心'], ['😎', '酷'],
+  ['😉', '眨眼'], ['😅', '苦笑'], ['😭', '大哭'], ['😱', '震惊'], ['😡', '生气'],
+  ['🤩', '太棒了'], ['🤯', '大开眼界'], ['🫡', '致敬'], ['🤝', '握手'], ['💪', '加油'],
+  ['👌', '没问题'], ['✅', '同意'], ['⭐', '星标'], ['✨', '闪亮'], ['💬', '想聊聊'],
 ] as const
 
 export type DiscussionEmoji = (typeof DISCUSSION_EMOJIS)[number][0]
@@ -43,6 +47,7 @@ export type QuestionRound = {
   section: MeetupSection
   openedAt: number
   closedAt: number | null
+  generation: number
 }
 
 export type DiscussionContext = {
@@ -120,5 +125,6 @@ export type StaffCommand =
   | { action: 'section'; section: MeetupAgendaSection | null }
   | { action: 'agenda'; start: string | null }
   | { action: 'start'; guestId: string; activeRoundId: number | null; latestRoundId: number | null }
-  | { action: 'end'; roundId: number }
+  | { action: 'reopen'; roundId: number; generation: number }
+  | { action: 'end'; roundId: number; generation?: number }
   | { action: 'answer'; id: number; answered: boolean }

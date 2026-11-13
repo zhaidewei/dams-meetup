@@ -97,16 +97,18 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
 
     expect((await read('')).status).toBe(401)
     expect((await readScreen(alice)).status).toBe(401)
-    expect((await screen()).mode).toBe('hidden')
+    expect((await screen()).mode).toBe('agenda')
     expect((await projection()).rounds).toEqual([])
     expect((await preview('mode=agenda', alice)).status).toBe(401)
     expect((await switchScreen({ mode: 'agenda', revision: 0 }, alice)).status).toBe(401)
     expect((await switchScreen({ mode: 'agenda', revision: 0 }, admin, 'https://other.example')).status).toBe(403)
     expect((await preview('mode=agenda')).status).toBe(200)
-    expect((await screen()).mode).toBe('hidden')
-    expect((await switchScreen({ mode: 'agenda', revision: 0 })).status).toBe(204)
+    expect((await screen()).mode).toBe('agenda')
+    const initialRevision = (await projection()).revision
+    expect((await switchScreen({ mode: 'hidden', revision: initialRevision })).status).toBe(400)
+    expect((await switchScreen({ mode: 'agenda', revision: initialRevision })).status).toBe(204)
     expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: '13:30' })
-    expect((await switchScreen({ mode: 'raffle', revision: 0 })).status).toBe(409)
+    expect((await switchScreen({ mode: 'raffle', revision: initialRevision })).status).toBe(409)
     expect((await screen()).mode).toBe('agenda')
     expect((await read(admin, '/screen')).status).toBe(404)
     expect((await connect('')).status).toBe(401)
@@ -376,7 +378,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await projection()).rounds.map((round) => round.id)).toEqual([second.id, first.id])
     expect(order(await feed(alice, '?section=expert&round=' + first.id))).toEqual([newer.id, older.id])
     await ok(admin, { action: 'end', roundId: second.id }, '/admin')
-    expect((await screen()).mode).toBe('hidden')
+    expect((await screen()).mode).toBe('agenda')
     expect((await command(admin, { action: 'start', guestId: 'guest', activeRoundId: null, latestRoundId: null }, '/admin')).status).toBe(409)
     expect((await staff()).rounds).toHaveLength(2)
 
@@ -384,7 +386,7 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     const historical = await preview('mode=qa&roundId=' + first.id)
     expect(historical.status).toBe(200)
     expect(await historical.json()).toMatchObject({ mode: 'qa', round: { id: first.id } })
-    expect((await screen()).mode).toBe('hidden')
+    expect((await screen()).mode).toBe('agenda')
     expect((await switchScreen({ mode: 'qa', roundId: 999, revision })).status).toBe(409)
     const screenChanged = new Promise((resolve) => {
       screenSocket.addEventListener('message', (event) => {
@@ -397,6 +399,24 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect((await activeQa()).round.closedAt).not.toBeNull()
     expect((await feed(alice, '?section=expert')).activeRound).toBeNull()
     expect((await command(alice, { action: 'question', section: 'expert', roundId: first.id, body: '历史轮次' })).status).toBe(409)
+    const beforeReopen = await (await preview('mode=qa&roundId=' + first.id)).json() as { questions: FeedSnapshot['questions'] }
+    const { generation } = (await activeQa()).round
+    const reopen = { action: 'reopen', roundId: first.id, generation }
+    await ok(admin, reopen, '/admin')
+    expect((await command(admin, reopen, '/admin')).status).toBe(409)
+    expect((await staff()).rounds).toHaveLength(2)
+    expect(await activeQa()).toMatchObject({ round: { id: first.id, section: 'expert', closedAt: null } })
+    expect((await staff()).questions.map(q => [q.id, q.likes, q.answered]))
+      .toEqual(beforeReopen.questions.map(q => [q.id, q.likes, q.answered]))
+    expect((await feed(alice, '?section=expert')).activeRound?.id).toBe(first.id)
+    const closedSecond = (await staff()).rounds.find(round => round.id === second.id)!
+    expect((await command(admin, { action: 'reopen', roundId: second.id, generation: closedSecond.generation }, '/admin')).status).toBe(409)
+    await ok(alice, { action: 'question', section: 'expert', roundId: first.id, body: '重开后的新问题' })
+    expect((await staff()).questions.map(question => question.body)).toContain('重开后的新问题')
+    expect((await command(admin, { action: 'end', roundId: first.id, generation }, '/admin')).status).toBe(409)
+    await ok(admin, { action: 'end', roundId: first.id, generation: generation + 1 }, '/admin')
+    expect((await command(admin, reopen, '/admin')).status).toBe(409)
+    expect((await screen()).mode).toBe('agenda')
     expect((await switchScreen({ mode: 'raffle', revision: (await projection()).revision })).status).toBe(204)
     expect(await screen()).toMatchObject({ mode: 'raffle', lottery: null })
 

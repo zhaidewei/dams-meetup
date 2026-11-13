@@ -1,12 +1,13 @@
 'use client'
 
-import { startTransition, useOptimistic, useState } from 'react'
+import { startTransition, useOptimistic, useState, type ReactNode } from 'react'
 import { DISCUSSION_EMOJIS, type DiscussionItem, type MemberCommand, type DiscussionEmoji, type DiscussionReaction } from '@/lib/meetup15/discussion'
 
 const empty: DiscussionReaction[] = []
 const reactionButton = 'inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-full px-2.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue'
 
-export function DiscussionReactions({ item, pending, submit }: {
+export function DiscussionReactions({ item, pending, submit, children }: {
+  children?: ReactNode
   item: DiscussionItem
   pending: boolean
   submit: (command: MemberCommand) => Promise<boolean>
@@ -23,8 +24,9 @@ export function DiscussionReactions({ item, pending, submit }: {
     })
 
   return (
-    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={item.kind === 'post' ? '帖子表情' : '回复表情'}>
-      <button type="button" className={reactionButton + ' text-slate-600 hover:bg-dams-wash aria-expanded:bg-dams-wash aria-expanded:text-dams-hover'}
+    <div className="flex min-w-0 flex-wrap items-center gap-1" role="group" aria-label={item.kind === 'post' ? '帖子点赞与表情' : '回复表情'}>
+      {children}
+      <button type="button" className={reactionButton + ' whitespace-nowrap text-slate-600 hover:bg-dams-wash aria-expanded:bg-dams-wash aria-expanded:text-dams-hover'}
         aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? '收起表情' : '添加表情'}
       </button>

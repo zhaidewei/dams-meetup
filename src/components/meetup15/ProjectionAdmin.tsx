@@ -5,6 +5,8 @@ import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import { OPENING_SLIDE_COUNT, PROJECTION_MODES, type ProjectionAdminSnapshot, type ProjectionCommand, type ProjectionMode,
   type ProjectionSelection } from '@/lib/meetup15/projection'
 import { discussionButton, discussionInput } from './DiscussionComposer'
+import { AgendaControls } from './AgendaControls'
+import { DiscussionAdmin } from './DiscussionAdmin'
 import { RaffleControls } from './RaffleControls'
 import { useDiscussion } from './useDiscussion'
 
@@ -36,11 +38,13 @@ function ScreenMirror() {
   )
 }
 
-export function ProjectionAdmin() {
+export function ProjectionAdmin({ openQuestions }: { openQuestions: boolean }) {
+  const [showQuestions, setShowQuestions] = useState(openQuestions)
   const { data, error, pending, submit } = useDiscussion<ProjectionAdminSnapshot, ProjectionCommand>('/api/screen/admin', 'projection')
   if (!data) return <p role={error ? 'alert' : 'status'}>{error || '正在加载大屏控制…'}</p>
 
   const { revision, rounds, selection: current } = data
+  const questionsVisible = showQuestions || current.mode === 'qa'
   const currentRoundId = current.mode === 'qa' ? current.roundId : undefined
   const currentRound = data.rounds.find((round) => round.id === currentRoundId)
   const currentRaffleId = current.mode === 'raffle' ? current.raffleId : undefined
@@ -50,11 +54,9 @@ export function ProjectionAdmin() {
   }
 
   function choose(mode: ProjectionMode) {
-    if (mode === current.mode) return
-    if (mode === 'qa') {
-      const round = rounds[0]
-      if (round) show({ mode, roundId: round.id })
-    } else if (mode === 'opening') {
+    setShowQuestions(mode === 'qa')
+    if (mode === 'qa' || mode === current.mode) return
+    if (mode === 'opening') {
       show({ mode, slide: 0 })
     } else {
       show({ mode })
@@ -66,7 +68,7 @@ export function ProjectionAdmin() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">大屏控制</h1>
         <p role="status" className="rounded-full bg-dams-wash px-3 py-1 text-sm text-dams-hover">
-          {current.mode === 'hidden' ? '大屏状态 · 已隐藏' : `正在投屏 · ${PROJECTION_MODES[current.mode]}`}
+          正在投屏 · {PROJECTION_MODES[current.mode]}
           {currentRound && ` · ${currentRound.guest}${currentRound.closedAt !== null ? '（回看）' : ''}`}
           {current.mode === 'raffle' && (currentRaffleId ? ` · 第 ${currentRaffleId} 轮（回看）` : ' · 跟随最新一轮')}
         </p>
@@ -77,12 +79,13 @@ export function ProjectionAdmin() {
           <h2 className="font-semibold">选择画面</h2>
           <div role="group" aria-label="大屏画面" className="flex flex-wrap gap-2">
             {(Object.keys(PROJECTION_MODES) as ProjectionMode[]).map((mode) => (
-              <button key={mode} type="button" disabled={pending || (mode === 'qa' && !data.rounds.length)}
+              <button key={mode} type="button" disabled={pending}
                 className={`${discussionButton} aria-pressed:border-dams-blue aria-pressed:bg-dams-wash aria-pressed:text-dams-hover`}
-                aria-pressed={current.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
+                aria-pressed={mode === 'qa' ? questionsVisible : !questionsVisible && current.mode === mode} onClick={() => choose(mode)}>{PROJECTION_MODES[mode]}</button>
             ))}
           </div>
-          {current.mode === 'raffle' && (
+          {!questionsVisible && current.mode === 'agenda' && <AgendaControls />}
+          {!questionsVisible && current.mode === 'raffle' && (
             <div className="space-y-3 border-t border-dams-line pt-3">
               <div className="space-y-1">
                 <label htmlFor="raffle-round" className="block text-sm">选择抽奖轮次</label>
@@ -99,13 +102,15 @@ export function ProjectionAdmin() {
               {currentRaffleId === undefined && <RaffleControls />}
             </div>
           )}
-          {current.mode === 'qa' && (
+          {questionsVisible && <DiscussionAdmin />}
+          {questionsVisible && rounds.length > 0 && (
             <div className="space-y-1 border-t border-dams-line pt-3">
-              <label htmlFor="projection-round" className="block text-sm">选择问答轮次</label>
-              <select id="projection-round" className={discussionInput} value={current.roundId}
-                disabled={pending || !data.rounds.length} onChange={(event) =>
+              <label htmlFor="projection-round" className="block text-sm">选择投屏轮次</label>
+              <select id="projection-round" className={discussionInput} value={currentRoundId ?? ''}
+                disabled={pending} onChange={(event) =>
                   show({ mode: 'qa', roundId: Number(event.target.value) })}>
-                {data.rounds.map((round) => (
+                <option value="" disabled>请选择轮次</option>
+                {rounds.map((round) => (
                   <option key={round.id} value={round.id}>
                     {round.closedAt === null ? '进行中' : '已结束'} · {round.guest} · {MEETUP_SECTIONS[round.section]} · {roundTime.format(round.openedAt * 1000)}
                   </option>

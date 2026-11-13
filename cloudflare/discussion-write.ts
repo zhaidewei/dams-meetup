@@ -147,10 +147,18 @@ export async function writeStaff(db: D1Database, input: Input, now: number): Pro
         AND (SELECT MAX(id) FROM meetup15_qa_rounds) IS ?`
       ).bind(meetupSectionAt(now), guestId, activeRoundId, latestRoundId))
     }
-    case 'end':
-      if (!validId(input.roundId)) return invalid
-      return write(db.prepare(`UPDATE meetup15_qa_rounds SET closed_at = unixepoch()
-        WHERE id = ? AND closed_at IS NULL`).bind(input.roundId))
+    case 'reopen':
+    case 'end': {
+      const generation = input.action === 'end' && input.generation === undefined ? 0 : input.generation
+      if (!validId(input.roundId) || (generation !== 0 && !validId(generation))) return invalid
+      if (input.action === 'end') return write(db.prepare(`UPDATE meetup15_qa_rounds SET closed_at = unixepoch()
+        WHERE id = ? AND generation = ? AND closed_at IS NULL`).bind(input.roundId, generation))
+      return write(db.prepare(`
+        UPDATE meetup15_qa_rounds SET closed_at = NULL, generation = generation + 1
+        WHERE id = ? AND generation = ? AND closed_at IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM meetup15_qa_rounds WHERE closed_at IS NULL)
+      `).bind(input.roundId, generation))
+    }
     case 'answer':
       if (!validId(input.id) || typeof input.answered !== 'boolean') return invalid
       const result = await write(db.prepare(`UPDATE meetup15_discussion SET answered = ?

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Heart, MessageCircle } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
 import { isBreakoutGroup, isMeetupSection, MEETUP_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
@@ -13,6 +13,7 @@ import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
 const agendaBoards = MEETUP_AGENDA.filter(({ section }) => section !== 'lounge')
+const qaLike = 'inline-flex min-h-11 items-center gap-1.5 rounded-full text-sm tabular-nums text-slate-600'
 const qaStatus = 'inline-block whitespace-nowrap rounded-full bg-dams-orange px-2 py-0.5 text-xs font-bold text-dams-ink'
 const qaAction = 'inline-flex min-h-11 items-center rounded-full bg-dams-orange px-4 text-sm font-bold text-dams-ink hover:bg-dams-orange-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue'
 
@@ -44,6 +45,7 @@ function PostCard({ post, snapshot, named, pending, submit }: {
 
   function renderEntry(item: DiscussionItem) {
     const isPost = item.kind === 'post'
+    const replyLabel = isPost ? '回复' : '子回复'
     const canReply = named && item.parentId === null
     const expanded = isPost ? threadOpen : children.has(item.id)
     return (
@@ -62,8 +64,16 @@ function PostCard({ post, snapshot, named, pending, submit }: {
           </ul>
         )}
         <div className="flex flex-wrap gap-1">
+          <DiscussionReactions item={item} pending={pending} submit={submit}>
+            {isPost && (
+              <button className={feedButton} aria-pressed={item.liked} disabled={pending}
+                onClick={() => void submit({ action: 'like', id: item.id, liked: !item.liked })}>
+                <span aria-hidden="true" className="text-base">♥️</span>点赞 {item.likes}
+              </button>
+            )}
+          </DiscussionReactions>
           {Boolean(item.replyCount) && (
-            <button type="button" className={feedButton} aria-expanded={expanded}
+            <button type="button" className={`${feedButton} whitespace-nowrap bg-dams-wash font-semibold text-dams-hover hover:bg-dams-selection aria-expanded:bg-dams-selection focus-visible:outline-2 focus-visible:outline-dams-blue`} aria-expanded={expanded}
               onClick={() => {
                 if (isPost) setThreadOpen(!threadOpen)
                 else setChildren(previous => {
@@ -74,13 +84,8 @@ function PostCard({ post, snapshot, named, pending, submit }: {
                 })
                 cancel()
               }}>
-              <MessageCircle size={17} aria-hidden />{item.replyCount} 条{isPost ? '回复' : '子回复'}
-            </button>
-          )}
-          {isPost && (
-            <button className={feedButton} aria-pressed={item.liked} disabled={pending}
-              onClick={() => void submit({ action: 'like', id: item.id, liked: !item.liked })}>
-              <Heart size={17} aria-hidden fill={item.liked ? 'currentColor' : 'none'} />点赞 {item.likes}
+              <ChevronDown size={16} aria-hidden className={expanded ? 'rotate-180' : undefined} />
+              {expanded ? `收起${replyLabel}` : `展开 ${item.replyCount} 条${replyLabel}`}
             </button>
           )}
           {canReply && (
@@ -101,7 +106,6 @@ function PostCard({ post, snapshot, named, pending, submit }: {
             </>
           )}
         </div>
-        <DiscussionReactions item={item} pending={pending} submit={submit} />
         {editor?.kind === 'reply' && editor.id === item.id && (
           <DiscussionComposer label={isPost ? '回复正文' : '子回复正文'} action="发表回复" pending={pending}
             onCancel={cancel} onSubmit={(body) => send({
@@ -348,7 +352,7 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
   return (
     <div>
       {active && !liveRound && (
-        <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border-l-4 border-dams-orange bg-dams-orange-wash px-4 py-3 sm:mx-6">
+        <aside aria-label="进行中的问答" className={`mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border-l-4 border-dams-orange bg-dams-orange-wash px-4 py-3 sm:mx-6 ${navigation ? 'mb-3' : ''}`}>
           <div className="min-w-0 wrap-anywhere">
             <p className="flex flex-wrap items-center gap-2 text-sm font-semibold"><span className={qaStatus}>问答中</span>{active.guest}</p>
             <p className="text-sm text-slate-700">{qaSection}</p>
@@ -412,13 +416,20 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
                       <li key={question.id} className="rounded border border-dams-line bg-white p-3">
                         <p className="whitespace-pre-wrap wrap-anywhere">{question.body}</p>
                         <MemberBadge id={question.authorId} name={question.author} mine={question.mine} />
-                        <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>
-                        {liveRound ? (
-                          <button className={discussionButton} aria-pressed={question.liked} disabled={pending}
-                            onClick={() => void submit({ action: 'like', id: question.id, liked: !question.liked })}>
-                            问题点赞 {question.likes}
-                          </button>
-                        ) : <p className="text-sm">点赞 {question.likes}</p>}
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-zinc-600">{question.answered ? '已答' : '未答'}</p>
+                          {liveRound ? (
+                            <button type="button" className={`${qaLike} min-w-11 justify-center px-2 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover focus-visible:outline-2 focus-visible:outline-dams-blue disabled:opacity-50`}
+                              aria-label={`问题点赞，${question.likes} 个赞`} aria-pressed={question.liked} disabled={pending}
+                              onClick={() => void submit({ action: 'like', id: question.id, liked: !question.liked })}>
+                              <span aria-hidden="true">👍</span>{question.likes}
+                            </button>
+                          ) : (
+                            <p className="inline-flex items-center gap-1.5 text-sm tabular-nums text-slate-600">
+                              <span aria-hidden="true">👍</span><span className="sr-only">点赞 </span>{question.likes}
+                            </p>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ol>
@@ -439,18 +450,22 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
         <PostCard key={post.id} post={post} named={named} pending={pending} submit={submit}
           snapshot={data} />
       )) : <p className="px-4 py-6 text-sm text-slate-600 sm:px-6">暂无讨论。</p>}
-      <div className="flex gap-2 px-4 py-3 sm:px-6">
-        {before && <button className={discussionButton} onClick={() => setPageStack((stack) => stack.slice(0, -1))}>
-          较新的帖子
-        </button>}
-        {data.nextBefore && <button className={discussionButton} onClick={() => {
-          const cursor = data.nextBefore
-          if (cursor) {
-            setPinnedSection(data.section)
-            setPageStack((stack) => [...stack, cursor])
-          }
-        }}>较早的帖子</button>}
-      </div>
+      {(before || data.nextBefore) && (
+        <nav aria-label="帖子分页" className="flex items-center justify-center gap-3 px-4 py-3 sm:px-6">
+          <button type="button" className={discussionButton} disabled={!before}
+            onClick={() => setPageStack((stack) => stack.slice(0, -1))}>
+            上一页
+          </button>
+          <span role="status" className="text-sm tabular-nums text-slate-600">第 {pageStack.length + 1} 页</span>
+          <button type="button" className={discussionButton} disabled={!data.nextBefore} onClick={() => {
+            const cursor = data.nextBefore
+            if (cursor) {
+              setPinnedSection(data.section)
+              setPageStack((stack) => [...stack, cursor])
+            }
+          }}>下一页</button>
+        </nav>
+      )}
     </div>
   )
 }
