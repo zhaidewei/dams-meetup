@@ -77,7 +77,7 @@ it('enforces both Amsterdam cutoffs and only clears D1 after the published revis
     await db.batch([
       db.prepare("INSERT INTO meetup15_members (id, role, display_name) VALUES (?, 'attendee', '样例观众')").bind(id),
       db.prepare("INSERT INTO meetup15_members (id, role, display_name, username, password_hash) VALUES ('guest', 'guest', '样例嘉宾', 'test-guest', 'fixture')"),
-      db.prepare("INSERT INTO meetup15_qa_rounds (guest_id, section) VALUES ('guest', 'lounge')"),
+      db.prepare("INSERT INTO meetup15_qa_rounds (title, section) VALUES ('测试问答', 'lounge')"),
       db.prepare("INSERT INTO meetup15_raffles (candidates, ready_at, finished_at, winner_id, winner_name) VALUES ('[]', 1, 2, ?, '样例观众')").bind(id),
       db.prepare('INSERT INTO meetup15_dm_threads (member_a) VALUES (?)').bind(id),
       db.prepare("INSERT INTO meetup15_dm_messages (thread_id, raffle_id, body) VALUES (1, 1, '中奖私信')"),

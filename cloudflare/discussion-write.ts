@@ -1,5 +1,5 @@
-import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, DISCUSSION_EMOJIS, type QaWriteAck } from '../src/lib/meetup15/discussion'
-import { isMeetupAgendaSection, isMeetupSection, MEETUP_AGENDA, meetupSectionAt } from '../src/lib/meetup15/event'
+import { MAX_DISCUSSION_BODY, MAX_QUESTION_BODY, MAX_QA_TITLE, DISCUSSION_EMOJIS, type QaWriteAck } from '../src/lib/meetup15/discussion'
+import { isMeetupAgendaSection, isMeetupSection, MEETUP_AGENDA, MEETUP_DISCUSSION_AGENDA } from '../src/lib/meetup15/event'
 import type { Member } from '../src/lib/meetup15/identity'
 import { parseTags } from '../src/lib/tags'
 
@@ -121,7 +121,7 @@ export async function writeMember(db: D1Database, member: Member, input: Input):
   }
 }
 
-export async function writeStaff(db: D1Database, input: Input, now: number): Promise<Result> {
+export async function writeStaff(db: D1Database, input: Input): Promise<Result> {
   switch (input.action) {
     case 'section':
       if (input.section !== null && !isMeetupAgendaSection(input.section)) return invalid
@@ -133,19 +133,19 @@ export async function writeStaff(db: D1Database, input: Input, now: number): Pro
         .bind(slot?.section ?? null, slot?.start ?? null))
     }
     case 'start': {
-      const { guestId, activeRoundId, latestRoundId } = input
-      if (typeof guestId !== 'string' || guestId.length > 36 ||
+      const { agendaStart, activeRoundId, latestRoundId } = input
+      const slot = MEETUP_DISCUSSION_AGENDA.find(slot => slot.start === agendaStart)
+      const title = slot?.title ?? (typeof input.title === 'string' ? input.title.trim() : '')
+      if ((agendaStart !== null && !slot) || !title || (!slot && title.length > MAX_QA_TITLE) ||
           (activeRoundId !== null && !validId(activeRoundId)) ||
           (latestRoundId !== null && !validId(latestRoundId))) return invalid
       // 数据库触发器只在新轮次写入时结束旧轮次，过期或重复的操作不会改变状态。
       return write(db.prepare(`
-        INSERT INTO meetup15_qa_rounds (guest_id, section)
-        SELECT g.id, COALESCE(s.section_override, ?)
-        FROM meetup15_members g CROSS JOIN activity_state s
-        WHERE g.id = ? AND g.role = 'guest' AND s.id = 1
-        AND (SELECT id FROM meetup15_qa_rounds WHERE closed_at IS NULL) IS ?
+        INSERT INTO meetup15_qa_rounds (title, agenda_start, section)
+        SELECT ?, ?, ?
+        WHERE (SELECT id FROM meetup15_qa_rounds WHERE closed_at IS NULL) IS ?
         AND (SELECT MAX(id) FROM meetup15_qa_rounds) IS ?`
-      ).bind(meetupSectionAt(now), guestId, activeRoundId, latestRoundId))
+      ).bind(title, slot?.start ?? null, slot?.section ?? 'lounge', activeRoundId, latestRoundId))
     }
     case 'reopen':
     case 'end': {

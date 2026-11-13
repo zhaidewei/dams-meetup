@@ -4,7 +4,7 @@ import type { LotteryScreen, RaffleCandidateView, RaffleRound, RaffleRules } fro
 export const PROJECTION_MODES = {
   opening: '开场介绍',
   agenda: '议程展示',
-  qa: '嘉宾问答',
+  qa: '问答',
   raffle: '现场抽奖',
 } as const
 

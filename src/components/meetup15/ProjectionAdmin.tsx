@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MEETUP_SECTIONS } from '@/lib/meetup15/event'
+import { questionRoundTitle } from '@/lib/meetup15/discussion'
 import { OPENING_SLIDE_COUNT, PROJECTION_MODES, type ProjectionAdminSnapshot, type ProjectionCommand, type ProjectionMode,
   type ProjectionSelection } from '@/lib/meetup15/projection'
 import { discussionButton, discussionInput } from './DiscussionComposer'
@@ -69,7 +69,7 @@ export function ProjectionAdmin({ openQuestions }: { openQuestions: boolean }) {
         <h1 className="text-2xl font-semibold">大屏控制</h1>
         <p role="status" className="rounded-full bg-dams-wash px-3 py-1 text-sm text-dams-hover">
           正在投屏 · {PROJECTION_MODES[current.mode]}
-          {currentRound && ` · ${currentRound.guest}${currentRound.closedAt !== null ? '（回看）' : ''}`}
+          {currentRound && ` · ${questionRoundTitle(currentRound)}${currentRound.closedAt !== null ? '（回看）' : ''}`}
           {current.mode === 'raffle' && (currentRaffleId ? ` · 第 ${currentRaffleId} 轮（回看）` : ' · 跟随最新一轮')}
         </p>
       </div>
@@ -112,7 +112,7 @@ export function ProjectionAdmin({ openQuestions }: { openQuestions: boolean }) {
                 <option value="" disabled>请选择轮次</option>
                 {rounds.map((round) => (
                   <option key={round.id} value={round.id}>
-                    {round.closedAt === null ? '进行中' : '已结束'} · {round.guest} · {MEETUP_SECTIONS[round.section]} · {roundTime.format(round.openedAt * 1000)}
+                    {round.closedAt === null ? '进行中' : '已结束'} · {questionRoundTitle(round)} · {roundTime.format(round.openedAt * 1000)}
                   </option>
                 ))}
               </select>

@@ -4,15 +4,14 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { compareQuestions, mergeQuestions, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
-import { isBreakoutGroup, isMeetupSection, MEETUP_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
+import { compareQuestions, mergeQuestions, questionRoundTitle, FEED_VERSIONS_HEADER, MAX_QUESTION_BODY, type DiscussionItem, type FeedSnapshot, type FeedUpdate, type FeedVersions, type MemberCommand, type QaWriteAck, type ReplyPage } from '@/lib/meetup15/discussion'
+import { isBreakoutGroup, isMeetupSection, MEETUP_DISCUSSION_AGENDA, MEETUP_BREAKOUT_GROUPS, MEETUP_SECTIONS, meetupDiscussionPath, type MeetupSection } from '@/lib/meetup15/event'
 import { MemberBadge } from './MemberBadge'
 import { DiscussionComposer, discussionButton, discussionInput } from './DiscussionComposer'
 import { DiscussionReactions } from './DiscussionReactions'
 import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
-const agendaBoards = MEETUP_AGENDA.filter(({ section }) => section !== 'lounge')
 const qaLike = 'inline-flex min-h-11 items-center gap-1.5 rounded-full text-sm tabular-nums text-slate-600'
 const qaStatus = 'inline-block whitespace-nowrap rounded-full bg-dams-orange px-2 py-0.5 text-xs font-bold text-dams-ink'
 const qaAction = 'inline-flex min-h-11 items-center rounded-full bg-dams-orange px-4 text-sm font-bold text-dams-ink hover:bg-dams-orange-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue'
@@ -257,7 +256,8 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
   const named = Boolean(data?.nickname)
   const active = data?.activeRound
   const viewed = data?.viewedRound
-  const liveRound = Boolean(viewed && viewed.id === active?.id)
+  const showQuestions = free || data?.section !== 'lounge'
+  const liveRound = Boolean(showQuestions && viewed && viewed.id === active?.id)
 
   useEffect(() => {
     if (questionJump === completedJump.current || !liveRound) return
@@ -296,7 +296,7 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
   const navigation = !free && (
     <nav key="discussion-sections" aria-label="议程板块" className="border-b border-dams-line px-4 pb-3 sm:px-6">
       <ul className="divide-y divide-dams-line overflow-hidden rounded-xl border border-dams-line bg-white md:grid md:grid-cols-4 md:divide-x md:divide-y-0">
-        {agendaBoards.map(({ section: key, start, end }) => (
+        {MEETUP_DISCUSSION_AGENDA.map(({ section: key, start, end }) => (
           <li key={key} className="min-w-0">
             <button type="button" aria-pressed={section === key || (key === 'breakout' && section !== undefined && isBreakoutGroup(section))}
               className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-dams-wash focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dams-blue aria-pressed:bg-dams-selection aria-pressed:font-semibold aria-pressed:text-dams-hover md:h-full md:flex-col md:items-start md:justify-center md:gap-1"
@@ -346,7 +346,7 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
     </div>
   )
 
-  const qaSection = active ? MEETUP_SECTIONS[active.section] : null
+  const qaSection = active?.section === 'lounge' ? '自由讨论区' : active ? MEETUP_SECTIONS[active.section] : null
   const qaLink = active && (active.section === 'lounge') !== free ? `${meetupDiscussionPath(active.section)}&ask=1` : null
   const posts = data.items.filter((entry) => entry.kind === 'post')
   return (
@@ -354,7 +354,7 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
       {active && !liveRound && (
         <aside aria-label="进行中的问答" className={`mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border-l-4 border-dams-orange bg-dams-orange-wash px-4 py-3 sm:mx-6 ${navigation ? 'mb-3' : ''}`}>
           <div className="min-w-0 wrap-anywhere">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold"><span className={qaStatus}>问答中</span>{active.guest}</p>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold"><span className={qaStatus}>问答中</span>{questionRoundTitle(active)}</p>
             <p className="text-sm text-slate-700">{qaSection}</p>
           </div>
           {qaLink ? (
@@ -384,15 +384,15 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
             </div>
           </form>
         )}
-        {data.rounds.some((entry) => entry.section === data.section) && (
+        {showQuestions && data.rounds.some((entry) => entry.section === data.section) && (
           <section aria-label="问答" className="space-y-3 rounded-xl border border-dams-selection bg-dams-wash p-3 sm:p-4">
-            <h3 className="font-semibold">嘉宾问答</h3>
+            <h3 className="font-semibold">问答</h3>
             {liveRound && viewed && (
               <div ref={questionForm} className="scroll-mt-4 space-y-3 rounded-xl border-2 border-dams-blue bg-white p-3 sm:p-4">
-                <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{viewed.guest}</p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{questionRoundTitle(viewed)}</p>
                 {named ? (
                   <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
-                    featured accent maxLength={MAX_QUESTION_BODY} placeholder="你想问这位嘉宾什么？"
+                    featured accent maxLength={MAX_QUESTION_BODY} placeholder="你想问什么？"
                     onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: viewed.id, body })} />
                 ) : <p className="text-sm text-slate-700">填写上方昵称后即可提问。</p>}
               </div>
@@ -405,11 +405,11 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
                 }}>
                 <option value="">当前问答</option>
                 {data.rounds.filter((entry) => entry.section === data.section && entry.closedAt !== null)
-                  .map((entry) => <option key={entry.id} value={entry.id}>第 {entry.id} 轮 · {entry.guest}</option>)}
+                  .map((entry) => <option key={entry.id} value={entry.id}>第 {entry.id} 轮 · {questionRoundTitle(entry)}</option>)}
               </select>
             {viewed ? (
               <>
-                {!liveRound && <p className="wrap-anywhere font-medium">第 {viewed.id} 轮 · {viewed.guest} · 已结束</p>}
+                {!liveRound && <p className="wrap-anywhere font-medium">第 {viewed.id} 轮 · {questionRoundTitle(viewed)} · 已结束</p>}
                 {data.questions.length ? (
                   <ol className="space-y-2">
                     {data.questions.map((question) => (

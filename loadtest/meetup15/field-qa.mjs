@@ -37,7 +37,7 @@ function installRefreshObserver() {
 }
 
 async function openPage(browser, base, cookie, route, viewport, onResponse, refreshPhone = false) {
-  const mobile = route === '/feed'
+  const mobile = route === '/feed?view=free'
   const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile })
   const [name, value] = cookie.split('=')
   await context.addCookies([{ name, value, url: base }])
@@ -100,12 +100,12 @@ async function waitConnected(views) {
 
 export async function runFieldQa({ browser, base, admin, members, online, onResponse, readRound, answer, like, refresh, samples, displayFailures }) {
   const mobileViewport = { width: 390, height: 844 }
-  const phones = await Promise.all(members.map((cookie, i) => openPage(browser, base, cookie, '/feed', mobileViewport, onResponse, refresh && i === 3)))
+  const phones = await Promise.all(members.map((cookie, i) => openPage(browser, base, cookie, '/feed?view=free', mobileViewport, onResponse, refresh && i === 3)))
   const screen = await openPage(browser, base, admin, '/screen', { width: 1024, height: 768 }, onResponse)
   try {
     await Promise.all([
       ...phones.map(({ page }) => page.getByLabel('你的问题', { exact: true }).waitFor()),
-      screen.page.getByRole('heading', { name: '嘉宾问答 · M6 测试嘉宾' }).waitFor(),
+      screen.page.getByRole('heading', { name: '问答 · M6 测试问答' }).waitFor(),
     ])
     await waitConnected([...phones, screen])
     const observedPhones = refresh ? phones.slice(0, 3) : phones

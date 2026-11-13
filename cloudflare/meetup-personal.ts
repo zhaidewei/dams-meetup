@@ -1,7 +1,7 @@
 import { getMember, MEMBER_COOKIE, requestCookie, type Member } from '../src/lib/meetup15/identity'
 import { INTERACTION_END } from '../src/lib/meetup15/event'
 import { MAX_DISCUSSION_BODY } from '../src/lib/meetup15/discussion'
-import { MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH, PROFILE_FIELDS, type PublicProfile } from '../src/lib/meetup15/personal'
+import { MAX_CONTACT_LENGTH, MAX_NICKNAME_LENGTH, editableProfileFields, type PublicProfile } from '../src/lib/meetup15/personal'
 import type { ActivityEnv } from './activity'
 import { notifyDiscussion } from './discussion-notifications'
 import { touchMember } from './meetup-presence'
@@ -32,7 +32,7 @@ async function updateProfile(db: D1Database, member: Member, input: Record<strin
         typeof input.removeLegacyContact !== 'boolean') return failure(400, '请检查公开资料。')
     const fields = input.publicProfile as Record<string, unknown>
     const profile: PublicProfile = {}
-    for (const field of PROFILE_FIELDS) {
+    for (const field of editableProfileFields(member.role === 'guest')) {
       const raw = fields[field.key]
       if (raw === undefined) continue
       if (typeof raw !== 'string') return failure(400, '请检查' + field.label + '。')
@@ -49,13 +49,16 @@ async function updateProfile(db: D1Database, member: Member, input: Record<strin
       }
       profile[field.key] = value
     }
+    const { title, ...details } = profile
+    const editTitle = member.role === 'guest' && fields.title !== undefined
     const remove = Number(input.removeLegacyContact)
     statement = db.prepare(`
       UPDATE meetup15_members SET display_name = ?, public_profile = ?,
+        title = CASE WHEN ? THEN ? ELSE title END,
         contact = CASE WHEN ? = 1 THEN NULL ELSE contact END,
         contact_public = CASE WHEN ? = 1 THEN 0 ELSE contact_public END,
         profile_revision = profile_revision + 1 WHERE id = ? AND profile_revision = ?
-    `).bind(name, JSON.stringify(profile), remove, remove, member.id, revision)
+    `).bind(name, JSON.stringify(details), Number(editTitle), title ?? null, remove, remove, member.id, revision)
   } else {
     // Older clients only edit the original contact field and its visibility.
     const contact = typeof input.contact === 'string' ? input.contact.trim() : null

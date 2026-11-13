@@ -7,8 +7,8 @@ import { INTERACTION_END, isMeetupAgendaSection, isMeetupSection, currentMeetupA
 
 const PAGE_SIZE = 30
 const ROUNDS = `
-  SELECT r.id, m.display_name AS guest, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt, r.generation
-  FROM meetup15_qa_rounds r JOIN meetup15_members m ON m.id = r.guest_id`
+  SELECT r.id, r.title, r.agenda_start AS agendaStart, r.section, r.opened_at AS openedAt, r.closed_at AS closedAt, r.generation
+  FROM meetup15_qa_rounds r`
 const ITEM_CONTENT = `
   d.id, d.kind, d.author_id AS authorId, COALESCE(m.display_name, '现场观众') AS author,
   m.role AS authorRole, d.body, d.tags, d.post_id AS postId, d.parent_reply_id AS parentId, d.answered, d.created_at AS createdAt`
@@ -323,16 +323,12 @@ export async function readDiscussionAdmin(db: D1Database, now: number): Promise<
     loadRounds(db),
   ])
   const context = discussionContext(state?.section_override, rounds, now)
-  const [questions, guests] = await Promise.all([
-    readQuestions(db, context.activeRound, ''),
-    db.prepare("SELECT id, display_name AS name FROM meetup15_members WHERE role = 'guest' ORDER BY name, id")
-      .all<StaffSnapshot['guests'][number]>(),
-  ])
+  const questions = await readQuestions(db, context.activeRound, '')
   const agendaStartOverride = state?.agenda_start_override ?? null
   const currentAgendaStart = currentMeetupAgenda(now, context.override, agendaStartOverride)?.start ?? null
   return { ...context, currentAgendaStart, agendaStartOverride,
     refreshAt: nextMeetupAgendaChange(now, context.override, agendaStartOverride),
-    viewedRound: context.activeRound, questions, guests: guests.results }
+    viewedRound: context.activeRound, questions }
 }
 
 export function readProjectionRounds(db: D1Database) {

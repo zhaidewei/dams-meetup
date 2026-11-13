@@ -1,10 +1,11 @@
-import { REHEARSAL_END } from '../src/lib/meetup15/event'
+import { MEETUP_DISCUSSION_AGENDA, REHEARSAL_END } from '../src/lib/meetup15/event'
 import { requestCookie } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, verifySessionCookie } from '../src/lib/session-cookie-crypto'
 import { rehearsalFixtures } from './rehearsal-fixtures'
 import type { ActivityEnv } from './activity'
 
 const headers = { 'Cache-Control': 'private, no-store' }
+const rehearsalQaSlot = MEETUP_DISCUSSION_AGENDA.find(slot => slot.section === 'expert')!
 const dataTables = [
   'meetup15_dm_threads', 'meetup15_raffles', 'meetup15_discussion', 'meetup15_qa_rounds', 'meetup15_polls',
 ]
@@ -58,13 +59,12 @@ async function fillRehearsal(db: D1Database, revision: number, now: number) {
       WHERE ${fixture}
     `).bind(JSON.stringify(replies), first.id),
     db.prepare(`
-      INSERT INTO meetup15_qa_rounds (guest_id, section, opened_at)
-      SELECT id, 'expert', ? FROM meetup15_members WHERE role = 'guest' AND ${fixture}
-      ORDER BY created_at, rowid LIMIT 1
-    `).bind(timestamp - 300, first.id),
+      INSERT INTO meetup15_qa_rounds (title, agenda_start, section, opened_at)
+      SELECT ?, ?, ?, ? WHERE ${fixture}
+    `).bind(rehearsalQaSlot.title, rehearsalQaSlot.start, rehearsalQaSlot.section, timestamp - 300, first.id),
     db.prepare(`
       INSERT INTO meetup15_discussion (kind, author_id, section, body, round_id, answered, created_at)
-      SELECT 'question', value->>'author', 'expert', value->>'body', r.id, value->>'answered', value->>'createdAt'
+      SELECT 'question', value->>'author', r.section, value->>'body', r.id, value->>'answered', value->>'createdAt'
       FROM json_each(?) CROSS JOIN meetup15_qa_rounds r WHERE r.closed_at IS NULL AND ${fixture}
     `).bind(JSON.stringify(questions), first.id),
     db.prepare(`

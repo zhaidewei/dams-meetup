@@ -55,6 +55,10 @@ it('keeps contact and message views private and commits one prize and message ac
   try {
     const db = await runtime.getD1Database('ACTIVITY_DB')
     for (const file of (await readdir('migrations')).sort()) {
+      if (file === '0023_meetup15_guest_profiles.sql') {
+        await db.prepare(`INSERT INTO meetup15_members (id, role, display_name, title, username, password_hash)
+          VALUES ('roster-guest', 'guest', '方芳', 'Founder & Director @ FF Quant Advisory', 'roster-guest', 'fixture')`).run()
+      }
       const sql = await readFile('migrations/' + file, 'utf8')
       const statements = sql.trim().split(/;\s*\n(?=(?:CREATE|ALTER|INSERT|UPDATE|DROP)\b)/)
       await db.batch(statements.map((statement) => db.prepare(statement)))
@@ -73,6 +77,17 @@ it('keeps contact and message views private and commits one prize and message ac
       db.prepare(`INSERT INTO meetup15_discussion (kind, author_id, section, body, post_id)
         VALUES ('reply', 'bob', 'lounge', '回复文字帖', 1)`),
     ])
+
+    const rosterGuest = member('roster-guest')
+    const seeded = await overview(rosterGuest)
+    expect(seeded).toMatchObject({ guest: true, publicProfile: { title: 'Founder & Director', company: 'FF Quant Advisory' } })
+    const saveGuest = { action: 'profile', name: '方芳', publicProfile: { title: '合伙人', company: '新公司' },
+      removeLegacyContact: false, revision: seeded.profileRevision }
+    expect((await request('personal', rosterGuest, saveGuest)).status).toBe(204)
+    expect(await (await request('personal?member=roster-guest', bob)).json()).toMatchObject({ publicProfile: saveGuest.publicProfile })
+    expect((await request('personal', rosterGuest, { ...saveGuest, publicProfile: { title: '', company: '' },
+      revision: seeded.profileRevision + 1 })).status).toBe(204)
+    expect(await (await request('personal?member=roster-guest', bob)).json()).toHaveProperty('publicProfile', {})
 
     expect((await request('personal', '')).status).toBe(401)
     await overview(member('inactive'))

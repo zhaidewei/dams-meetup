@@ -59,6 +59,24 @@ type AgendaSlot = {
   details?: readonly string[]
 }
 
+const lightningGuests = [
+  { name: '侯胜任', title: 'CEO', company: '任能科技' },
+  { name: '方芳', title: 'Founder & Director', company: 'FF Quant Advisory' },
+  { name: '江少杰', title: 'Founder', company: 'AI Colleagues' },
+  { name: 'Kiki Liu', title: 'CEO', company: 'Twente Medical Optics' },
+  { name: '许焕婕', title: 'Founder', company: 'PrePlay' },
+  { name: '徐宇迪', title: 'Managing Director', company: '100things.nl' },
+  { name: '张霁', title: 'Founder', company: 'Arboretica' },
+  { name: '朱颖', title: 'CEO', company: 'Agri-AI / Decilogic' },
+] as const
+const fundraisingGuest = { name: '王婧昳', title: 'Strategy Director', company: 'Prosus Ventures' } as const
+const legalGuest = { name: '彭湖湾', title: 'Legal Counsel', company: 'TomTom' } as const
+export const MEETUP_GUESTS = [...lightningGuests, fundraisingGuest, legalGuest]
+
+function guestLine({ name, title, company }: (typeof MEETUP_GUESTS)[number]) {
+  return `${name}，${title} @ ${company}`
+}
+
 export const MEETUP_AGENDA: readonly AgendaSlot[] = [
   {
     start: '12:45', end: '13:20', section: 'lounge',
@@ -69,23 +87,14 @@ export const MEETUP_AGENDA: readonly AgendaSlot[] = [
   {
     start: '13:30', end: '14:30', section: 'lightning',
     title: MEETUP_SECTIONS.lightning,
-    details: [
-      '侯胜任，CEO @ 任能科技',
-      '方芳，Founder & Director @ FF Quant Advisory',
-      '江少杰，Founder @ AI Colleagues',
-      'Kiki Liu，CEO @ Twente Medical Optics',
-      '许焕婕，Founder @ PrePlay',
-      '徐宇迪，Managing Director @ 100things.nl',
-      '张霁，Founder @ Arboretica',
-      '朱颖，CEO @ Agri-AI / Decilogic',
-    ],
+    details: lightningGuests.map(guestLine),
   },
   {
     start: '14:30', end: '15:00', section: 'expert',
     title: '专家分享：创业路上最贵的两课——钱和法',
     details: [
-      '《Tips for fundraising in Europe》——王婧昳，Strategy Director @ Prosus Ventures',
-      '《Ask AI, or call the lawyer?》——彭湖湾，Legal Counsel @ TomTom',
+      '《Tips for fundraising in Europe》——' + guestLine(fundraisingGuest),
+      '《Ask AI, or call the lawyer?》——' + guestLine(legalGuest),
     ],
   },
   {
@@ -100,6 +109,8 @@ export const MEETUP_AGENDA: readonly AgendaSlot[] = [
   },
   { start: '17:30', end: '18:00', section: 'lounge', title: '合影、闭幕、自由社交' },
 ]
+
+export const MEETUP_DISCUSSION_AGENDA = MEETUP_AGENDA.filter(slot => slot.section !== 'lounge')
 
 function agendaTime(time: string) {
   return Date.parse(`${EVENT_DAY}T${time}:00${EVENT_OFFSET}`)

@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID, scryptSync } from 'node:crypto'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie, verifySessionCookie } from '../src/lib/session-cookie-crypto'
-import { ADMISSION_END, INTERACTION_END, isMeetupSection, meetupDiscussionPath } from '../src/lib/meetup15/event'
+import { ADMISSION_END, INTERACTION_END, isMeetupSection, MEETUP_GUESTS, meetupDiscussionPath } from '../src/lib/meetup15/event'
+import { COMPANY_FIELD } from '../src/lib/meetup15/personal'
 import {
   admissionCredentials, equalSecret, findMember, getMember, isAdmissionOpen,
   matchesRecoveryToken, MEMBER_COOKIE, requestCookie,
@@ -37,13 +38,15 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
   const username = field(form, 'username').trim().toLowerCase()
   const displayName = field(form, 'displayName').trim()
   const title = field(form, 'title').trim()
+  const company = field(form, 'company').trim()
   const password = field(form, 'password')
   const action = field(form, 'action')
   const editing = action === 'edit'
   const creating = action === 'create'
   const invalid = editing ? '/admin/activity?tab=guests&guest=invalid&edit=' + encodeURIComponent(username) : '/admin/activity?guest=invalid'
   if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username) ||
-      !displayName || displayName.length > 80 || title.length > 120 ||
+      !displayName || displayName.length > 80 || title.length > 120 || company.length > COMPANY_FIELD.maxLength ||
+      /[\x00-\x1f]/.test(title + company) ||
       ((!editing || password) && (password.length < 12 || password.length > 128))) {
     return redirect(invalid)
   }
@@ -52,23 +55,35 @@ async function registerGuest(form: FormData, env: ActivityEnv) {
     const hash = salt ? `${salt}:${guestHash(password, salt)}` : null
     const saved = await env.ACTIVITY_DB.prepare(`
       UPDATE meetup15_members
-      SET display_name = ?, title = ?, password_hash = COALESCE(?, password_hash)
+      SET display_name = ?, title = ?,
+        public_profile = CASE WHEN ? IS NULL THEN public_profile ELSE json_patch(public_profile, ?) END,
+        profile_revision = profile_revision + 1, password_hash = COALESCE(?, password_hash)
       WHERE username = ? AND role = 'guest'
         AND NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
-    `).bind(displayName, title || null, hash, username).run()
+    `).bind(displayName, title || null, form.has('company') ? company : null,
+      JSON.stringify({ company: company || null }), hash, username).run()
     if (!saved.meta.changes) return redirect(invalid)
     await notifyDiscussion(env)
     return redirect('/admin/activity?guest=saved')
   }
   const salt = randomBytes(16).toString('hex')
+  const speaker = MEETUP_GUESTS.find(guest => guest.name === displayName)
+  const initialCompany = company || speaker?.company
   const saved = await env.ACTIVITY_DB.prepare(
-    `INSERT INTO meetup15_members (id, role, display_name, title, username, password_hash)
-     SELECT ?, 'guest', ?, ?, ?, ?
+    `INSERT INTO meetup15_members (id, role, display_name, title, public_profile, username, password_hash)
+     SELECT ?, 'guest', ?, ?, ?, ?, ?
      WHERE NOT EXISTS (SELECT 1 FROM meetup15_summary WHERE cleaned_at IS NOT NULL)
      ON CONFLICT (username) DO UPDATE SET
-       display_name = excluded.display_name, title = excluded.title, password_hash = excluded.password_hash
+       display_name = excluded.display_name,
+       title = CASE WHEN ? THEN ? ELSE meetup15_members.title END,
+       public_profile = CASE WHEN ? THEN json_patch(meetup15_members.public_profile, ?) ELSE meetup15_members.public_profile END,
+       password_hash = excluded.password_hash,
+       profile_revision = profile_revision + 1
      WHERE ?`,
-  ).bind(randomUUID(), displayName, title || null, username, `${salt}:${guestHash(password, salt)}`, Number(!creating)).run()
+  ).bind(randomUUID(), displayName, title || speaker?.title || null,
+    JSON.stringify({ company: initialCompany }), username, `${salt}:${guestHash(password, salt)}`,
+    Number(form.has('title')), title || null, Number(form.has('company')),
+    JSON.stringify({ company: company || null }), Number(!creating)).run()
   if (saved.meta.changes) {
     await notifyDiscussion(env)
     return redirect('/admin/activity?guest=saved')
