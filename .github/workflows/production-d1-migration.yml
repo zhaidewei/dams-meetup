@@ -1,0 +1,110 @@
+name: Apply production D1 migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Open PR number targeting main
+        required: true
+        type: string
+      head_sha:
+        description: Full PR commit SHA that passed PR checks
+        required: true
+        type: string
+      migration:
+        description: Migration filename, including .sql
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dams-meetup-15-production-d1
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Verify the PR and stage its migration
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$MIGRATION" =~ ^[0-9]{4}_[a-zA-Z0-9_-]+\.sql$ ]]
+
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
+            jq -e --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" '
+              .state == "open" and .draft == false and .base.ref == "main" and
+              .head.sha == $sha and .head.repo.full_name == $repo
+            ' >/dev/null
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pr-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=20" |
+            jq -e --arg sha "$HEAD_SHA" '
+              any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")
+            ' >/dev/null
+
+          git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$HEAD_SHA" ]]
+          [[ "$(git diff --name-only --diff-filter=A HEAD "$HEAD_SHA" -- "migrations/$MIGRATION")" == "migrations/$MIGRATION" ]]
+
+          migration_root="$RUNNER_TEMP/dams-production-d1"
+          mkdir -p "$migration_root/migrations"
+          git show "$HEAD_SHA:migrations/$MIGRATION" > "$migration_root/migrations/$MIGRATION"
+          {
+            git ls-tree --name-only HEAD:migrations
+            git ls-tree --name-only "$HEAD_SHA:migrations"
+          } | LC_ALL=C sort -u > "$migration_root/known-migrations.txt"
+
+          jq '{name, account_id, compatibility_date, d1_databases}' wrangler.jsonc > "$migration_root/wrangler.json"
+
+      - name: Apply the selected migration and read it back
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
+            echo "::error::Set CLOUDFLARE_D1_API_TOKEN in the production environment."
+            exit 1
+          fi
+          migration_root="$RUNNER_TEMP/dams-production-d1"
+          wrangler=(npx --no-install wrangler)
+          config=(--config "$migration_root/wrangler.json")
+          database=dams-meetup-15
+
+          "${wrangler[@]}" d1 execute "$database" --remote --json "${config[@]}" \
+            --command "SELECT name FROM d1_migrations;" |
+            jq -er '.[0] | select(.success == true) | .results[].name' > "$migration_root/applied.txt"
+
+          while IFS= read -r previous; do
+            [[ "$previous" == "$MIGRATION" ]] && break
+            [[ "$previous" =~ ^[0-9]{4}_.+\.sql$ ]] || continue
+            if ! grep -Fxq "$previous" "$migration_root/applied.txt"; then
+              echo "::error::Earlier migration is pending: $previous"
+              exit 1
+            fi
+          done < "$migration_root/known-migrations.txt"
+
+          "${wrangler[@]}" d1 migrations apply "$database" --remote "${config[@]}"
+          "${wrangler[@]}" d1 execute "$database" --remote --json "${config[@]}" \
+            --command "SELECT name FROM d1_migrations WHERE name = '$MIGRATION';" |
+            jq -er --arg migration "$MIGRATION" '.[0] | select(.success == true) | .results[] | select(.name == $migration) | .name'
