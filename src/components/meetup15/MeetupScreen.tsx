@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { MEETUP_AGENDA, MEETUP_DATE, MEETUP_NAME, MEETUP_SECTIONS } from '@/lib/meetup15/event'
 import { mergeQuestions } from '@/lib/meetup15/discussion'
 import type { ProjectionView } from '@/lib/meetup15/projection'
@@ -34,8 +35,10 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
         <section aria-label="议程展示" className={compact ? 'space-y-3' : 'space-y-5'}>
           <h1 className={heading}>活动议程</h1>
           <p className="text-slate-600">{MEETUP_DATE}</p>
-          <div className={compact ? 'space-y-4' : 'grid items-center gap-6 lg:grid-cols-[1fr_auto]'}>
-            <ol className="space-y-1 text-left">
+          <div className={compact
+            ? 'grid grid-cols-2 gap-x-4 gap-y-2'
+            : 'grid grid-cols-2 gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] lg:gap-x-8'}>
+            <ol className={`col-span-2 space-y-1 text-left ${compact ? 'mb-2' : 'mb-2 md:col-span-1 md:col-start-2 md:row-span-3 md:row-start-1 md:mb-0 md:self-center md:text-base lg:text-lg'}`}>
               {MEETUP_AGENDA.map((slot) => (
                 <li key={slot.start} aria-current={slot.start === data.currentStart ? 'step' : undefined}
                   className={slot.start === data.currentStart ? 'rounded-lg bg-dams-selection px-3 py-2 font-semibold text-dams-hover' : 'px-2 py-1'}>
@@ -44,7 +47,25 @@ export function ScreenContent({ data, compact = false }: { data: ProjectionView;
                 </li>
               ))}
             </ol>
-            <AdmissionScreen compact={compact} />
+            <section className={`col-start-1 row-span-3 grid min-w-0 grid-rows-subgrid rounded-xl border border-dams-line bg-white p-2 sm:p-3 ${compact ? '' : 'md:row-start-1'}`}>
+              <header className="space-y-1">
+                <h2 className="text-base font-semibold">活动平台入场</h2>
+                <p className="wrap-anywhere text-sm text-dams-hover">live.nl-dams.com</p>
+              </header>
+              <AdmissionScreen compact={compact} agenda />
+            </section>
+            <section className={`row-span-3 grid min-w-0 grid-rows-subgrid rounded-xl border border-dams-line bg-white p-2 sm:p-3 ${compact ? 'col-start-2' : 'col-start-2 md:col-start-3 md:row-start-1'}`}>
+              <header className="space-y-1">
+                <h2 className="text-base font-semibold">微信活动群</h2>
+                <p className="text-sm text-slate-700">微信扫码加入活动二群</p>
+              </header>
+              <Image src="/meetup15-wechat-group.png" alt="荷兰数据社群 Meetup 活动二群二维码"
+                width={732} height={732} unoptimized className="mx-auto h-auto w-full max-w-48 self-center" />
+              <div className="space-y-1">
+                <p className="text-sm text-slate-700">社群微信群采用实名邀请</p>
+                <p className="text-xs text-slate-600">群码 11 月 20 日前有效</p>
+              </div>
+            </section>
           </div>
         </section>
       )}

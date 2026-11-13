@@ -6,7 +6,11 @@ import { useEffect, useState } from 'react'
 
 type ScreenState = { open: false } | { open: true; password: string; qrPath: string }
 
-export function AdmissionScreen({ compact = false, copyable = false }: { compact?: boolean; copyable?: boolean }) {
+export function AdmissionScreen({ compact = false, copyable = false, agenda = false }: {
+  compact?: boolean
+  copyable?: boolean
+  agenda?: boolean
+}) {
   const [state, setState] = useState<ScreenState>({ open: false })
   const [copyStatus, setCopyStatus] = useState('')
   const [qrImage, setQrImage] = useState<{ url: string; image: string } | null>(null)
@@ -46,12 +50,33 @@ export function AdmissionScreen({ compact = false, copyable = false }: { compact
     }
   }, [])
 
+  if (agenda) return (
+    <>
+      <div className="flex items-center justify-center">
+        {state.open && qrImage?.url === state.qrPath && (
+          <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320}
+            className="mx-auto h-auto w-full max-w-48" />
+        )}
+        {!state.open && <p className="text-sm text-slate-700">观众入口当前关闭。</p>}
+      </div>
+      <div className="space-y-1">
+        {state.open && (
+          <>
+            <p className="wrap-anywhere font-mono text-sm font-semibold sm:text-base">{state.password}</p>
+            <p className="text-sm text-slate-700">扫码入场，或在首页输入密码</p>
+          </>
+        )}
+      </div>
+    </>
+  )
+
   return state.open ? (
     <section aria-label="观众入场凭据" className="space-y-4">
-      <p className={compact ? "text-sm" : "text-xl"}>扫码入场，或在活动首页输入现场密码</p>
+      <p className={compact ? 'text-sm' : 'text-xl'}>扫码入场，或在活动首页输入现场密码</p>
       {qrImage?.url === state.qrPath &&
-        <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320} className={compact ? "mx-auto h-auto w-24" : "mx-auto h-auto w-48 md:w-56"} />}
-      <p className={compact ? "font-mono text-base" : "font-mono text-3xl font-semibold tracking-wider"}>{state.password}</p>
+        <Image src={qrImage.image} alt="现场入场二维码" unoptimized width={320} height={320}
+          className={compact ? 'mx-auto h-auto w-24' : 'mx-auto h-auto w-48 md:w-56'} />}
+      <p className={compact ? 'font-mono text-base' : 'font-mono text-3xl font-semibold tracking-wider'}>{state.password}</p>
       {copyable && (
         <>
           <button type="button" className="min-h-11 rounded-full border border-dams-selection bg-white px-4 text-sm font-semibold text-dams-hover hover:bg-dams-wash"
