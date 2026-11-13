@@ -42,19 +42,19 @@ function RafflePool({ candidates, compact, showCount, activeIndex }: {
             <g key={index} role="img" aria-label={`${name} · ${percent}${won ? ' · 中奖' : ''}`}>
               <title>{name} · {percent}{won ? ' · 中奖' : ''}</title>
               <circle cx={x} cy={y} r={radius}
-                className={won ? 'fill-amber-100 stroke-amber-600' : 'fill-blue-50 stroke-blue-300'}
+                className={won ? 'fill-dams-orange-wash stroke-dams-orange-strong' : 'fill-blue-50 stroke-blue-300'}
                 strokeWidth={won ? 2 : 1.2} />
               {activeIndex === index && (
                 <circle data-raffle-highlight aria-hidden cx={x} cy={y} r={radius + 3}
                   className="fill-blue-400/20 stroke-dams-blue motion-reduce:hidden" strokeWidth={2.5} />
               )}
               <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={fontSize}
-                className={won ? 'fill-amber-950 font-bold' : 'fill-slate-900 font-semibold'}>
+                className={won ? 'fill-dams-ink font-bold' : 'fill-slate-900 font-semibold'}>
                 <tspan x={x} y={secondLine ? y - fontSize * 0.55 : y}>{firstLine}</tspan>
                 {secondLine && <tspan x={x} y={y + fontSize * 0.55}>{secondLine}</tspan>}
               </text>
               <text x={x} y={y + radius + 14} textAnchor="middle"
-                className={won ? 'fill-amber-800 text-[11px] font-bold' : 'fill-slate-600 text-[11px]'}>{percent}</text>
+                className={won ? 'fill-dams-ink text-[11px] font-bold' : 'fill-slate-600 text-[11px]'}>{percent}</text>
             </g>
           )
         })}
@@ -67,16 +67,16 @@ export function RaffleScreen({ data, compact }: { data: Extract<ProjectionView, 
   const { lottery, candidates, raffleId, rules } = data
   const { drawingFrame, soundEnabled, soundError, toggleSound } = useRaffleAnimation(raffleId, lottery, candidates.length)
   return (
-    <section aria-label="现场抽奖" className={`bg-dams-wash text-left text-slate-900 ${compact ? 'rounded-xl p-3' : 'min-h-svh px-[clamp(1rem,4vw,4.5rem)] py-[clamp(1.25rem,5vh,4rem)]'}`}>
+    <section aria-label="现场抽奖" className={`bg-white text-left text-dams-ink ${compact ? 'rounded-xl p-3' : 'min-h-svh px-[clamp(1rem,4vw,4.5rem)] py-[clamp(1.25rem,5vh,4rem)]'}`}>
       <div className={compact ? 'space-y-4' : 'mx-auto grid min-h-[88svh] max-w-[100rem] items-center gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,2.35fr)] xl:gap-14'}>
         <div className={compact ? 'space-y-3' : 'space-y-7'}>
           <header className={compact ? 'space-y-1' : 'space-y-3'}>
             <p className="text-sm font-medium text-dams-blue">{MEETUP_NAME}</p>
-            <h1 className={compact ? 'text-lg font-semibold' : 'text-[clamp(2.25rem,5vw,5.25rem)] leading-tight font-bold tracking-tight'}>现场抽奖</h1>
+            <h1 className={compact ? 'text-lg font-semibold text-dams-blue' : 'text-[clamp(2.25rem,5vw,5.25rem)] leading-tight font-bold tracking-tight text-dams-blue'}>现场抽奖</h1>
             {raffleId !== null && <p className="text-sm font-medium text-slate-600">第 {raffleId} 轮</p>}
             <div role="status" className={compact ? 'text-sm' : 'pt-1 text-lg'}>
               {lottery?.phase === 'winner' && (
-                <p className={`font-bold wrap-anywhere text-amber-800 ${compact ? 'text-lg' : 'text-[clamp(1.75rem,3.5vw,3.75rem)] leading-tight'}`}>
+                <p className={`font-bold wrap-anywhere text-dams-orange-strong ${compact ? 'text-lg' : 'text-[clamp(1.75rem,3.5vw,3.75rem)] leading-tight'}`}>
                   <span className={compact ? 'text-sm' : 'block text-base'}>{'恭喜 '}</span>{lottery.winner}！
                 </p>
               )}

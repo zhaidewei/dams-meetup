@@ -13,7 +13,8 @@ import { useDiscussion, type DiscussionTransport } from './useDiscussion'
 
 const feedButton = 'inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-slate-600 hover:bg-dams-wash aria-pressed:bg-dams-selection aria-pressed:text-dams-hover disabled:opacity-50'
 const agendaBoards = MEETUP_AGENDA.filter(({ section }) => section !== 'lounge')
-const qaStatus = 'inline-block whitespace-nowrap rounded-full bg-red-700 px-2 py-0.5 text-xs font-bold text-white'
+const qaStatus = 'inline-block whitespace-nowrap rounded-full bg-dams-orange px-2 py-0.5 text-xs font-bold text-dams-ink'
+const qaAction = 'inline-flex min-h-11 items-center rounded-full bg-dams-orange px-4 text-sm font-bold text-dams-ink hover:bg-dams-orange-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue'
 
 type Submit = (command: MemberCommand) => Promise<boolean>
 
@@ -347,15 +348,15 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
   return (
     <div>
       {active && !liveRound && (
-        <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 sm:mx-6">
+        <aside aria-label="进行中的问答" className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border-l-4 border-dams-orange bg-dams-orange-wash px-4 py-3 sm:mx-6">
           <div className="min-w-0 wrap-anywhere">
             <p className="flex flex-wrap items-center gap-2 text-sm font-semibold"><span className={qaStatus}>问答中</span>{active.guest}</p>
             <p className="text-sm text-slate-700">{qaSection}</p>
           </div>
           {qaLink ? (
-            <Link href={qaLink} scroll={false} className="inline-flex min-h-11 items-center rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue">前往提问</Link>
+            <Link href={qaLink} scroll={false} className={qaAction}>前往提问</Link>
           ) : (
-            <button className="min-h-11 rounded-full bg-dams-blue px-4 text-sm font-semibold text-white hover:bg-dams-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dams-blue"
+            <button type="button" className={qaAction}
               onClick={() => choose(active.section, true)}>前往提问</button>
           )}
         </aside>
@@ -387,7 +388,7 @@ export function DiscussionFeed({ free, initialAsk }: { free: boolean; initialAsk
                 <p className="flex flex-wrap items-center gap-2 font-semibold wrap-anywhere"><span className={qaStatus}>问答中</span>{viewed.guest}</p>
                 {named ? (
                   <DiscussionComposer key={viewed.id} label="你的问题" action="提交问题" pending={pending}
-                    featured maxLength={MAX_QUESTION_BODY} placeholder="你想问这位嘉宾什么？"
+                    featured accent maxLength={MAX_QUESTION_BODY} placeholder="你想问这位嘉宾什么？"
                     onSubmit={(body) => submit({ action: 'question', section: data.section, roundId: viewed.id, body })} />
                 ) : <p className="text-sm text-slate-700">填写上方昵称后即可提问。</p>}
               </div>
