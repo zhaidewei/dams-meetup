@@ -3,7 +3,7 @@ import { compareQuestions } from '../src/lib/meetup15/discussion'
 import type {
   DiscussionItem, DiscussionEmoji, FeedUpdate, FeedVersions, QuestionDelta, ModerationPage, QuestionRound, ReplyPage, DiscussionReaction, StaffSnapshot,
 } from '../src/lib/meetup15/discussion'
-import { INTERACTION_END, isMeetupAgendaSection, isMeetupSection, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
+import { INTERACTION_END, isMeetupAgendaSection, isMeetupSection, currentMeetupAgenda, nextMeetupAgendaChange, meetupSectionAt, nextMeetupSectionChange } from '../src/lib/meetup15/event'
 
 const PAGE_SIZE = 30
 const ROUNDS = `
@@ -318,7 +318,8 @@ export async function readModerationPosts(db: D1Database, url: URL, now: number)
 
 export async function readDiscussionAdmin(db: D1Database, now: number): Promise<StaffSnapshot> {
   const [state, rounds] = await Promise.all([
-    db.prepare('SELECT section_override FROM activity_state WHERE id = 1').first<{ section_override: unknown }>(),
+    db.prepare('SELECT section_override, agenda_start_override FROM activity_state WHERE id = 1')
+      .first<{ section_override: unknown; agenda_start_override: string | null }>(),
     loadRounds(db),
   ])
   const context = discussionContext(state?.section_override, rounds, now)
@@ -327,7 +328,11 @@ export async function readDiscussionAdmin(db: D1Database, now: number): Promise<
     db.prepare("SELECT id, display_name AS name FROM meetup15_members WHERE role = 'guest' ORDER BY name, id")
       .all<StaffSnapshot['guests'][number]>(),
   ])
-  return { ...context, viewedRound: context.activeRound, questions, guests: guests.results }
+  const agendaStartOverride = state?.agenda_start_override ?? null
+  const currentAgendaStart = currentMeetupAgenda(now, context.override, agendaStartOverride)?.start ?? null
+  return { ...context, currentAgendaStart, agendaStartOverride,
+    refreshAt: nextMeetupAgendaChange(now, context.override, agendaStartOverride),
+    viewedRound: context.activeRound, questions, guests: guests.results }
 }
 
 export function readProjectionRounds(db: D1Database) {

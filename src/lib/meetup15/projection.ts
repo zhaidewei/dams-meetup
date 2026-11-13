@@ -9,15 +9,18 @@ export const PROJECTION_MODES = {
   raffle: '现场抽奖',
 } as const
 
+export const OPENING_SLIDE_COUNT = 9
+
 export type ProjectionMode = keyof typeof PROJECTION_MODES
 export type ProjectionSelection =
-  | { mode: 'hidden' | 'opening' | 'agenda' }
+  | { mode: 'hidden' | 'agenda' }
+  | { mode: 'opening'; slide: number }
   | { mode: 'raffle'; raffleId?: number }
   | { mode: 'qa'; roundId: number }
 
 export type ProjectionView = { refreshAt: number | null } & (
   | { mode: 'hidden' }
-  | { mode: 'opening' }
+  | { mode: 'opening'; slide: number; revision: number }
   | { mode: 'agenda'; currentStart: string | null }
   | { mode: 'qa'; round: QuestionRound; questions: DiscussionItem[]; qaRevision?: number }
   | { mode: 'raffle'; lottery: LotteryScreen | null; raffleId: number | null; candidates: RaffleCandidateView[]; rules: RaffleRules | null }
@@ -31,4 +34,4 @@ export type ProjectionAdminSnapshot = {
   refreshAt: null
 }
 
-export type ProjectionCommand = ProjectionSelection & { revision: number }
+export type ProjectionCommand = (Exclude<ProjectionSelection, { mode: 'opening' }> | { mode: 'opening'; slide?: number }) & { revision: number }

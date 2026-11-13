@@ -4,7 +4,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { expect, it } from 'vitest'
 import { FEED_TIME_HEADER, FEED_VERSIONS_HEADER, type FeedSnapshot, type FeedUpdate, type QaPush, type ReplyPage, type StaffSnapshot } from '../src/lib/meetup15/discussion'
 import type { ProjectionAdminSnapshot, ProjectionView } from '../src/lib/meetup15/projection'
-import { INTERACTION_END, MEETUP_BREAKOUT_GROUPS } from '../src/lib/meetup15/event'
+import { currentMeetupAgenda, INTERACTION_END, MEETUP_BREAKOUT_GROUPS, nextMeetupAgendaChange } from '../src/lib/meetup15/event'
 import { MEMBER_COOKIE } from '../src/lib/meetup15/identity'
 import { ACTIVITY_ADMIN_COOKIE, signSessionCookie } from '../src/lib/session-cookie-crypto'
 
@@ -120,6 +120,18 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: null })
     await ok(admin, { action: 'section', section: null }, '/admin')
     expect(await screen()).toMatchObject({ mode: 'agenda', currentStart: '13:30' })
+    await ok(admin, { action: 'section', section: 'expert' }, '/admin')
+    expect((await command(admin, { action: 'agenda', start: '14:00' }, '/admin')).status).toBe(400)
+    expect((await command(alice, { action: 'agenda', start: '12:45' }, '/admin')).status).toBe(401)
+    for (const [start, section] of [['12:45', 'lounge'], ['13:20', 'lounge'], ['15:00', 'breakout'], ['17:30', 'lounge']]) {
+      await ok(admin, { action: 'agenda', start }, '/admin')
+      expect(await staff()).toMatchObject({ currentAgendaStart: start, currentSection: section, override: section })
+      expect(await screen()).toMatchObject({ currentStart: start, refreshAt: null })
+      expect((await feed(alice)).section).toBe(section)
+    }
+    await ok(admin, { action: 'agenda', start: null }, '/admin')
+    expect(await staff()).toMatchObject({ currentAgendaStart: '13:30', override: null })
+    expect(await screen()).toMatchObject({ currentStart: '13:30' })
     await ok(admin, { action: 'section', section: 'expert' }, '/admin')
     const feedResponse = await read(alice)
     expect(feedResponse.headers.get(FEED_TIME_HEADER)).toBe(String(now))
@@ -390,13 +402,19 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
 
     const openingRevision = (await projection()).revision
     expect((await preview('mode=opening', alice)).status).toBe(401)
-    expect(await (await preview('mode=opening')).json()).toEqual({ mode: 'opening', refreshAt: null })
+    expect(await (await preview('mode=opening')).json()).toMatchObject({ mode: 'opening', slide: 0, refreshAt: null })
     expect((await screen()).mode).toBe('raffle')
     expect((await switchScreen({ mode: 'opening', revision: openingRevision })).status).toBe(204)
-    expect((await projection()).selection).toEqual({ mode: 'opening' })
+    expect((await projection()).selection).toEqual({ mode: 'opening', slide: 0 })
     expect((await screen()).mode).toBe('opening')
     expect((await switchScreen({ mode: 'agenda', revision: openingRevision })).status).toBe(409)
-    expect((await switchScreen({ mode: 'agenda', revision: openingRevision + 1 })).status).toBe(204)
+    expect((await switchScreen({ mode: 'opening', slide: 9, revision: openingRevision + 1 })).status).toBe(400)
+    expect((await switchScreen({ mode: 'opening', slide: 1, revision: openingRevision + 1 }, alice)).status).toBe(401)
+    expect((await switchScreen({ mode: 'opening', slide: 8, revision: openingRevision + 1 })).status).toBe(204)
+    expect(await screen()).toMatchObject({ mode: 'opening', slide: 8, revision: openingRevision + 2 })
+    expect((await projection()).selection).toEqual({ mode: 'opening', slide: 8 })
+    expect((await switchScreen({ mode: 'opening', slide: 7, revision: openingRevision + 1 })).status).toBe(409)
+    expect((await switchScreen({ mode: 'agenda', revision: openingRevision + 2 })).status).toBe(204)
     expect((await screen()).mode).toBe('agenda')
     attendeeSocket.close(1000)
     screenSocket.close(1000)
@@ -404,3 +422,11 @@ it('runs the discussion board and round-scoped Q&A with authenticated realtime u
     await runtime.dispose()
   }
 }, 20_000)
+
+it('keeps legacy lounge highlighting scheduled while explicit agenda slots stay pinned', () => {
+  const opening = Date.parse('2026-11-14T13:25:00+01:00')
+  expect(currentMeetupAgenda(opening, 'lounge')?.start).toBe('13:20')
+  expect(nextMeetupAgendaChange(opening, 'lounge')).toBe(Date.parse('2026-11-14T13:30:00+01:00'))
+  expect(currentMeetupAgenda(opening, 'lounge', '17:30')?.start).toBe('17:30')
+  expect(nextMeetupAgendaChange(opening, 'lounge', '17:30')).toBeNull()
+})

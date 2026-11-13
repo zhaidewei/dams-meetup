@@ -102,6 +102,8 @@ export type ModerationPage = {
 
 export type StaffSnapshot = DiscussionContext & {
   guests: { id: string; name: string }[]
+  currentAgendaStart: string | null
+  agendaStartOverride: string | null
 }
 
 export type MemberCommand =
@@ -116,6 +118,7 @@ export type MemberCommand =
 
 export type StaffCommand =
   | { action: 'section'; section: MeetupAgendaSection | null }
+  | { action: 'agenda'; start: string | null }
   | { action: 'start'; guestId: string; activeRoundId: number | null; latestRoundId: number | null }
   | { action: 'end'; roundId: number }
   | { action: 'answer'; id: number; answered: boolean }
