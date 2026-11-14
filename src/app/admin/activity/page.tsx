@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { isMeetupAdmin } from '@/lib/meetup15/server'
+import { isMeetupAdmin, meetupEnv } from '@/lib/meetup15/server'
+import { meetupNow, REHEARSAL_END } from '@/lib/meetup15/event'
 import { PostModeration } from '@/components/meetup15/PostModeration'
 import { ActivityAdminPanels } from './ActivityAdminPanels'
 import { ActivityControls } from './ActivityControls'
@@ -26,7 +27,11 @@ export default async function ActivityAdminPage({
   searchParams: Promise<{ error?: string; edit?: string; guest?: string; tab?: string; summary?: string; rehearsal?: string }>
 }) {
   const [signedIn, { error, edit, guest, tab, summary, rehearsal }] = await Promise.all([isMeetupAdmin(), searchParams])
-  const selected = tab === 'qa' ? 'screen' : tab && Object.hasOwn(ADMIN_TABS, tab) ? tab : guest ? 'guests' : 'screen'
+  const rehearsalOpen = signedIn && meetupNow(meetupEnv()) < REHEARSAL_END
+  const tabs = Object.entries(ADMIN_TABS).filter(([key]) => key !== 'rehearsal' || rehearsalOpen)
+  const selected = tab === 'qa' || (tab === 'rehearsal' && !rehearsalOpen)
+    ? 'screen'
+    : tabs.find(([key]) => key === tab)?.[0] ?? (guest ? 'guests' : 'screen')
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6">
@@ -34,7 +39,7 @@ export default async function ActivityAdminPage({
         <p className="text-xl font-semibold">第 15 期 Meetup · 主办方控制台</p>
         {signedIn && (
           <nav aria-label="主办方导航" className="flex gap-1 overflow-x-auto">
-            {Object.entries(ADMIN_TABS).map(([key, label]) => (
+            {tabs.map(([key, label]) => (
               <Link key={key} href={`/admin/activity?tab=${key}`} aria-current={selected === key ? 'page' : undefined}
                 className={`min-h-11 shrink-0 rounded-full px-4 py-2.5 text-sm ${selected === key ? 'bg-dams-selection font-semibold text-dams-hover' : 'text-zinc-700 hover:bg-dams-wash'}`}>
                 {label}
@@ -43,6 +48,9 @@ export default async function ActivityAdminPage({
           </nav>
         )}
       </header>
+      {signedIn && tab === 'rehearsal' && !rehearsalOpen && (
+        <p role="status" className="text-sm text-zinc-700">彩排数据操作已关闭。</p>
+      )}
       {signedIn ? (
         <ActivityAdminPanels showProjection={selected === 'screen'} openQuestions={tab === 'qa'}>
           {selected === 'entry' && <ActivityControls />}
